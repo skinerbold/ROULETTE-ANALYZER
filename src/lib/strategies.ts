@@ -16,7 +16,7 @@ export interface StrategyFolder {
   strategies: Strategy[] 
 }
 
-export type ChipCategory = 'up-to-9' | 'more-than-9'
+export type ChipCategory = 'up-to-9' | 'more-than-9' | 'all'
 
 // ========================================
 // ESTRATÉGIAS ATÉ 9 FICHAS - 223 ESTRATÉGIAS
@@ -503,6 +503,10 @@ const strategiesMoreThan9: StrategyFolder[] = [
 // ========================================
 
 export function getAllStrategies(category: ChipCategory): StrategyFolder[] {
+  if (category === 'all') {
+    // Combinar todas as estratégias (até 9 + mais de 9)
+    return [...strategiesUpTo9, ...strategiesMoreThan9]
+  }
   return category === 'up-to-9' ? strategiesUpTo9 : strategiesMoreThan9
 }
 

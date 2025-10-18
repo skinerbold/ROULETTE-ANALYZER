@@ -33,7 +33,7 @@ export interface UserSession {
   id?: string
   user_id: string
   numbers: number[]
-  chip_category?: 'up-to-9' | 'more-than-9' // Opcional para compatibilidade
+  chip_category?: 'up-to-9' | 'more-than-9' | 'all' // Atualizado para incluir 'all'
   selected_strategy?: number // Mantido para compatibilidade (backward)
   selected_strategies?: number[] // NOVO: Array de IDs de estratégias selecionadas
   created_at?: string

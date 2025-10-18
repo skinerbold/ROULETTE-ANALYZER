@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, ChevronLeft, Layers } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
 import { StrategyStats, UserSession } from '@/lib/types'
@@ -29,6 +30,8 @@ export default function Home() {
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
   const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
+  const [selectedRoulette, setSelectedRoulette] = useState<string>('european') // Estado para roleta selecionada (placeholder)
+  const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
@@ -340,11 +343,42 @@ export default function Home() {
     }
   }
 
+  // Função para selecionar/desselecionar todas as estratégias da categoria atual (otimizada)
+  const toggleSelectAllFolders = useCallback(() => {
+    if (selectAllFolders) {
+      // Desselecionar todas
+      setSelectedStrategies([])
+      setSelectAllFolders(false)
+    } else {
+      // Selecionar todas as estratégias da categoria atual
+      const allStrategyIds = STRATEGIES.map(s => s.id)
+      setSelectedStrategies(allStrategyIds)
+      setSelectAllFolders(true)
+    }
+  }, [selectAllFolders, STRATEGIES])
+
+  // Verificar se todas as estratégias da categoria estão selecionadas (memoizada)
+  const areAllFoldersSelected = useCallback(() => {
+    if (STRATEGIES.length === 0) return false
+    const allStrategyIds = STRATEGIES.map(s => s.id)
+    return allStrategyIds.every(id => selectedStrategies.includes(id))
+  }, [STRATEGIES, selectedStrategies])
+
+  // Atualizar o estado selectAllFolders quando as seleções mudarem (com debounce implícito)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSelectAllFolders(areAllFoldersSelected())
+    }, 100) // Pequeno debounce para evitar muitas atualizações
+    
+    return () => clearTimeout(timer)
+  }, [selectedStrategies, chipCategory, areAllFoldersSelected])
+
   const isFolderFullySelected = (folderName: string) => {
     const folder = FOLDERS.find(f => f.name === folderName)
     if (!folder) return false
     return folder.strategies.every(s => selectedStrategies.includes(s.id))
   }
+
 
   const parseNumbers = (text: string): number[] => {
     // Remove espaços extras e divide por vírgulas e quebras de linha
@@ -603,9 +637,35 @@ export default function Home() {
   }
 
   // CORREÇÃO: Pegar a ÚLTIMA estratégia selecionada para dashboard e cores
-  const lastSelectedStrategyId = selectedStrategies.length > 0 
-    ? selectedStrategies[selectedStrategies.length - 1] 
-    : null
+  // Determinar qual estratégia mostrar no resumo/tabela
+  // Se "All Pastas" ativo: melhor estratégia por desempenho
+  // Se seleção manual: última selecionada
+  const getActiveStrategyId = () => {
+    if (selectedStrategies.length === 0) return null
+    
+    if (selectAllFolders) {
+      // "All Pastas" ativo: retornar a melhor estratégia por desempenho
+      const bestStrategy = strategyStats
+        .filter(s => selectedStrategies.includes(s.id))
+        .sort((a, b) => {
+          const perfA = a.activations > 0 ? (a.totalGreen / a.activations) : 0
+          const perfB = b.activations > 0 ? (b.totalGreen / b.activations) : 0
+          
+          if (perfB === perfA) {
+            return b.profit - a.profit
+          }
+          
+          return perfB - perfA
+        })[0]
+      
+      return bestStrategy?.id || selectedStrategies[selectedStrategies.length - 1]
+    }
+    
+    // Seleção manual: última selecionada
+    return selectedStrategies[selectedStrategies.length - 1]
+  }
+
+  const lastSelectedStrategyId = getActiveStrategyId()
   
   const lastSelectedStrategy = lastSelectedStrategyId 
     ? STRATEGIES.find(s => s.id === lastSelectedStrategyId) 
@@ -614,6 +674,95 @@ export default function Home() {
   const lastSelectedStrategyStats = lastSelectedStrategyId 
     ? strategyStats.find(s => s.id === lastSelectedStrategyId) 
     : null
+
+  // NOVA FUNCIONALIDADE: Ordenar pastas e estratégias dinamicamente por desempenho
+  const getSortedFolders = () => {
+    if (numbers.length === 0) {
+      // Sem números, manter ordem original
+      return FOLDERS
+    }
+
+    return FOLDERS.map(folder => {
+      // Calcular desempenho médio da pasta
+      const folderStrategiesStats = folder.strategies
+        .map(strategy => strategyStats.find(s => s.id === strategy.id))
+        .filter(Boolean)
+      
+      if (folderStrategiesStats.length === 0) {
+        return {
+          ...folder,
+          avgPerformance: 0,
+          strategies: folder.strategies // Manter ordem original
+        }
+      }
+
+      // Performance = taxa de aproveitamento (GREEN / ATIVAÇÕES)
+      const totalActivations = folderStrategiesStats.reduce((sum, s) => sum + (s?.activations || 0), 0)
+      const totalGreen = folderStrategiesStats.reduce((sum, s) => sum + (s?.totalGreen || 0), 0)
+      const avgPerformance = totalActivations > 0 ? (totalGreen / totalActivations) : 0
+
+      // Ordenar estratégias dentro da pasta por desempenho
+      const sortedStrategies = [...folder.strategies].sort((a, b) => {
+        const statsA = strategyStats.find(s => s.id === a.id)
+        const statsB = strategyStats.find(s => s.id === b.id)
+        
+        if (!statsA || !statsB) return 0
+        
+        // Performance individual = GREEN / ATIVAÇÕES
+        const perfA = statsA.activations > 0 ? (statsA.totalGreen / statsA.activations) : 0
+        const perfB = statsB.activations > 0 ? (statsB.totalGreen / statsB.activations) : 0
+        
+        // Em caso de empate, usar profit como desempate
+        if (perfB === perfA) {
+          return (statsB.profit || 0) - (statsA.profit || 0)
+        }
+        
+        return perfB - perfA // Maior performance primeiro
+      })
+
+      return {
+        ...folder,
+        avgPerformance,
+        strategies: sortedStrategies
+      }
+    }).sort((a, b) => {
+      // Ordenar pastas por performance média
+      return b.avgPerformance - a.avgPerformance
+    })
+  }
+
+  const sortedFolders = getSortedFolders()
+
+  // Memoizar estratégias selecionadas ordenadas por desempenho (OTIMIZAÇÃO)
+  const sortedSelectedStrategies = useMemo(() => {
+    // Limitar a 50 estratégias por vez para evitar travamento
+    const MAX_DISPLAY = 50
+    
+    const strategies = selectedStrategies
+      .map(strategyId => strategyStats.find(s => s.id === strategyId))
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (!a || !b) return 0
+        
+        // Ordenar por taxa de aproveitamento (GREEN / ATIVAÇÕES)
+        const perfA = a.activations > 0 ? (a.totalGreen / a.activations) : 0
+        const perfB = b.activations > 0 ? (b.totalGreen / b.activations) : 0
+        
+        // Em caso de empate, usar profit como desempate
+        if (perfB === perfA) {
+          return b.profit - a.profit
+        }
+        
+        return perfB - perfA // Melhor desempenho primeiro
+      })
+    
+    // Retornar apenas as primeiras 50 para performance
+    return {
+      displayed: strategies.slice(0, MAX_DISPLAY),
+      total: strategies.length,
+      hasMore: strategies.length > MAX_DISPLAY
+    }
+  }, [selectedStrategies, strategyStats])
 
   // Mostrar loading enquanto verifica autenticação
   if (isLoadingSession) {
@@ -641,6 +790,34 @@ export default function Home() {
       
       {/* Layout Mobile/Tablet - Tela cheia para números */}
       <div className="lg:hidden">
+        {/* Seletor de Roleta - Mobile */}
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              🎰 Roleta
+            </label>
+            <Select value={selectedRoulette} onValueChange={setSelectedRoulette}>
+              <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
+                <SelectValue placeholder="Escolha..." />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 border-gray-600">
+                <SelectItem value="european" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  🇪🇺 Europeia (0-36)
+                </SelectItem>
+                <SelectItem value="american" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  🇺🇸 Americana (0-00-36)
+                </SelectItem>
+                <SelectItem value="french" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  🇫🇷 Francesa (0-36)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 italic">
+              * Em desenvolvimento
+            </p>
+          </div>
+        </div>
+
         {/* Botões de controle mobile */}
         <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700">
           <Button
@@ -652,15 +829,24 @@ export default function Home() {
           </Button>
           
           <Button
-            onClick={() => setChipCategory(chipCategory === 'up-to-9' ? 'more-than-9' : 'up-to-9')}
+            onClick={() => {
+              // Ciclar entre as 3 categorias: até 9 → +9 → todas → até 9
+              const nextCategory = 
+                chipCategory === 'up-to-9' ? 'more-than-9' :
+                chipCategory === 'more-than-9' ? 'all' :
+                'up-to-9'
+              setChipCategory(nextCategory)
+            }}
             className={`flex items-center gap-2 px-4 py-2 ${
               chipCategory === 'up-to-9' 
                 ? 'bg-purple-600 hover:bg-purple-700' 
-                : 'bg-orange-600 hover:bg-orange-700'
+                : chipCategory === 'more-than-9'
+                ? 'bg-orange-600 hover:bg-orange-700'
+                : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
             <Layers className="w-4 h-4" />
-            {chipCategory === 'up-to-9' ? 'Até 9' : '+9'}
+            {chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}
           </Button>
           
           <div className="text-sm text-center flex-1 min-w-0 px-2">
@@ -696,7 +882,11 @@ export default function Home() {
               value={currentNumbers}
               onChange={(e) => setCurrentNumbers(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ex: 1, 5, 12, 23 (Enter para adicionar)"
+              placeholder={
+                lastSelectedStrategy 
+                  ? `Ex: ${lastSelectedStrategy.numbers.slice(0, 6).join(', ')}${lastSelectedStrategy.numbers.length > 6 ? '...' : ''} (números da estratégia ${lastSelectedStrategy.name})`
+                  : "Ex: 1, 5, 12, 23 (Enter para adicionar)"
+              }
               className="h-12 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-base font-mono"
             />
             
@@ -774,10 +964,30 @@ export default function Home() {
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
               </div>
+
+              {/* Botão All Pastas - Mobile */}
+              <div className="p-3 border-b border-gray-700">
+                <Button
+                  onClick={toggleSelectAllFolders}
+                  className={`w-full py-2.5 text-sm font-semibold transition-all ${
+                    selectAllFolders
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
+                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                  }`}
+                >
+                  {selectAllFolders ? '✓ All Pastas' : '📁 All Pastas'}
+                </Button>
+                <p className="text-xs text-gray-500 mt-1.5 text-center">
+                  {selectAllFolders 
+                    ? `${selectedStrategies.length} selecionadas` 
+                    : `${STRATEGIES.length} estratégias disponíveis`
+                  }
+                </p>
+              </div>
               
-              <ScrollArea className="h-[calc(100vh-80px)]">
+              <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="p-4 space-y-2">
-                  {FOLDERS.map((folder) => (
+                  {sortedFolders.map((folder) => (
                     <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
                       {/* Header da pasta */}
                       <div className="bg-gray-700">
@@ -891,6 +1101,9 @@ export default function Home() {
                           <BarChart3 className="w-5 h-5" />
                           Resumo
                         </CardTitle>
+                        <p className="text-xs text-gray-400 mt-2 truncate" title={lastSelectedStrategy?.name}>
+                          {lastSelectedStrategy?.name}
+                        </p>
                       </CardHeader>
                       <CardContent className="pt-0">
                         <div className="grid grid-cols-2 gap-3 mb-3">
@@ -916,6 +1129,91 @@ export default function Home() {
                       </CardContent>
                     </Card>
 
+                    {/* Tabela de Números Quentes e Frios */}
+                    {lastSelectedStrategy && numbers.length > 0 && (
+                      <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
+                        <CardHeader className="pb-3 pt-3 px-4">
+                          <CardTitle className="text-sm text-gray-300">🔥 Números Quentes & ❄️ Frios</CardTitle>
+                          <p className="text-xs text-gray-500 mt-1">Baseado na estratégia: {lastSelectedStrategy.name}</p>
+                        </CardHeader>
+                        <CardContent className="pt-0 pb-3 px-4">
+                          {(() => {
+                            // Obter números da estratégia
+                            const strategyNumbers = lastSelectedStrategy.numbers
+                            
+                            // Contar aparições de cada número da estratégia
+                            const numberCounts = strategyNumbers.map(num => ({
+                              number: num,
+                              count: numbers.filter(n => n === num).length
+                            }))
+                            
+                            // Separar em Quentes (que apareceram) e Frios (que não apareceram)
+                            const hotNumbers = numberCounts
+                              .filter(nc => nc.count > 0)
+                              .sort((a, b) => b.count - a.count) // Mais apareceram primeiro
+                            
+                            const coldNumbers = numberCounts
+                              .filter(nc => nc.count === 0)
+                              .map(nc => nc.number)
+                              .sort((a, b) => a - b) // Ordem crescente
+                            
+                            return (
+                              <div className="space-y-3">
+                                {/* Números Quentes */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="text-xs font-semibold text-orange-400">🔥 QUENTES</div>
+                                    <div className="text-xs text-gray-500">({hotNumbers.length})</div>
+                                  </div>
+                                  {hotNumbers.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {hotNumbers.map(({ number, count }) => (
+                                        <div 
+                                          key={number}
+                                          className="relative inline-flex items-center justify-center"
+                                        >
+                                          <div className="w-8 h-8 rounded-md bg-orange-600 text-white font-bold text-xs flex items-center justify-center border border-orange-400">
+                                            {number}
+                                          </div>
+                                          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border border-gray-900">
+                                            {count}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-gray-500 italic">Nenhum número da estratégia apareceu ainda</p>
+                                  )}
+                                </div>
+                                
+                                {/* Números Frios */}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="text-xs font-semibold text-cyan-400">❄️ FRIOS</div>
+                                    <div className="text-xs text-gray-500">({coldNumbers.length})</div>
+                                  </div>
+                                  {coldNumbers.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {coldNumbers.map(number => (
+                                        <div 
+                                          key={number}
+                                          className="w-8 h-8 rounded-md bg-cyan-700 text-white font-bold text-xs flex items-center justify-center border border-cyan-500"
+                                        >
+                                          {number}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-gray-500 italic">Todos os números da estratégia já apareceram!</p>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
+                        </CardContent>
+                      </Card>
+                    )}
+
                     {/* Outras métricas... */}
                     <Card className="bg-gray-700 border-gray-600">
                       <CardHeader className="pb-3">
@@ -938,6 +1236,81 @@ export default function Home() {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* Título da seção de Análise Individual */}
+                    <div className="mt-4 mb-3">
+                      <h3 className="text-base font-semibold text-white mb-1">Análise Individual</h3>
+                      <p className="text-xs text-gray-400">Desempenho de cada estratégia selecionada</p>
+                    </div>
+
+                    {/* Lista de estratégias selecionadas ordenadas por desempenho (OTIMIZADA) */}
+                    {sortedSelectedStrategies.displayed.map((stats, index) => {
+                        if (!stats) return null
+                        const isProfitable = stats.profit >= 0
+                        const isTopPerformer = index === 0 && isProfitable
+                        const isWorstPerformer = index === sortedSelectedStrategies.displayed.length - 1 && !isProfitable
+                        
+                        return (
+                          <Card 
+                            key={stats.id} 
+                            className={`border shadow-enhanced transition-all mb-3 ${
+                              isTopPerformer 
+                                ? 'bg-green-900 border-green-600 ring-2 ring-green-500' 
+                                : isWorstPerformer 
+                                ? 'bg-red-900 border-red-600 ring-2 ring-red-500' 
+                                : isProfitable
+                                ? 'bg-gray-700 border-green-700'
+                                : 'bg-gray-700 border-red-700'
+                            }`}
+                          >
+                            <CardHeader className="pb-2 pt-3 px-4">
+                              <div className="flex items-start justify-between gap-3 overflow-hidden">
+                                <div className="flex-1 min-w-0 overflow-hidden">
+                                  <CardTitle className="text-sm font-semibold text-white leading-tight truncate">
+                                    {stats.name}
+                                  </CardTitle>
+                                  {isTopPerformer && (
+                                    <span className="text-xs text-green-300 font-medium whitespace-nowrap overflow-hidden text-ellipsis block">🏆 Melhor desempenho</span>
+                                  )}
+                                  {isWorstPerformer && (
+                                    <span className="text-xs text-red-300 font-medium whitespace-nowrap overflow-hidden text-ellipsis block">⚠️ Pior desempenho</span>
+                                  )}
+                                </div>
+                                <div className={`text-lg font-bold ${isProfitable ? 'text-green-400' : 'text-red-400'} flex-shrink-0 text-right whitespace-nowrap`}>
+                                  {isProfitable ? '+' : ''}{stats.profit}
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0 pb-3 px-4">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="text-center p-2 bg-gray-800 rounded overflow-hidden">
+                                  <div className="text-lg font-bold text-green-400 truncate">{stats.totalGreen}</div>
+                                  <div className="text-xs text-gray-400">GREEN</div>
+                                </div>
+                                <div className="text-center p-2 bg-gray-800 rounded overflow-hidden">
+                                  <div className="text-lg font-bold text-red-400 truncate">{stats.totalRed}</div>
+                                  <div className="text-xs text-gray-400">RED</div>
+                                </div>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-400 text-center truncate">
+                                {stats.activations} ativações
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    
+                    {/* Aviso quando há mais estratégias */}
+                    {sortedSelectedStrategies.hasMore && (
+                      <div className="mt-3 p-4 bg-blue-900/30 border border-blue-600/30 rounded-lg text-center">
+                        <p className="text-sm text-blue-300 font-medium">
+                          📊 Mostrando top 50 de {sortedSelectedStrategies.total} estratégias
+                        </p>
+                        <p className="text-xs text-blue-400 mt-1">
+                          Para melhor performance, limitamos a exibição
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </ScrollArea>
               ) : (
@@ -955,19 +1328,87 @@ export default function Home() {
         {/* Menu Lateral Esquerdo - Estratégias */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-700 space-y-4 flex-shrink-0">
-            <Button
-              onClick={() => setChipCategory(chipCategory === 'up-to-9' ? 'more-than-9' : 'up-to-9')}
-              className={`w-full flex items-center justify-center gap-2 py-2 ${
-                chipCategory === 'up-to-9' 
-                  ? 'bg-purple-600 hover:bg-purple-700' 
-                  : 'bg-orange-600 hover:bg-orange-700'
-              }`}
-            >
-              <Layers className="w-5 h-5" />
-              <span className="font-semibold">
-                {chipCategory === 'up-to-9' ? 'Estratégias até 9 fichas' : 'Estratégias +9 fichas'}
-              </span>
-            </Button>
+            {/* Seletor de Roleta */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                🎰 Selecionar Roleta
+              </label>
+              <Select value={selectedRoulette} onValueChange={setSelectedRoulette}>
+                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                  <SelectValue placeholder="Escolha uma roleta..." />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700 border-gray-600">
+                  <SelectItem value="european" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    🇪🇺 Roleta Europeia (0-36)
+                  </SelectItem>
+                  <SelectItem value="american" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    🇺🇸 Roleta Americana (0-00-36)
+                  </SelectItem>
+                  <SelectItem value="french" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    🇫🇷 Roleta Francesa (0-36)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 italic">
+                * Funcionalidade em desenvolvimento
+              </p>
+            </div>
+
+            {/* Grupo de botões de categoria */}
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                onClick={() => setChipCategory('up-to-9')}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'up-to-9' 
+                    ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                Até 9
+              </Button>
+              
+              <Button
+                onClick={() => setChipCategory('more-than-9')}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'more-than-9' 
+                    ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                +9
+              </Button>
+              
+              <Button
+                onClick={() => setChipCategory('all')}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'all' 
+                    ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                Todas
+              </Button>
+            </div>
+
+            {/* Botão All Pastas */}
+            <div>
+              <Button
+                onClick={toggleSelectAllFolders}
+                className={`w-full py-2.5 text-sm font-semibold transition-all ${
+                  selectAllFolders
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
+              </Button>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                {selectAllFolders 
+                  ? `${selectedStrategies.length} estratégias selecionadas` 
+                  : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
+                }
+              </p>
+            </div>
             
             <div>
               <h2 className="text-xl font-semibold text-white mb-2">Estratégias</h2>
@@ -977,7 +1418,7 @@ export default function Home() {
           
           <ScrollArea className="flex-1 overflow-y-auto">
             <div className="p-4 space-y-2">
-              {FOLDERS.map((folder) => (
+              {sortedFolders.map((folder) => (
                 <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
                   {/* Header da pasta */}
                   <div className="bg-gray-700">
@@ -1069,7 +1510,11 @@ export default function Home() {
                   value={currentNumbers}
                   onChange={(e) => setCurrentNumbers(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ex: 1, 5, 12, 23 ou 1 5 12 23 (Enter para adicionar)"
+                  placeholder={
+                    lastSelectedStrategy 
+                      ? `Ex: ${lastSelectedStrategy.numbers.slice(0, 8).join(', ')}${lastSelectedStrategy.numbers.length > 8 ? '...' : ''} (números favoráveis da estratégia: ${lastSelectedStrategy.name})`
+                      : "Ex: 1, 5, 12, 23 ou 1 5 12 23 (Enter para adicionar)"
+                  }
                   className="h-10 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-base font-mono"
                 />
               </div>
@@ -1233,7 +1678,7 @@ export default function Home() {
                       : 'bg-gradient-to-br from-red-900 to-gray-800 border-red-500'
                   }`}>
                     <CardHeader className="pb-3 pt-4 px-4">
-                      <CardTitle className="text-base font-bold text-white">
+                      <CardTitle className="text-base font-bold text-white flex items-center gap-2">
                         📊 Resumo da Estratégia Ativa
                       </CardTitle>
                       <p className="text-xs text-gray-300 mt-1 truncate" title={lastSelectedStrategyStats.name}>
@@ -1287,6 +1732,91 @@ export default function Home() {
                   </Card>
                 )}
 
+                {/* Tabela de Números Quentes e Frios */}
+                {lastSelectedStrategy && numbers.length > 0 && (
+                  <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
+                    <CardHeader className="pb-3 pt-3 px-4">
+                      <CardTitle className="text-sm text-gray-300">🔥 Números Quentes & ❄️ Frios</CardTitle>
+                      <p className="text-xs text-gray-500 mt-1">Baseado na estratégia: {lastSelectedStrategy.name}</p>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-3 px-4">
+                      {(() => {
+                        // Obter números da estratégia
+                        const strategyNumbers = lastSelectedStrategy.numbers
+                        
+                        // Contar aparições de cada número da estratégia
+                        const numberCounts = strategyNumbers.map(num => ({
+                          number: num,
+                          count: numbers.filter(n => n === num).length
+                        }))
+                        
+                        // Separar em Quentes (que apareceram) e Frios (que não apareceram)
+                        const hotNumbers = numberCounts
+                          .filter(nc => nc.count > 0)
+                          .sort((a, b) => b.count - a.count) // Mais apareceram primeiro
+                        
+                        const coldNumbers = numberCounts
+                          .filter(nc => nc.count === 0)
+                          .map(nc => nc.number)
+                          .sort((a, b) => a - b) // Ordem crescente
+                        
+                        return (
+                          <div className="space-y-3">
+                            {/* Números Quentes */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-xs font-semibold text-orange-400">🔥 QUENTES</div>
+                                <div className="text-xs text-gray-500">({hotNumbers.length})</div>
+                              </div>
+                              {hotNumbers.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {hotNumbers.map(({ number, count }) => (
+                                    <div 
+                                      key={number}
+                                      className="relative inline-flex items-center justify-center"
+                                    >
+                                      <div className="w-8 h-8 rounded-md bg-orange-600 text-white font-bold text-xs flex items-center justify-center border border-orange-400">
+                                        {number}
+                                      </div>
+                                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border border-gray-900">
+                                        {count}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-500 italic">Nenhum número da estratégia apareceu ainda</p>
+                              )}
+                            </div>
+                            
+                            {/* Números Frios */}
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="text-xs font-semibold text-cyan-400">❄️ FRIOS</div>
+                                <div className="text-xs text-gray-500">({coldNumbers.length})</div>
+                              </div>
+                              {coldNumbers.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {coldNumbers.map(number => (
+                                    <div 
+                                      key={number}
+                                      className="w-8 h-8 rounded-md bg-cyan-700 text-white font-bold text-xs flex items-center justify-center border border-cyan-500"
+                                    >
+                                      {number}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-500 italic">Todos os números da estratégia já apareceram!</p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()}
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Legenda */}
                 <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
                   <CardHeader className="pb-3 pt-3 px-4">
@@ -1316,16 +1846,12 @@ export default function Home() {
                   <p className="text-xs text-gray-400">Desempenho de cada estratégia selecionada</p>
                 </div>
 
-                {/* Lista de estratégias selecionadas ordenadas por profit */}
-                {selectedStrategies
-                  .map(strategyId => strategyStats.find(s => s.id === strategyId))
-                  .filter(Boolean)
-                  .sort((a, b) => (b?.profit || 0) - (a?.profit || 0))
-                  .map((stats, index) => {
+                {/* Lista de estratégias selecionadas ordenadas por desempenho (OTIMIZADA) */}
+                {sortedSelectedStrategies.displayed.map((stats, index) => {
                     if (!stats) return null
                     const isProfitable = stats.profit >= 0
                     const isTopPerformer = index === 0 && isProfitable
-                    const isWorstPerformer = index === selectedStrategies.length - 1 && !isProfitable
+                    const isWorstPerformer = index === sortedSelectedStrategies.displayed.length - 1 && !isProfitable
                     
                     return (
                       <Card 
@@ -1376,6 +1902,18 @@ export default function Home() {
                       </Card>
                     )
                   })}
+                
+                {/* Aviso quando há mais estratégias */}
+                {sortedSelectedStrategies.hasMore && (
+                  <div className="mt-3 p-4 bg-blue-900/30 border border-blue-600/30 rounded-lg text-center">
+                    <p className="text-sm text-blue-300 font-medium">
+                      📊 Mostrando top 50 de {sortedSelectedStrategies.total} estratégias selecionadas
+                    </p>
+                    <p className="text-xs text-blue-400 mt-1">
+                      Limitado para melhor performance. As melhores estratégias estão sendo exibidas.
+                    </p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           ) : (
