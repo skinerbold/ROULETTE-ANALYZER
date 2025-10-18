@@ -1,8 +1,8 @@
 ﻿// ========================================
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
 // 12 Pastas (223 estratégias) - ATÉ 9 FICHAS
-// 6 Pastas (95+ estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 318+ ESTRATÉGIAS
+// 11 Pastas (110 estratégias) - MAIS DE 9 FICHAS
+// TOTAL: 23 PASTAS, 333 ESTRATÉGIAS
 // ========================================
 
 export interface Strategy { 
@@ -371,46 +371,87 @@ const strategiesMoreThan9: StrategyFolder[] = [
     ]
   },
   {
-    name: "SETORES",
+    name: "Quadrantes (9 fichas)",
     strategies: [
-      { id: 250, name: "Quadrantes 1", numbers: [2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35] },
-      { id: 251, name: "Fatias", numbers: [36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26,0,32,15,19,4,21,2,25,17,34,6,27,13] },
-      { id: 252, name: "4 Hemisférios direita", numbers: [2,4,6,8,10,11,13,15,17,19,21,23,25,27,30,32,34,36] },
-      { id: 253, name: "NSM", numbers: [0,2,4,6,8,10,11,13,15,17,19,21,23,25,27,30,32,34,36] },
-      { id: 254, name: "PMZ", numbers: [1,3,5,7,9,12,14,16,18,20,22,24,26,28,29,31,33,35] },
-      { id: 255, name: "Gringa", numbers: [0,1,2,3,12,13,14,15,25,26,27,28,29,30,31,32,33,34,35,36] }
+      { id: 250, name: "21 com 4v", numbers: [32,15,19,4,21,2,25,17,34] },
+      { id: 251, name: "11 com 4v", numbers: [6,27,13,36,11,30,8,23,10] },
+      { id: 252, name: "1 com 4v", numbers: [5,24,16,33,1,20,14,31,9] },
+      { id: 253, name: "28 com 4v", numbers: [22,18,29,7,28,12,35,3,26] }
+    ]
+  },
+  {
+    name: "Fatias (7 fichas)",
+    strategies: [
+      { id: 254, name: "4 com 3v", numbers: [32,15,19,4,21,2,25] },
+      { id: 255, name: "27 com 3v", numbers: [17,34,6,27,13,36,11] },
+      { id: 256, name: "10 com 3v", numbers: [30,8,23,10,5,24,16,33] },
+      { id: 257, name: "31 com 3v", numbers: [1,20,14,31,9,22,18] },
+      { id: 258, name: "12 com 3v", numbers: [29,7,28,12,35,3,26] }
+    ]
+  },
+  {
+    name: "4 Hemisférios (9 fichas)",
+    strategies: [
+      { id: 259, name: "0 com 6v", numbers: [7,28,12,35,3,26,0,32,15,19,4,21] },
+      { id: 260, name: "10 com 3v", numbers: [16,24,5,10,23,8,30] },
+      { id: 261, name: "6 com 4v", numbers: [2,25,17,34,6,27,13,36,11] },
+      { id: 262, name: "31 com 4v", numbers: [33,1,20,14,31,9,22,18,29] }
+    ]
+  },
+  {
+    name: "NSM (13 fichas)",
+    strategies: [
+      { id: 263, name: "2 com 6v", numbers: [32,15,19,4,21,2,25,17,34,6,27,13] },
+      { id: 264, name: "10 com 6v", numbers: [20,1,33,16,24,5,10,23,8,30,11,36] },
+      { id: 265, name: "7 com 6v", numbers: [14,31,9,22,18,29,7,28,12,35,3,26] }
+    ]
+  },
+  {
+    name: "PMZ (13 fichas)",
+    strategies: [
+      { id: 266, name: "0 com 6v", numbers: [7,28,12,35,3,26,0,32,15,19,4,21,2] },
+      { id: 267, name: "20 com 6v", numbers: [29,18,22,9,31,14,20,1,33,16,24,5] },
+      { id: 268, name: "36 com 6v", numbers: [10,23,8,30,11,36,13,27,6,34,17,25] }
+    ]
+  },
+  {
+    name: "Gringa (13 fichas)",
+    strategies: [
+      { id: 269, name: "34 com 6v", numbers: [4,21,2,25,17,34,6,27,13,36,11,30] },
+      { id: 270, name: "16 com 6v", numbers: [8,23,10,5,24,16,33,1,20,14,31,9] },
+      { id: 271, name: "35 com 6v", numbers: [22,18,29,7,28,12,35,3,26,0,32,15,19] }
     ]
   },
   {
     name: "Jogadas nos Vizinhos",
     strategies: [
-      { id: 256, name: "Gêmeos 1", numbers: [0,2,3,4,7,12,15,18,19,21,25,26,28,29,32,35] },
-      { id: 257, name: "Gêmeos 2", numbers: [0,2,3,4,7,12,15,18,19,21,25,26,28,29,32,35] },
-      { id: 258, name: "Gêmeos 3", numbers: [0,2,3,4,7,12,15,18,19,21,25,26,28,29,32,35] },
-      { id: 259, name: "Gêmeos 4", numbers: [1,5,6,8,9,10,11,13,14,16,17,20,22,23,24,27,30,31,33,34,36] },
-      { id: 260, name: "Gêmeos 5", numbers: [1,5,6,8,9,10,11,13,14,16,17,20,22,23,24,27,30,31,33,34,36] },
-      { id: 261, name: "Gêmeos 6", numbers: [1,5,6,8,9,10,11,13,14,16,17,20,22,23,24,27,30,31,33,34,36] },
-      { id: 262, name: "Quadrantes 1", numbers: [13,36,24,3,15,34,22,5,17,25,2,21,4,19,32,0,26,35,14,23,16] },
-      { id: 263, name: "Quadrantes 2", numbers: [9,31,20,1,14,33,16,24,10,23,8,30,11,36,13,6,27,34,17,25,18] },
-      { id: 264, name: "Quadrantes 3", numbers: [7,28,12,35,3,26,0,32,15,19,4,21,2,25,17,27,6,34,13,11,30] },
-      { id: 265, name: "Quadrantes 4", numbers: [22,18,29,7,28,12,35,3,26,0,32,15,19,4,21,2,25,17,9,22,18] },
-      { id: 266, name: "GRT0", numbers: [3,26,0,32,15,19,4,21,2,35,12,28] },
-      { id: 267, name: "GRT1", numbers: [20,1,33,16,24,5,10,23,8,14,31,9] },
-      { id: 268, name: "GRT2", numbers: [25,2,21,4,19,15,32,0,26,17,34,6] },
-      { id: 269, name: "GRT3", numbers: [26,3,35,12,28,7,29,18,22,0,32,15] },
-      { id: 270, name: "GRT4", numbers: [21,4,19,15,32,0,26,3,35,2,25,17] },
-      { id: 271, name: "GRT5", numbers: [24,5,10,23,8,30,11,36,13,16,33,1] },
-      { id: 272, name: "GRT6", numbers: [27,6,34,17,25,2,21,4,19,13,36,11] },
-      { id: 273, name: "GRT7", numbers: [28,7,29,18,22,9,31,14,20,12,35,3] },
-      { id: 274, name: "GRT8", numbers: [23,8,30,11,36,13,27,6,34,10,5,24] },
-      { id: 275, name: "GRT9", numbers: [22,9,31,14,20,1,33,16,24,18,29,7] },
-      { id: 276, name: "GRT10", numbers: [5,10,23,8,30,11,36,13,27,24,16,33] },
-      { id: 277, name: "GRT11", numbers: [30,11,36,13,27,6,34,17,25,8,23,10] },
-      { id: 278, name: "GRT12", numbers: [35,12,28,7,29,18,22,9,31,3,26,0] },
-      { id: 279, name: "GRT13", numbers: [36,13,27,6,34,17,25,2,21,11,30,8] },
-      { id: 280, name: "GRT14", numbers: [31,14,20,1,33,16,24,5,10,9,22,18] },
-      { id: 281, name: "GRT15", numbers: [19,15,32,0,26,3,35,12,28,4,21,2] },
-      { id: 282, name: "GRT16", numbers: [1,33,16,24,5,10,23,8,30,20,14,31] }
+      { id: 272, name: "Gêmeos", numbers: [2,25,17,36,11,30,16,33,1,9,22,18] },
+      { id: 273, name: "TV9", numbers: [31,9,22,18,29,7,15,19,4,34,6,27] },
+      { id: 274, name: "25-4-6-8", numbers: [23,8,30,27,6,34,17,25,2,21,4,19] },
+      { id: 275, name: "QUATRO 4", numbers: [21,4,19,27,13,36,28,7,29,9,31,14] },
+      { id: 276, name: "28-8-4-16", numbers: [12,28,7,33,16,24,30,8,23,19,4,21] },
+      { id: 277, name: "19-27-9-29", numbers: [15,19,4,6,27,13,22,9,31,7,29,18] },
+      { id: 278, name: "23-24-25-26", numbers: [16,24,5,0,26,3,2,25,17,10,23,8] },
+      { id: 279, name: "16-17-18-19", numbers: [33,16,24,29,18,22,25,17,34,15,19,4] },
+      { id: 280, name: "32-33-34-35", numbers: [0,32,15,17,34,6,3,35,12,1,33,16] },
+      { id: 281, name: "3-9-15-6", numbers: [35,3,26,22,9,31,32,15,19,34,6,27] },
+      { id: 282, name: "12-13-14-15", numbers: [35,12,28,31,14,20,32,15,19,27,13,36] },
+      { id: 283, name: "3-9-33-36", numbers: [26,3,35,18,22,9,31,1,33,16,13,36,11] },
+      { id: 284, name: "11-16-19-35", numbers: [36,11,30,15,19,4,24,16,33,12,35,3] },
+      { id: 285, name: "15-34-36-33", numbers: [32,15,19,17,34,6,13,36,11,1,33,16] },
+      { id: 286, name: "35-31-33-36", numbers: [3,35,12,9,31,14,1,33,16,13,36,11] },
+      { id: 287, name: "21-6-12-24", numbers: [4,21,2,34,6,27,35,12,28,16,24,5] },
+      { id: 288, name: "7-14-24-27", numbers: [28,7,29,31,14,20,16,24,5,13,27,6] },
+      { id: 289, name: "21-25-27-23", numbers: [4,21,2,25,17,34,6,27,13,8,23,10] },
+      { id: 290, name: "9 com 6v", numbers: [16,33,1,20,14,31,9,22,18,29,7,28,12] },
+      { id: 291, name: "6 com 6v", numbers: [8,30,11,36,13,27,6,34,17,25,2,21,4] },
+      { id: 292, name: "GRT 0", numbers: [26,0,32,23,10,5,11,30,8,1,20,14] },
+      { id: 293, name: "GRT 1", numbers: [30,11,36,4,21,2,22,9,31,33,1,20] },
+      { id: 294, name: "GRT 2", numbers: [35,12,28,18,22,9,0,32,15,25,2,21] },
+      { id: 295, name: "GRT 3", numbers: [26,3,35,1,33,16,27,13,36,8,23,10] },
+      { id: 296, name: "GRT 4", numbers: [19,4,21,6,34,17,31,14,20,16,24,5] },
+      { id: 297, name: "GRT 5", numbers: [2,25,17,32,15,19,3,35,12,24,5,10] },
+      { id: 298, name: "GRT 6", numbers: [34,6,27,11,36,13,3,26,0,33,16,24] }
     ]
   },
   {
@@ -512,13 +553,18 @@ ATÉ 9 FICHAS (12 pastas, 223 estratégias):
 11. Todos com 2 Vizinhos: 37 estratégias
 12. Combinações de Terminais Cruzados: 3 estratégias
 
-MAIS DE 9 FICHAS (6 pastas, 95 estratégias):
+MAIS DE 9 FICHAS (11 pastas, 110 estratégias):
 1. Números em lugares aleatórios: 13 estratégias
 2. Cavalo, Coluna, Dúzia: 13 estratégias
 3. Terminal Iniciante: 3 estratégias
-4. SETORES: 6 estratégias
-5. Jogadas nos Vizinhos: 27 estratégias
-6. Números que se Puxam: 37 estratégias
+4. Quadrantes (9 fichas): 4 estratégias
+5. Fatias (7 fichas): 5 estratégias
+6. 4 Hemisférios (9 fichas): 4 estratégias
+7. NSM (13 fichas): 3 estratégias
+8. PMZ (13 fichas): 3 estratégias
+9. Gringa (13 fichas): 3 estratégias
+10. Jogadas nos Vizinhos: 27 estratégias
+11. Números que se Puxam: 37 estratégias
 
-TOTAL GERAL: 18 PASTAS, 318 ESTRATÉGIAS
+TOTAL GERAL: 23 PASTAS, 333 ESTRATÉGIAS
 */

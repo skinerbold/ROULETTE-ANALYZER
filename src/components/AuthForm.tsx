@@ -26,16 +26,25 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
     setLoading(true)
     setError('')
 
+    console.log('🔐 Tentando autenticação...', { email, isLogin })
+
     try {
       if (isLogin) {
+        console.log('📧 Fazendo login com:', email)
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
-        if (error) throw error
+        console.log('🔍 Resposta do login:', { data, error })
+
+        if (error) {
+          console.error('❌ Erro de autenticação:', error)
+          throw error
+        }
 
         if (data.user) {
+          console.log('✅ Login bem-sucedido!', data.user)
           const userData = {
             id: data.user.id,
             email: data.user.email,
@@ -44,6 +53,7 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
           onLogin(userData)
         }
       } else {
+        console.log('📝 Criando conta com:', email)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -55,9 +65,15 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
           }
         })
 
-        if (error) throw error
+        console.log('🔍 Resposta do cadastro:', { data, error })
+
+        if (error) {
+          console.error('❌ Erro no cadastro:', error)
+          throw error
+        }
 
         if (data.user) {
+          console.log('✅ Cadastro bem-sucedido!', data.user)
           const userData = {
             id: data.user.id,
             email: data.user.email,
@@ -67,7 +83,17 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
         }
       }
     } catch (error: any) {
-      setError(error.message)
+      console.error('🔴 Erro capturado:', error)
+      // Mensagens de erro mais amigáveis
+      if (error.message?.includes('Invalid login credentials')) {
+        setError('Email ou senha incorretos. Verifique suas credenciais.')
+      } else if (error.message?.includes('Email not confirmed')) {
+        setError('Email não confirmado. Verifique sua caixa de entrada.')
+      } else if (error.message?.includes('User already registered')) {
+        setError('Este email já está cadastrado. Tente fazer login.')
+      } else {
+        setError(error.message || 'Erro ao autenticar. Tente novamente.')
+      }
     } finally {
       setLoading(false)
     }

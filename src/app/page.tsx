@@ -40,6 +40,9 @@ export default function Home() {
   const [showMetricsPanel, setShowMetricsPanel] = useState(false)
   const [expandedFolders, setExpandedFolders] = useState<string[]>([])
   
+  // Estado para controlar scroll do dashboard
+  const [isDashboardScrolled, setIsDashboardScrolled] = useState(false)
+  
   // Obter pastas e estratégias da categoria atual
   const FOLDERS = getAllStrategies(chipCategory)
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
@@ -76,9 +79,21 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    // CORREÇÃO: Limpar estratégias selecionadas quando mudar de categoria
+    // pois os IDs são diferentes entre categorias
+    setSelectedStrategies([])
+    
+    // Recalcular estratégias disponíveis
+    initializeStrategies()
+    
     // Salvar categoria quando mudar E usuário estiver logado
     if (user && !isLoadingSession && chipCategory) {
       saveUserSession()
+    }
+    // CORREÇÃO: Recalcular quando categoria mudar
+    if (numbers.length > 0) {
+      calculateAllStrategies()
+      updateNumberStatuses()
     }
   }, [chipCategory])
 
@@ -505,11 +520,22 @@ export default function Home() {
   }
 
   const updateNumberStatuses = () => {
-    // Usar primeira estratégia selecionada para colorir os números
-    if (selectedStrategies.length === 0) return
+    // CORREÇÃO: Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
+    if (selectedStrategies.length === 0) {
+      const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
+      setNumberStatuses(statuses)
+      return
+    }
     
-    const strategy = STRATEGIES.find(s => s.id === selectedStrategies[0])
-    if (!strategy) return
+    // Pegar a ÚLTIMA estratégia selecionada (última do array)
+    const lastSelectedId = selectedStrategies[selectedStrategies.length - 1]
+    const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
+    if (!strategy) {
+      // Se não encontrou a estratégia, deixa tudo neutro
+      const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
+      setNumberStatuses(statuses)
+      return
+    }
 
     // Inicializa todos os status como NEUTRAL
     const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
@@ -576,9 +602,17 @@ export default function Home() {
     }
   }
 
-  // Pegar estatísticas consolidadas das estratégias selecionadas
-  const selectedStrategyStats = selectedStrategies.length > 0 
-    ? strategyStats.find(s => s.id === selectedStrategies[0]) // Mostrar primeira selecionada
+  // CORREÇÃO: Pegar a ÚLTIMA estratégia selecionada para dashboard e cores
+  const lastSelectedStrategyId = selectedStrategies.length > 0 
+    ? selectedStrategies[selectedStrategies.length - 1] 
+    : null
+  
+  const lastSelectedStrategy = lastSelectedStrategyId 
+    ? STRATEGIES.find(s => s.id === lastSelectedStrategyId) 
+    : null
+  
+  const lastSelectedStrategyStats = lastSelectedStrategyId 
+    ? strategyStats.find(s => s.id === lastSelectedStrategyId) 
     : null
 
   // Mostrar loading enquanto verifica autenticação
@@ -629,11 +663,21 @@ export default function Home() {
             {chipCategory === 'up-to-9' ? 'Até 9' : '+9'}
           </Button>
           
-          <div className="text-sm text-gray-400 text-center flex-1">
-            {selectedStrategies.length > 0 
-              ? `${selectedStrategies.length} estratégia${selectedStrategies.length > 1 ? 's' : ''} selecionada${selectedStrategies.length > 1 ? 's' : ''}`
-              : 'Nenhuma estratégia selecionada'
-            }
+          <div className="text-sm text-center flex-1 min-w-0 px-2">
+            {lastSelectedStrategy ? (
+              <>
+                <p className="text-blue-400 font-medium truncate" title={lastSelectedStrategy.name}>
+                  {lastSelectedStrategy.name}
+                </p>
+                {selectedStrategies.length > 1 && (
+                  <p className="text-xs text-gray-500">
+                    (+{selectedStrategies.length - 1} outra{selectedStrategies.length > 2 ? 's' : ''})
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="text-gray-400">Nenhuma estratégia selecionada</p>
+            )}
           </div>
           
           <Button
@@ -819,18 +863,25 @@ export default function Home() {
           <div className="fixed inset-0 z-50 bg-black bg-opacity-50">
             <div className="fixed right-0 top-0 h-full w-80 bg-gray-800 border-l border-gray-700 transform transition-transform duration-300">
               <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">Dashboard</h2>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-semibold text-white">Dashboard</h2>
+                  {lastSelectedStrategy && (
+                    <p className="text-xs text-blue-400 truncate mt-1" title={lastSelectedStrategy.name}>
+                      {lastSelectedStrategy.name}
+                    </p>
+                  )}
+                </div>
                 <Button
                   onClick={() => setShowMetricsPanel(false)}
                   variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-white"
+                  className="text-gray-400 hover:text-white ml-2 flex-shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
-              {selectedStrategyStats && numbers.length > 0 ? (
+              {lastSelectedStrategyStats && numbers.length > 0 ? (
                 <ScrollArea className="h-[calc(100vh-80px)]">
                   <div className="p-4 space-y-4">
                     {/* Resumo Geral */}
@@ -845,20 +896,20 @@ export default function Home() {
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div className="text-center p-3 bg-gray-800 rounded-lg">
                             <div className="text-xl font-bold text-green-400">
-                              {selectedStrategyStats.totalGreen}
+                              {lastSelectedStrategyStats.totalGreen}
                             </div>
                             <div className="text-xs text-gray-400 mt-1">GREEN</div>
                           </div>
                           <div className="text-center p-3 bg-gray-800 rounded-lg">
                             <div className="text-xl font-bold text-red-400">
-                              {selectedStrategyStats.totalRed}
+                              {lastSelectedStrategyStats.totalRed}
                             </div>
                             <div className="text-xs text-gray-400 mt-1">RED</div>
                           </div>
                         </div>
                         <div className="text-center p-3 bg-gray-800 rounded-lg">
-                          <div className={`text-2xl font-bold ${selectedStrategyStats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {selectedStrategyStats.profit >= 0 ? '+' : ''}{selectedStrategyStats.profit}
+                          <div className={`text-2xl font-bold ${lastSelectedStrategyStats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {lastSelectedStrategyStats.profit >= 0 ? '+' : ''}{lastSelectedStrategyStats.profit}
                           </div>
                           <div className="text-xs text-gray-400 mt-1">APROVEITAMENTO</div>
                         </div>
@@ -1127,21 +1178,140 @@ export default function Home() {
 
         {/* Painel Direito - Métricas */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-gray-700 flex-shrink-0">
-            <h2 className="text-xl font-semibold text-white">Dashboard</h2>
-            <p className="text-sm text-gray-400 mt-1">
-              {selectedStrategies.length > 0 
-                ? `${selectedStrategies.length} estratégia${selectedStrategies.length > 1 ? 's' : ''} selecionada${selectedStrategies.length > 1 ? 's' : ''}`
-                : 'Selecione estratégias para analisar'
-              }
-            </p>
+          <div className={`border-b border-gray-700 flex-shrink-0 transition-all duration-300 ${
+            isDashboardScrolled ? 'p-3' : 'p-6'
+          }`}>
+            <h2 className={`font-semibold text-white transition-all duration-300 ${
+              isDashboardScrolled ? 'text-base' : 'text-xl'
+            }`}>
+              Dashboard
+            </h2>
+            {lastSelectedStrategy ? (
+              <div className={`transition-all duration-300 ${
+                isDashboardScrolled ? 'mt-1' : 'mt-2'
+              }`}>
+                {!isDashboardScrolled && (
+                  <p className="text-xs text-gray-500 mb-1">Estratégia Ativa:</p>
+                )}
+                <p className={`text-blue-400 font-medium truncate transition-all duration-300 ${
+                  isDashboardScrolled ? 'text-xs' : 'text-sm'
+                }`} title={lastSelectedStrategy.name}>
+                  {lastSelectedStrategy.name}
+                </p>
+                {selectedStrategies.length > 1 && (
+                  <p className={`text-gray-500 transition-all duration-300 ${
+                    isDashboardScrolled ? 'text-[10px] mt-0.5' : 'text-xs mt-1'
+                  }`}>
+                    (+{selectedStrategies.length - 1} outra{selectedStrategies.length > 2 ? 's' : ''} selecionada{selectedStrategies.length > 2 ? 's' : ''})
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className={`text-gray-400 transition-all duration-300 ${
+                isDashboardScrolled ? 'text-xs mt-1' : 'text-sm mt-1'
+              }`}>
+                Selecione estratégias para analisar
+              </p>
+            )}
           </div>
 
           {selectedStrategies.length > 0 && numbers.length > 0 ? (
-            <ScrollArea className="flex-1 overflow-y-auto">
+            <ScrollArea 
+              className="flex-1 overflow-y-auto"
+              onScrollCapture={(e) => {
+                const target = e.target as HTMLElement
+                const scrollTop = target.scrollTop
+                setIsDashboardScrolled(scrollTop > 20)
+              }}
+            >
               <div className="p-5 space-y-3">
-                {/* Título da seção */}
-                <div className="mb-4">
+                {/* Box de Resumo da Última Estratégia Selecionada */}
+                {lastSelectedStrategyStats && (
+                  <Card className={`border-2 shadow-enhanced-lg ${
+                    lastSelectedStrategyStats.profit >= 0 
+                      ? 'bg-gradient-to-br from-green-900 to-gray-800 border-green-500' 
+                      : 'bg-gradient-to-br from-red-900 to-gray-800 border-red-500'
+                  }`}>
+                    <CardHeader className="pb-3 pt-4 px-4">
+                      <CardTitle className="text-base font-bold text-white">
+                        📊 Resumo da Estratégia Ativa
+                      </CardTitle>
+                      <p className="text-xs text-gray-300 mt-1 truncate" title={lastSelectedStrategyStats.name}>
+                        {lastSelectedStrategyStats.name}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-4 px-4">
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* GREEN */}
+                        <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-green-600/30">
+                          <div className="text-2xl font-bold text-green-400">
+                            {lastSelectedStrategyStats.totalGreen}
+                          </div>
+                          <div className="text-xs text-gray-300 font-medium mt-1">GREEN</div>
+                        </div>
+                        
+                        {/* RED */}
+                        <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-red-600/30">
+                          <div className="text-2xl font-bold text-red-400">
+                            {lastSelectedStrategyStats.totalRed}
+                          </div>
+                          <div className="text-xs text-gray-300 font-medium mt-1">RED</div>
+                        </div>
+                        
+                        {/* APROVEITAMENTO */}
+                        <div className="text-center p-3 bg-gray-900/50 rounded-lg border border-blue-600/30">
+                          <div className="text-2xl font-bold text-blue-400">
+                            {lastSelectedStrategyStats.activations > 0 
+                              ? Math.round((lastSelectedStrategyStats.totalGreen / lastSelectedStrategyStats.activations) * 100)
+                              : 0}%
+                          </div>
+                          <div className="text-xs text-gray-300 font-medium mt-1">TAXA</div>
+                        </div>
+                      </div>
+                      
+                      {/* Profit */}
+                      <div className="mt-3 text-center p-3 bg-gray-900/50 rounded-lg border border-gray-600">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="text-xs text-gray-400">PROFIT:</span>
+                          <span className={`text-xl font-bold ${
+                            lastSelectedStrategyStats.profit >= 0 ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {lastSelectedStrategyStats.profit >= 0 ? '+' : ''}{lastSelectedStrategyStats.profit}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {lastSelectedStrategyStats.activations} ativações
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Legenda */}
+                <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
+                  <CardHeader className="pb-3 pt-3 px-4">
+                    <CardTitle className="text-sm text-gray-300">Legenda</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 pb-3 px-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
+                        <div className="w-5 h-5 bg-yellow-500 rounded-lg flex-shrink-0"></div>
+                        <span className="text-sm text-gray-400">Ativação</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
+                        <div className="w-5 h-5 bg-green-500 rounded-lg flex-shrink-0"></div>
+                        <span className="text-sm text-gray-400">GREEN</span>
+                      </div>
+                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
+                        <div className="w-5 h-5 bg-red-500 rounded-lg flex-shrink-0"></div>
+                        <span className="text-sm text-gray-400">RED</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Título da seção de Análise Individual */}
+                <div className="mt-4 mb-4">
                   <h3 className="text-lg font-semibold text-white mb-1">Análise Individual</h3>
                   <p className="text-xs text-gray-400">Desempenho de cada estratégia selecionada</p>
                 </div>
@@ -1206,29 +1376,6 @@ export default function Home() {
                       </Card>
                     )
                   })}
-
-                {/* Legenda */}
-                <Card className="bg-gray-700 border-gray-600 shadow-enhanced mt-4">
-                  <CardHeader className="pb-3 pt-3 px-4">
-                    <CardTitle className="text-sm text-gray-300">Legenda</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
-                        <div className="w-5 h-5 bg-yellow-500 rounded-lg"></div>
-                        <span className="text-sm text-gray-400">Ativação</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
-                        <div className="w-5 h-5 bg-green-500 rounded-lg"></div>
-                        <span className="text-sm text-gray-400">GREEN</span>
-                      </div>
-                      <div className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
-                        <div className="w-5 h-5 bg-red-500 rounded-lg"></div>
-                        <span className="text-sm text-gray-400">RED</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
               </div>
             </ScrollArea>
           ) : (
