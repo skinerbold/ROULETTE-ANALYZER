@@ -819,13 +819,13 @@ export default function Home() {
         </div>
 
         {/* Botões de controle mobile */}
-        <div className="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700">
+        <div className="flex justify-between items-stretch gap-2 p-3 bg-gray-800 border-b border-gray-700">
           <Button
             onClick={() => setShowStrategiesMenu(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2"
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-3 py-2 h-auto min-h-[44px] flex-shrink-0"
           >
-            <Menu className="w-4 h-4" />
-            Estratégias
+            <Menu className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-medium">Estratégias</span>
           </Button>
           
           <Button
@@ -837,7 +837,7 @@ export default function Home() {
                 'up-to-9'
               setChipCategory(nextCategory)
             }}
-            className={`flex items-center gap-2 px-4 py-2 ${
+            className={`flex items-center justify-center gap-2 px-3 py-2 h-auto min-h-[44px] flex-shrink-0 ${
               chipCategory === 'up-to-9' 
                 ? 'bg-purple-600 hover:bg-purple-700' 
                 : chipCategory === 'more-than-9'
@@ -845,39 +845,39 @@ export default function Home() {
                 : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
-            <Layers className="w-4 h-4" />
-            {chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}
+            <Layers className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-medium">{chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}</span>
           </Button>
           
-          <div className="text-sm text-center flex-1 min-w-0 px-2">
+          <div className="text-sm text-center flex-1 min-w-0 px-2 flex flex-col justify-center">
             {lastSelectedStrategy ? (
               <>
-                <p className="text-blue-400 font-medium truncate" title={lastSelectedStrategy.name}>
+                <p className="text-blue-400 font-medium truncate text-xs sm:text-sm leading-tight" title={lastSelectedStrategy.name}>
                   {lastSelectedStrategy.name}
                 </p>
                 {selectedStrategies.length > 1 && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
                     (+{selectedStrategies.length - 1} outra{selectedStrategies.length > 2 ? 's' : ''})
                   </p>
                 )}
               </>
             ) : (
-              <p className="text-gray-400">Nenhuma estratégia selecionada</p>
+              <p className="text-gray-400 text-xs leading-tight">Nenhuma estratégia selecionada</p>
             )}
           </div>
           
           <Button
             onClick={() => setShowMetricsPanel(true)}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 px-4 py-2"
+            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-2 h-auto min-h-[44px] flex-shrink-0"
           >
-            <BarChart3 className="w-4 h-4" />
-            Métricas
+            <BarChart3 className="w-4 h-4 flex-shrink-0" />
+            <span className="text-sm font-medium">Métricas</span>
           </Button>
         </div>
 
         {/* Input de números - mobile */}
-        <div className="p-4 bg-gray-800 border-b border-gray-700">
-          <div className="space-y-3">
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-2.5">
             <Input
               value={currentNumbers}
               onChange={(e) => setCurrentNumbers(e.target.value)}
@@ -887,26 +887,26 @@ export default function Home() {
                   ? `Ex: ${lastSelectedStrategy.numbers.slice(0, 6).join(', ')}${lastSelectedStrategy.numbers.length > 6 ? '...' : ''} (números da estratégia ${lastSelectedStrategy.name})`
                   : "Ex: 1, 5, 12, 23 (Enter para adicionar)"
               }
-              className="h-12 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-base font-mono"
+              className="h-11 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-sm font-mono"
             />
             
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-2 items-center">
               <Button 
                 onClick={addNumbers}
                 disabled={!currentNumbers.trim() || numbers.length >= 1000}
-                className="flex-1 h-10 bg-blue-600 hover:bg-blue-700"
+                className="flex-1 h-9 bg-blue-600 hover:bg-blue-700 text-sm"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-1.5" />
                 Adicionar
               </Button>
               <Button 
                 onClick={clearNumbers}
                 variant="outline"
-                className="h-10 px-4 border-gray-600 text-gray-300 hover:bg-gray-700"
+                className="h-9 px-3 border-gray-600 text-gray-300 hover:bg-gray-700 flex-shrink-0"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
-              <div className="text-sm text-gray-400 bg-gray-700 px-3 py-2 rounded-lg">
+              <div className="text-xs text-gray-400 bg-gray-700 px-2.5 py-1.5 rounded-lg flex-shrink-0">
                 {numbers.length}/1000
               </div>
             </div>
@@ -914,7 +914,7 @@ export default function Home() {
         </div>
 
         {/* Grid de números - tela cheia mobile */}
-        <div className="flex-1 p-4 min-h-[calc(100vh-200px)]">
+        <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto">
           {numbers.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center w-full max-w-4xl">
@@ -985,8 +985,8 @@ export default function Home() {
                 </p>
               </div>
               
-              <ScrollArea className="h-[calc(100vh-180px)]">
-                <div className="p-4 space-y-2">
+              <ScrollArea className="h-[calc(100vh-220px)] pb-20">
+                <div className="p-4 space-y-2 pb-8">
                   {sortedFolders.map((folder) => (
                     <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
                       {/* Header da pasta */}
@@ -1092,8 +1092,8 @@ export default function Home() {
               </div>
 
               {lastSelectedStrategyStats && numbers.length > 0 ? (
-                <ScrollArea className="h-[calc(100vh-80px)]">
-                  <div className="p-4 space-y-4">
+                <ScrollArea className="h-[calc(100vh-100px)] pb-20">
+                  <div className="p-4 space-y-4 pb-8">
                     {/* Resumo Geral */}
                     <Card className="bg-gray-700 border-gray-600">
                       <CardHeader className="pb-3">
