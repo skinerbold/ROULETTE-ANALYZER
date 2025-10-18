@@ -43,8 +43,9 @@ export default function Home() {
   const [showMetricsPanel, setShowMetricsPanel] = useState(false)
   const [expandedFolders, setExpandedFolders] = useState<string[]>([])
   
-  // Estado para controlar scroll do dashboard
+  // Estado para controlar scroll do dashboard e estratégias
   const [isDashboardScrolled, setIsDashboardScrolled] = useState(false)
+  const [isStrategiesScrolled, setIsStrategiesScrolled] = useState(false)
   
   // Obter pastas e estratégias da categoria atual
   const FOLDERS = getAllStrategies(chipCategory)
@@ -1336,10 +1337,14 @@ export default function Home() {
       <main className="hidden lg:flex h-[calc(100vh-64px)] gap-6 p-6 overflow-hidden">
         {/* Menu Lateral Esquerdo - Estratégias */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-gray-700 space-y-4 flex-shrink-0">
+          <div className={`border-b border-gray-700 space-y-4 flex-shrink-0 transition-all ${
+            isStrategiesScrolled ? 'p-3 space-y-3' : 'p-6 space-y-4'
+          }`}>
             {/* Seletor de Roleta */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
+                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+              }`}>
                 🎰 Selecionar Roleta
               </label>
               <Select value={selectedRoulette} onValueChange={setSelectedRoulette}>
@@ -1358,13 +1363,21 @@ export default function Home() {
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500 italic">
+              <p className={`text-gray-500 italic transition-all ${
+                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+              }`}>
                 * Funcionalidade em desenvolvimento
               </p>
             </div>
 
             {/* Grupo de botões de categoria */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-2">
+              {!isStrategiesScrolled && (
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  📊 Categorias de Fichas
+                </label>
+              )}
+              <div className="grid grid-cols-3 gap-2">
               <Button
                 onClick={() => setChipCategory('up-to-9')}
                 className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
@@ -1397,6 +1410,7 @@ export default function Home() {
               >
                 Todas
               </Button>
+              </div>
             </div>
 
             {/* Botão All Pastas */}
@@ -1411,7 +1425,9 @@ export default function Home() {
               >
                 {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
               </Button>
-              <p className="text-xs text-gray-500 mt-2 text-center">
+              <p className={`text-gray-500 text-center transition-all ${
+                isStrategiesScrolled ? 'text-[10px] mt-1' : 'text-xs mt-2'
+              }`}>
                 {selectAllFolders 
                   ? `${selectedStrategies.length} estratégias selecionadas` 
                   : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
@@ -1419,13 +1435,23 @@ export default function Home() {
               </p>
             </div>
             
-            <div>
-              <h2 className="text-xl font-semibold text-white mb-2">Estratégias</h2>
-              <p className="text-sm text-gray-400">Ordenadas por aproveitamento</p>
+            <div className={`transition-all ${
+              isStrategiesScrolled ? 'py-2' : 'py-0'
+            }`}>
+              <h2 className={`font-semibold text-white transition-all ${
+                isStrategiesScrolled ? 'text-base mb-0' : 'text-xl mb-2'
+              }`}>Estratégias</h2>
             </div>
           </div>
           
-          <ScrollArea className="flex-1 overflow-y-auto">
+          <ScrollArea 
+            className="flex-1 overflow-y-auto"
+            onScroll={(e) => {
+              const target = e.target as HTMLDivElement
+              const scrollTop = target.scrollTop
+              setIsStrategiesScrolled(scrollTop > 20)
+            }}
+          >
             <div className="p-4 space-y-2">
               {sortedFolders.map((folder) => (
                 <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">

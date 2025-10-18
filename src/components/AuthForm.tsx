@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { User, Lock, Mail, Eye, EyeOff, Sparkles } from 'lucide-react'
-import styles from './AuthForm.module.css'
 
 interface AuthFormProps {
   onLogin: (user: any) => void
@@ -101,15 +100,17 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
   }
 
   return (
-    <div className={`${styles.authContainer} min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 sm:p-8 relative overflow-hidden`}>
+    <div className="min-h-screen min-h-[100dvh] bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
       {/* Background decorativo com pattern CSS */}
-      <div className={styles.backgroundPattern}></div>
+      <div 
+        className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_1px_1px,rgba(156,146,172,0.15)_1px,transparent_0)] bg-[length:20px_20px]"
+      ></div>
       
       {/* Efeitos de luz */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse pointer-events-none"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000 pointer-events-none"></div>
 
-      <Card className={`${styles.authCard} w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl relative z-10 my-4`}>
+      <Card className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl relative z-10 my-4 overflow-auto">
         {/* Header com padding generoso */}
         <CardHeader className="text-center px-6 sm:px-10 pt-8 sm:pt-10 pb-6 sm:pb-8">
           {/* Logo com animação */}
@@ -148,7 +149,7 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Digite seu nome completo"
-                    className={`${styles.authInput} w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-4 sm:pr-6 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base`}
+                    className="w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-4 sm:pr-6 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base"
                     required={!isLogin}
                   />
                   <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -169,7 +170,7 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className={`${styles.authInput} w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-4 sm:pr-6 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base`}
+                  className="w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-4 sm:pr-6 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base"
                   required
                 />
                 <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -189,13 +190,13 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Digite sua senha"
-                  className={`${styles.authInput} w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-12 sm:pr-14 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base`}
+                  className="w-full h-12 sm:h-14 pl-4 sm:pl-6 pr-12 sm:pr-14 bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder:text-gray-400 focus:border-purple-400 focus:ring-2 focus:ring-purple-400/30 rounded-xl transition-all duration-300 group-hover:bg-white/15 text-base"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className={`${styles.authButton} absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200 p-1`}
+                  className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-200 p-1"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -215,7 +216,7 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
               <Button
                 type="submit"
                 disabled={loading}
-                className={`${styles.authButton} w-full h-12 sm:h-14 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 text-white font-bold text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-[1.02] hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative overflow-hidden group active:scale-95`}
+                className="w-full h-12 sm:h-14 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 text-white font-bold text-base sm:text-lg rounded-xl shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 transform hover:scale-[1.02] hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none relative overflow-hidden group active:scale-95"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 {loading ? (
@@ -245,7 +246,7 @@ export default function AuthForm({ onLogin }: AuthFormProps) {
             
             <button
               onClick={() => setIsLogin(!isLogin)}
-              className={`${styles.authToggle} mt-5 sm:mt-6 text-purple-300 hover:text-white text-sm sm:text-base font-semibold transition-all duration-200 hover:underline decoration-2 underline-offset-4 decoration-purple-400 active:scale-95`}
+              className="mt-5 sm:mt-6 text-purple-300 hover:text-white text-sm sm:text-base font-semibold transition-all duration-200 hover:underline decoration-2 underline-offset-4 decoration-purple-400 active:scale-95"
             >
               {isLogin 
                 ? 'Não tem conta? Criar uma nova' 
