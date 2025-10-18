@@ -677,8 +677,11 @@ export default function Home() {
 
   // NOVA FUNCIONALIDADE: Ordenar pastas e estratégias dinamicamente por desempenho
   const getSortedFolders = () => {
-    if (numbers.length === 0) {
-      // Sem números, manter ordem original
+    // Verificar se temos estatísticas calculadas para ordenar
+    const hasStats = strategyStats.length > 0 && strategyStats.some(s => s.activations > 0)
+    
+    if (!hasStats) {
+      // Sem estatísticas, manter ordem original
       return FOLDERS
     }
 
@@ -726,7 +729,7 @@ export default function Home() {
         strategies: sortedStrategies
       }
     }).sort((a, b) => {
-      // Ordenar pastas por performance média
+      // Ordenar pastas por performance média (da melhor para a pior)
       return b.avgPerformance - a.avgPerformance
     })
   }
@@ -819,60 +822,66 @@ export default function Home() {
         </div>
 
         {/* Botões de controle mobile */}
-        <div className="flex justify-between items-stretch gap-2 p-3 bg-gray-800 border-b border-gray-700">
-          <Button
-            onClick={() => setShowStrategiesMenu(true)}
-            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-3 py-2 h-auto min-h-[44px] flex-shrink-0"
-          >
-            <Menu className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-medium">Estratégias</span>
-          </Button>
+        <div className="bg-gray-800 border-b border-gray-700">
+          {/* Linha de botões */}
+          <div className="flex justify-between items-stretch gap-2 p-3">
+            <Button
+              onClick={() => setShowStrategiesMenu(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 px-3 py-2 h-auto min-h-[44px]"
+            >
+              <Menu className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-medium">Estratégias</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                // Ciclar entre as 3 categorias: até 9 → +9 → todas → até 9
+                const nextCategory = 
+                  chipCategory === 'up-to-9' ? 'more-than-9' :
+                  chipCategory === 'more-than-9' ? 'all' :
+                  'up-to-9'
+                setChipCategory(nextCategory)
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 h-auto min-h-[44px] ${
+                chipCategory === 'up-to-9' 
+                  ? 'bg-purple-600 hover:bg-purple-700' 
+                  : chipCategory === 'more-than-9'
+                  ? 'bg-orange-600 hover:bg-orange-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              <Layers className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-medium">{chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}</span>
+            </Button>
+            
+            <Button
+              onClick={() => setShowMetricsPanel(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-2 h-auto min-h-[44px]"
+            >
+              <BarChart3 className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-medium">Métricas</span>
+            </Button>
+          </div>
           
-          <Button
-            onClick={() => {
-              // Ciclar entre as 3 categorias: até 9 → +9 → todas → até 9
-              const nextCategory = 
-                chipCategory === 'up-to-9' ? 'more-than-9' :
-                chipCategory === 'more-than-9' ? 'all' :
-                'up-to-9'
-              setChipCategory(nextCategory)
-            }}
-            className={`flex items-center justify-center gap-2 px-3 py-2 h-auto min-h-[44px] flex-shrink-0 ${
-              chipCategory === 'up-to-9' 
-                ? 'bg-purple-600 hover:bg-purple-700' 
-                : chipCategory === 'more-than-9'
-                ? 'bg-orange-600 hover:bg-orange-700'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            <Layers className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-medium">{chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}</span>
-          </Button>
-          
-          <div className="text-sm text-center flex-1 min-w-0 px-2 flex flex-col justify-center">
+          {/* Nome da estratégia selecionada */}
+          <div className="px-3 pb-3 pt-0">
             {lastSelectedStrategy ? (
-              <>
-                <p className="text-blue-400 font-medium truncate text-xs sm:text-sm leading-tight" title={lastSelectedStrategy.name}>
+              <div className="bg-gray-700 rounded-lg px-3 py-2 border border-gray-600">
+                <p className="text-blue-400 font-medium truncate text-sm leading-tight" title={lastSelectedStrategy.name}>
                   {lastSelectedStrategy.name}
                 </p>
                 {selectedStrategies.length > 1 && (
-                  <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
-                    (+{selectedStrategies.length - 1} outra{selectedStrategies.length > 2 ? 's' : ''})
+                  <p className="text-xs text-gray-400 mt-1">
+                    +{selectedStrategies.length - 1} outra{selectedStrategies.length > 2 ? 's' : ''} selecionada{selectedStrategies.length > 2 ? 's' : ''}
                   </p>
                 )}
-              </>
+              </div>
             ) : (
-              <p className="text-gray-400 text-xs leading-tight">Nenhuma estratégia selecionada</p>
+              <div className="bg-gray-700 rounded-lg px-3 py-2 border border-gray-600">
+                <p className="text-gray-400 text-sm text-center leading-tight">Nenhuma estratégia selecionada</p>
+              </div>
             )}
           </div>
-          
-          <Button
-            onClick={() => setShowMetricsPanel(true)}
-            className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-2 h-auto min-h-[44px] flex-shrink-0"
-          >
-            <BarChart3 className="w-4 h-4 flex-shrink-0" />
-            <span className="text-sm font-medium">Métricas</span>
-          </Button>
         </div>
 
         {/* Input de números - mobile */}
