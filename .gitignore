@@ -61,3 +61,6 @@ api-config.js
 
 # WebSocket server (será movido para Railway/Render)
 websocket-server.js
+
+# Arquivos Lasy AI (não necessários)
+public/lasy-bridge.js
