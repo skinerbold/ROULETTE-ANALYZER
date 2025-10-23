@@ -759,21 +759,28 @@ export default function Home() {
     
     const strategies = selectedStrategies
       .map(strategyId => strategyStats.find(s => s.id === strategyId))
-      .filter(Boolean)
+      .filter((s): s is NonNullable<typeof s> => Boolean(s)) // Type guard
       .sort((a, b) => {
-        if (!a || !b) return 0
-        
         // Ordenar por taxa de aproveitamento (GREEN / ATIVAÇÕES)
         const perfA = a.activations > 0 ? (a.totalGreen / a.activations) : 0
         const perfB = b.activations > 0 ? (b.totalGreen / b.activations) : 0
         
         // Em caso de empate, usar profit como desempate
-        if (perfB === perfA) {
+        if (Math.abs(perfB - perfA) < 0.0001) { // Comparação com tolerância
           return b.profit - a.profit
         }
         
         return perfB - perfA // Melhor desempenho primeiro
       })
+    
+    // Debug log para verificar ordenação
+    if (strategies.length > 0) {
+      console.log('🔄 Estratégias ordenadas:', strategies.slice(0, 5).map(s => ({
+        nome: s.name,
+        profit: s.profit,
+        taxa: s.activations > 0 ? (s.totalGreen / s.activations).toFixed(2) : '0'
+      })))
+    }
     
     // Retornar apenas as primeiras 50 para performance
     return {
