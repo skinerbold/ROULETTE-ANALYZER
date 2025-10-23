@@ -3,18 +3,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, ChevronLeft, Layers } from 'lucide-react'
+import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, ChevronLeft, Layers } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
 import { StrategyStats, UserSession } from '@/lib/types'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
 import Header from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
+import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
 
 interface NumberStatus {
   number: number
@@ -25,13 +24,23 @@ export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [numbers, setNumbers] = useState<number[]>([])
-  const [currentNumbers, setCurrentNumbers] = useState('')
   
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
   const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
-  const [selectedRoulette, setSelectedRoulette] = useState<string>('european') // Estado para roleta selecionada (placeholder)
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
+  
+  // Hook do WebSocket - Conecta automaticamente e obtém roletas disponíveis
+  const { 
+    isConnected, 
+    availableRoulettes, 
+    recentNumbers,
+    sendMessage,
+    connect 
+  } = useRouletteWebSocket()
+  
+  const [selectedRoulette, setSelectedRoulette] = useState<string>('') // Roleta selecionada
+  const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
@@ -50,6 +59,13 @@ export default function Home() {
   // Obter pastas e estratégias da categoria atual
   const FOLDERS = getAllStrategies(chipCategory)
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
+
+  // Números filtrados com base no limite de análise
+  const numbersToAnalyze = useMemo(() => {
+    if (numbers.length === 0) return []
+    // Pegar apenas os últimos N números
+    return numbers.slice(-analysisLimit)
+  }, [numbers, analysisLimit])
 
   useEffect(() => {
     checkUser()
@@ -119,7 +135,7 @@ export default function Home() {
       // Salvar sessão vazia também
       saveUserSession()
     }
-  }, [numbers, selectedStrategies]) // MUDANÇA: selectedStrategies no lugar de selectedStrategy
+  }, [numbers, selectedStrategies, analysisLimit]) // MUDANÇA: Adicionado analysisLimit
 
   const checkUser = async () => {
     try {
@@ -268,7 +284,6 @@ export default function Home() {
       setUser(null)
       setNumbers([])
       setSessionId(null)
-      setCurrentNumbers('')
       setSelectedStrategies([]) // MUDANÇA: Limpar array de estratégias
       setNumberStatuses([])
       initializeStrategies()
@@ -380,51 +395,8 @@ export default function Home() {
     return folder.strategies.every(s => selectedStrategies.includes(s.id))
   }
 
-
-  const parseNumbers = (text: string): number[] => {
-    // Remove espaços extras e divide por vírgulas e quebras de linha
-    const cleanText = text.replace(/\s+/g, ' ').trim()
-    const parts = cleanText.split(/[,\n\r\s]+/).filter(part => part.length > 0)
-    
-    const validNumbers: number[] = []
-    for (const part of parts) {
-      const num = parseInt(part.trim())
-      if (!isNaN(num) && num >= 0 && num <= 36) {
-        validNumbers.push(num)
-      }
-    }
-    
-    return validNumbers
-  }
-
-  const addNumbers = () => {
-    const newNumbers = parseNumbers(currentNumbers)
-    if (newNumbers.length > 0) {
-      const totalNumbers = numbers.length + newNumbers.length
-      if (totalNumbers <= 1000) {
-        // CORREÇÃO PRINCIPAL: Adiciona os novos números no FINAL do array
-        // Assim mantém a ordem cronológica correta (mais antigos no início, mais novos no final)
-        setNumbers(prev => [...prev, ...newNumbers])
-        setCurrentNumbers('')
-      } else {
-        // Adiciona apenas os que cabem no limite
-        const remainingSpace = 1000 - numbers.length
-        const numbersToAdd = newNumbers.slice(0, remainingSpace)
-        // Também no final quando há limite
-        setNumbers(prev => [...prev, ...numbersToAdd])
-        setCurrentNumbers('')
-      }
-    }
-  }
-
   const removeNumber = (indexToRemove: number) => {
     setNumbers(prev => prev.filter((_, index) => index !== indexToRemove))
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      addNumbers()
-    }
   }
 
   const clearNumbers = () => {
@@ -432,6 +404,49 @@ export default function Home() {
     setNumberStatuses([])
     initializeStrategies()
   }
+
+  // Sincronizar números do WebSocket com o estado local
+  useEffect(() => {
+    if (recentNumbers.length > 0) {
+      console.log('🌐 Sincronizando números do WebSocket:', recentNumbers.length)
+      // Extrair apenas os números do array de RouletteNumber
+      const numbersOnly = recentNumbers.map(rn => rn.number)
+      setNumbers(numbersOnly)
+    }
+  }, [recentNumbers])
+
+  // Selecionar automaticamente a primeira roleta disponível
+  useEffect(() => {
+    if (isConnected && availableRoulettes.length > 0 && !selectedRoulette) {
+      const firstRoulette = availableRoulettes[0]
+      console.log('🎰 Selecionando primeira roleta disponível:', firstRoulette)
+      setSelectedRoulette(firstRoulette)
+      
+      // Enviar mensagem de inscrição
+      sendMessage(JSON.stringify({
+        type: 'subscribe',
+        roulette: firstRoulette,
+        limit: 500
+      }))
+    }
+  }, [isConnected, availableRoulettes, selectedRoulette, sendMessage])
+
+  // Handler para mudança manual de roleta pelo usuário
+  const handleRouletteChange = useCallback((roulette: string) => {
+    if (!roulette || roulette === selectedRoulette) return
+    
+    console.log('🎰 Mudança de roleta:', selectedRoulette, '→', roulette)
+    setSelectedRoulette(roulette)
+    
+    // Enviar mensagem de inscrição na nova roleta
+    if (isConnected) {
+      sendMessage(JSON.stringify({
+        type: 'subscribe',
+        roulette: roulette,
+        limit: 500
+      }))
+    }
+  }, [selectedRoulette, isConnected, sendMessage])
 
   const analyzeStrategy = (strategyId: number, numbersArray: number[]) => {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
@@ -532,7 +547,7 @@ export default function Home() {
 
   const calculateAllStrategies = () => {
     const updatedStats = STRATEGIES.map(strategy => {
-      const analysis = analyzeStrategy(strategy.id, numbers)
+      const analysis = analyzeStrategy(strategy.id, numbersToAnalyze)
       const profit = analysis ? analysis.totalGreen - analysis.totalRed : 0
       return {
         id: strategy.id,
@@ -557,7 +572,7 @@ export default function Home() {
   const updateNumberStatuses = () => {
     // CORREÇÃO: Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
     if (selectedStrategies.length === 0) {
-      const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
+      const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
       return
     }
@@ -567,19 +582,19 @@ export default function Home() {
     const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
     if (!strategy) {
       // Se não encontrou a estratégia, deixa tudo neutro
-      const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
+      const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
       return
     }
 
     // Inicializa todos os status como NEUTRAL
-    const statuses: NumberStatus[] = numbers.map(number => ({ number, status: 'NEUTRAL' as const }))
+    const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
     const allNumbers = [...strategy.numbers]
     
     // CORREÇÃO COMPLETA DA LÓGICA: Processa do primeiro para o último (ordem cronológica correta)
     let i = 0
-    while (i < numbers.length) {
-      const currentNum = numbers[i]
+    while (i < numbersToAnalyze.length) {
+      const currentNum = numbersToAnalyze[i]
       
       // Verifica se é um número de ativação (apenas números principais, não proteção)
       if (strategy.numbers.includes(currentNum)) {
@@ -591,8 +606,8 @@ export default function Home() {
         let greenPosition = -1
         
         // Verifica as próximas 3 posições
-        for (let j = i + 1; j <= i + 3 && j < numbers.length; j++) {
-          if (allNumbers.includes(numbers[j])) {
+        for (let j = i + 1; j <= i + 3 && j < numbersToAnalyze.length; j++) {
+          if (allNumbers.includes(numbersToAnalyze[j])) {
             // GREEN encontrado
             found = true
             greenPosition = j
@@ -602,14 +617,14 @@ export default function Home() {
         
         if (found) {
           // GREEN: marca o GREEN como GREEN
-          statuses[greenPosition] = { number: numbers[greenPosition], status: 'GREEN' }
+          statuses[greenPosition] = { number: numbersToAnalyze[greenPosition], status: 'GREEN' }
           // Próxima iteração começa APÓS o GREEN
           i = greenPosition + 1
         } else {
           // RED: marca a 3ª posição como RED (se existir)
           const redPosition = i + 3
-          if (redPosition < numbers.length) {
-            statuses[redPosition] = { number: numbers[redPosition], status: 'RED' }
+          if (redPosition < numbersToAnalyze.length) {
+            statuses[redPosition] = { number: numbersToAnalyze[redPosition], status: 'RED' }
           }
           // Pula 3 posições após RED
           i += 4
@@ -797,27 +812,79 @@ export default function Home() {
         {/* Seletor de Roleta - Mobile */}
         <div className="p-3 bg-gray-800 border-b border-gray-700">
           <div className="space-y-1">
-            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-              🎰 Roleta
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide flex items-center gap-2">
+              🎰 Roleta ao Vivo
+              {isConnected ? (
+                <span className="text-green-500 text-xs">● Conectado</span>
+              ) : (
+                <span className="text-red-500 text-xs">● Desconectado</span>
+              )}
             </label>
-            <Select value={selectedRoulette} onValueChange={setSelectedRoulette}>
+            <Select 
+              value={selectedRoulette} 
+              onValueChange={handleRouletteChange}
+              disabled={!isConnected || availableRoulettes.length === 0}
+            >
               <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
-                <SelectValue placeholder="Escolha..." />
+                <SelectValue placeholder={
+                  !isConnected 
+                    ? "Aguardando conexão..." 
+                    : availableRoulettes.length === 0 
+                      ? "Nenhuma roleta disponível" 
+                      : "Selecione uma roleta"
+                } />
               </SelectTrigger>
               <SelectContent className="bg-gray-700 border-gray-600">
-                <SelectItem value="european" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                  🇪🇺 Europeia (0-36)
+                {availableRoulettes.map((roulette) => (
+                  <SelectItem 
+                    key={roulette} 
+                    value={roulette} 
+                    className="text-white hover:bg-gray-600 focus:bg-gray-600"
+                  >
+                    🎰 {roulette}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Seletor de Limite de Análise - Mobile */}
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              📊 Analisar últimos
+            </label>
+            <Select 
+              value={analysisLimit.toString()} 
+              onValueChange={(value) => setAnalysisLimit(Number(value))}
+            >
+              <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 border-gray-600">
+                <SelectItem value="50" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  50 números
                 </SelectItem>
-                <SelectItem value="american" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                  🇺🇸 Americana (0-00-36)
+                <SelectItem value="100" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  100 números
                 </SelectItem>
-                <SelectItem value="french" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                  🇫🇷 Francesa (0-36)
+                <SelectItem value="200" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  200 números
+                </SelectItem>
+                <SelectItem value="300" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  300 números
+                </SelectItem>
+                <SelectItem value="400" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  400 números
+                </SelectItem>
+                <SelectItem value="500" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  500 números
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500 italic">
-              * Em desenvolvimento
+            <p className="text-xs text-gray-500">
+              Analisando {numbersToAnalyze.length} de {numbers.length} números disponíveis
             </p>
           </div>
         </div>
@@ -885,51 +952,54 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Input de números - mobile */}
+        {/* Exibição dos números da estratégia selecionada - mobile */}
         <div className="p-3 bg-gray-800 border-b border-gray-700">
-          <div className="space-y-2.5">
-            <Input
-              value={currentNumbers}
-              onChange={(e) => setCurrentNumbers(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder={
-                lastSelectedStrategy 
-                  ? `Ex: ${lastSelectedStrategy.numbers.slice(0, 6).join(', ')}${lastSelectedStrategy.numbers.length > 6 ? '...' : ''} (números da estratégia ${lastSelectedStrategy.name})`
-                  : "Ex: 1, 5, 12, 23 (Enter para adicionar)"
-              }
-              className="h-11 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-sm font-mono"
-            />
-            
-            <div className="flex gap-2 items-center">
-              <Button 
-                onClick={addNumbers}
-                disabled={!currentNumbers.trim() || numbers.length >= 1000}
-                className="flex-1 h-9 bg-blue-600 hover:bg-blue-700 text-sm"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Adicionar
-              </Button>
-              <Button 
-                onClick={clearNumbers}
-                variant="outline"
-                className="h-9 px-3 border-gray-600 text-gray-300 hover:bg-gray-700 flex-shrink-0"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-              <div className="text-xs text-gray-400 bg-gray-700 px-2.5 py-1.5 rounded-lg flex-shrink-0">
-                {numbers.length}/1000
+          {lastSelectedStrategy ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  📋 Números da Estratégia
+                </label>
+                <Badge variant="outline" className="bg-blue-600/20 text-blue-400 border-blue-500/50 text-xs">
+                  {lastSelectedStrategy.numbers.length} números
+                </Badge>
+              </div>
+              <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                <p className="text-sm text-white font-mono leading-relaxed">
+                  {lastSelectedStrategy.numbers.join(', ')}
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  {lastSelectedStrategy.name}
+                </p>
+                <Button 
+                  onClick={clearNumbers}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 border-gray-600 text-gray-300 hover:bg-gray-700 text-xs"
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Limpar
+                </Button>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600 text-center">
+              <p className="text-sm text-gray-400">
+                Selecione uma estratégia para ver os números
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Grid de números - tela cheia mobile */}
         <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto">
-          {numbers.length > 0 ? (
+          {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center w-full max-w-4xl">
-                {[...numbers].reverse().map((number, reversedIndex) => {
-                  const realIndex = numbers.length - 1 - reversedIndex
+                {[...numbersToAnalyze].reverse().map((number, reversedIndex) => {
+                  const realIndex = numbersToAnalyze.length - 1 - reversedIndex
                   return (
                     <div
                       key={realIndex}
@@ -937,7 +1007,7 @@ export default function Home() {
                     >
                       {number}
                       <button
-                        onClick={() => removeNumber(realIndex)}
+                        onClick={() => removeNumber(numbers.indexOf(number))}
                         className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg z-10"
                         title="Remover este número"
                       >
@@ -952,8 +1022,16 @@ export default function Home() {
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500">
                 <Target className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                <h3 className="text-lg font-semibold mb-2 text-gray-400">Adicione números para começar</h3>
-                <p className="text-gray-500">Digite números de 0 a 36 para ver a análise</p>
+                <h3 className="text-lg font-semibold mb-2 text-gray-400">
+                  {numbers.length > 0 
+                    ? `Ajuste o limite de análise (${analysisLimit} números)` 
+                    : "Aguardando números da roleta"}
+                </h3>
+                <p className="text-gray-500">
+                  {numbers.length > 0 
+                    ? `${numbers.length} números disponíveis` 
+                    : "Os números aparecerão aqui automaticamente"}
+                </p>
               </div>
             </div>
           )}
@@ -1342,31 +1420,83 @@ export default function Home() {
           }`}>
             {/* Seletor de Roleta */}
             <div className="space-y-2">
+              <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all flex items-center gap-2 ${
+                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+              }`}>
+                🎰 Roleta ao Vivo
+                {isConnected ? (
+                  <span className="text-green-500 text-xs">● Conectado</span>
+                ) : (
+                  <span className="text-red-500 text-xs">● Desconectado</span>
+                )}
+              </label>
+              <Select 
+                value={selectedRoulette} 
+                onValueChange={handleRouletteChange}
+                disabled={!isConnected || availableRoulettes.length === 0}
+              >
+                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                  <SelectValue placeholder={
+                    !isConnected 
+                      ? "Aguardando conexão..." 
+                      : availableRoulettes.length === 0 
+                        ? "Nenhuma roleta disponível" 
+                        : "Selecione uma roleta"
+                  } />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700 border-gray-600">
+                  {availableRoulettes.map((roulette) => (
+                    <SelectItem 
+                      key={roulette} 
+                      value={roulette} 
+                      className="text-white hover:bg-gray-600 focus:bg-gray-600"
+                    >
+                      🎰 {roulette}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Seletor de Limite de Análise - Desktop */}
+            <div className="space-y-2">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
                 isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
               }`}>
-                🎰 Selecionar Roleta
+                📊 Analisar últimos
               </label>
-              <Select value={selectedRoulette} onValueChange={setSelectedRoulette}>
+              <Select 
+                value={analysisLimit.toString()} 
+                onValueChange={(value) => setAnalysisLimit(Number(value))}
+              >
                 <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
-                  <SelectValue placeholder="Escolha uma roleta..." />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-700 border-gray-600">
-                  <SelectItem value="european" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    🇪🇺 Roleta Europeia (0-36)
+                  <SelectItem value="50" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    50 números
                   </SelectItem>
-                  <SelectItem value="american" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    🇺🇸 Roleta Americana (0-00-36)
+                  <SelectItem value="100" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    100 números
                   </SelectItem>
-                  <SelectItem value="french" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    🇫🇷 Roleta Francesa (0-36)
+                  <SelectItem value="200" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    200 números
+                  </SelectItem>
+                  <SelectItem value="300" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    300 números
+                  </SelectItem>
+                  <SelectItem value="400" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    400 números
+                  </SelectItem>
+                  <SelectItem value="500" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    500 números
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className={`text-gray-500 italic transition-all ${
+              <p className={`text-gray-500 transition-all ${
                 isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
               }`}>
-                * Funcionalidade em desenvolvimento
+                {numbersToAnalyze.length} de {numbers.length} números
               </p>
             </div>
 
@@ -1534,65 +1664,56 @@ export default function Home() {
 
         {/* Área Central */}
         <div className="flex-1 flex flex-col bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg overflow-hidden">
-          {/* Input de Números */}
+          {/* Exibição dos números da estratégia selecionada - desktop */}
           <div className="p-6 border-b border-gray-700 flex-shrink-0">
-            <div className="max-w-4xl mx-auto space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">
-                  Adicionar números (0-36) - separe por vírgula ou espaço
-                </label>
-                <Input
-                  value={currentNumbers}
-                  onChange={(e) => setCurrentNumbers(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder={
-                    lastSelectedStrategy 
-                      ? `Ex: ${lastSelectedStrategy.numbers.slice(0, 8).join(', ')}${lastSelectedStrategy.numbers.length > 8 ? '...' : ''} (números favoráveis da estratégia: ${lastSelectedStrategy.name})`
-                      : "Ex: 1, 5, 12, 23 ou 1 5 12 23 (Enter para adicionar)"
-                  }
-                  className="h-10 bg-gray-700 border-gray-600 text-white focus:border-blue-500 text-base font-mono"
-                />
-              </div>
-              
-              <div className="flex gap-4 items-center justify-center">
-                <Button 
-                  onClick={addNumbers}
-                  disabled={!currentNumbers.trim() || numbers.length >= 1000}
-                  className="h-10 px-6 bg-blue-600 hover:bg-blue-700 shadow-enhanced rounded-lg font-medium"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar
-                </Button>
-                <Button 
-                  onClick={clearNumbers}
-                  variant="outline"
-                  className="h-10 px-6 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-500 rounded-lg font-medium"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Limpar
-                </Button>
-                <div className="text-sm text-gray-400 bg-gray-700 px-3 py-2 rounded-lg">
-                  <span className="font-medium">{numbers.length}</span>/1000
+            <div className="max-w-4xl mx-auto">
+              {lastSelectedStrategy ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                        📋 Números da Estratégia Selecionada
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {lastSelectedStrategy.name}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline" className="bg-blue-600/20 text-blue-400 border-blue-500/50">
+                        {lastSelectedStrategy.numbers.length} números
+                      </Badge>
+                      <Button 
+                        onClick={clearNumbers}
+                        variant="outline"
+                        className="h-9 px-4 border-gray-600 text-gray-300 hover:bg-gray-700 hover:border-gray-500 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Limpar
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
+                    <div className="flex flex-wrap gap-2">
+                      {lastSelectedStrategy.numbers.map((num, idx) => (
+                        <span 
+                          key={idx} 
+                          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg font-mono font-medium"
+                        >
+                          {num}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              
-              {currentNumbers.trim() && (
-                <div className="p-3 bg-gray-700 rounded-lg border border-gray-600">
-                  <div className="text-xs text-gray-400 mb-2">
-                    Preview ({parseNumbers(currentNumbers).length} números):
-                  </div>
-                  <div className="flex flex-wrap gap-1 max-h-12 overflow-y-auto">
-                    {parseNumbers(currentNumbers).slice(0, 30).map((num, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded">
-                        {num}
-                      </span>
-                    ))}
-                    {parseNumbers(currentNumbers).length > 30 && (
-                      <span className="px-2 py-0.5 bg-gray-600 text-gray-300 text-xs rounded">
-                        +{parseNumbers(currentNumbers).length - 30}...
-                      </span>
-                    )}
-                  </div>
+              ) : (
+                <div className="bg-gray-700 rounded-lg p-8 border border-gray-600 text-center">
+                  <p className="text-gray-400">
+                    Selecione uma estratégia para visualizar os números
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Os números aparecerão aqui automaticamente
+                  </p>
                 </div>
               )}
             </div>
@@ -1600,11 +1721,11 @@ export default function Home() {
 
           {/* Grid de Números */}
           <div className="flex-1 p-4 overflow-auto">
-            {numbers.length > 0 ? (
+            {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-1 sm:gap-1.5 md:gap-1.5 lg:gap-2 xl:gap-2.5 2xl:gap-3 justify-items-center">
-                  {[...numbers].reverse().map((number, reversedIndex) => {
-                    const realIndex = numbers.length - 1 - reversedIndex
+                  {[...numbersToAnalyze].reverse().map((number, reversedIndex) => {
+                    const realIndex = numbersToAnalyze.length - 1 - reversedIndex
                     return (
                       <div
                         key={realIndex}
@@ -1619,7 +1740,7 @@ export default function Home() {
                       >
                         {number}
                         <button
-                          onClick={() => removeNumber(realIndex)}
+                          onClick={() => removeNumber(numbers.indexOf(number))}
                           className={`absolute -top-0.5 -right-0.5 
                             w-3 h-3 text-xs
                             sm:w-3 sm:h-3 sm:text-xs
@@ -1648,8 +1769,16 @@ export default function Home() {
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-gray-500">
                   <Target className="w-20 h-20 mx-auto mb-6 text-gray-600" />
-                  <h3 className="text-xl font-semibold mb-3 text-gray-400">Adicione números para começar</h3>
-                  <p className="text-gray-500">Digite números de 0 a 36 para ver a análise em tempo real</p>
+                  <h3 className="text-xl font-semibold mb-3 text-gray-400">
+                    {numbers.length > 0 
+                      ? `Ajuste o limite de análise (${analysisLimit} números)` 
+                      : "Aguardando números da roleta"}
+                  </h3>
+                  <p className="text-gray-500">
+                    {numbers.length > 0 
+                      ? `${numbers.length} números disponíveis` 
+                      : "Os números aparecerão aqui em tempo real"}
+                  </p>
                 </div>
               </div>
             )}
@@ -1658,6 +1787,7 @@ export default function Home() {
 
         {/* Painel Direito - Métricas */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
+          
           <div className={`border-b border-gray-700 flex-shrink-0 transition-all duration-300 ${
             isDashboardScrolled ? 'p-3' : 'p-6'
           }`}>

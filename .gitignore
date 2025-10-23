@@ -43,3 +43,21 @@ temp-*
 *.tmp
 *.temp
 .DS_Store
+
+# Arquivos de documentação temporários
+SERVIDOR_WEBSOCKET.md
+FIX_VERCEL_DEPLOY.md
+FIXES_IOS_LAYOUT.md
+INTEGRATION_EXAMPLE.tsx
+
+# Scripts de teste e desenvolvimento local
+test-auth.js
+deploy-github.ps1
+database-migration-simple.sql
+database-migration.sql
+
+# Configurações de API locais (manter apenas o exemplo)
+api-config.js
+
+# WebSocket server (será movido para Railway/Render)
+websocket-server.js
