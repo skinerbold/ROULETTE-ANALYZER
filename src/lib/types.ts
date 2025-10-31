@@ -16,6 +16,12 @@ export interface StrategyStats {
   mostActivatingCount: number
   activations: number
   profit: number
+  // Novas métricas de padrão de entrada
+  maxConsecutiveGreens: number // Maior sequência de GREEN seguidos
+  maxConsecutiveReds: number   // Maior sequência de RED seguidos
+  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: após GREEN ou RED
+  postGreenWins: number        // Vitórias após GREEN
+  postRedWins: number          // Vitórias após RED
 }
 
 export interface NumberStatus {

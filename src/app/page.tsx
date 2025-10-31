@@ -310,7 +310,13 @@ export default function Home() {
       mostActivatingNumber: 0,
       mostActivatingCount: 0,
       activations: 0,
-      profit: 0
+      profit: 0,
+      // Novas métricas
+      maxConsecutiveGreens: 0,
+      maxConsecutiveReds: 0,
+      bestEntryPattern: 'neutral' as const,
+      postGreenWins: 0,
+      postRedWins: 0
     }))
     setStrategyStats(initialStats)
   }
@@ -465,6 +471,15 @@ export default function Home() {
     let secondAttemptHits = 0
     let thirdAttemptHits = 0
     
+    // Novas métricas
+    let maxConsecutiveGreens = 0
+    let maxConsecutiveReds = 0
+    let currentConsecutiveGreens = 0
+    let currentConsecutiveReds = 0
+    let postGreenWins = 0
+    let postRedWins = 0
+    let lastResult: 'GREEN' | 'RED' | null = null
+    
     const activationCounts: {[key: number]: number} = {}
     
     // CORREÇÃO: Processa do primeiro para o último (ordem cronológica correta)
@@ -490,6 +505,19 @@ export default function Home() {
             currentRedSequence = 0
             maxGreenSequence = Math.max(maxGreenSequence, currentGreenSequence)
             
+            // Atualizar sequências consecutivas
+            currentConsecutiveGreens++
+            currentConsecutiveReds = 0
+            maxConsecutiveGreens = Math.max(maxConsecutiveGreens, currentConsecutiveGreens)
+            
+            // Verificar padrão de entrada (pós-GREEN ou pós-RED)
+            if (lastResult === 'GREEN') {
+              postGreenWins++
+            } else if (lastResult === 'RED') {
+              postRedWins++
+            }
+            lastResult = 'GREEN'
+            
             if (attempts === 1) firstAttemptHits++
             else if (attempts === 2) secondAttemptHits++
             else if (attempts === 3) thirdAttemptHits++
@@ -514,6 +542,13 @@ export default function Home() {
           currentGreenSequence = 0
           maxRedSequence = Math.max(maxRedSequence, currentRedSequence)
           
+          // Atualizar sequências consecutivas
+          currentConsecutiveReds++
+          currentConsecutiveGreens = 0
+          maxConsecutiveReds = Math.max(maxConsecutiveReds, currentConsecutiveReds)
+          
+          lastResult = 'RED'
+          
           activations.push({
             position: i,
             activatingNumber: currentNum,
@@ -531,6 +566,14 @@ export default function Home() {
     const mostActivatingNumber = Object.keys(activationCounts).reduce((a, b) => 
       activationCounts[parseInt(a)] > activationCounts[parseInt(b)] ? a : b, '0')
     
+    // Determinar melhor padrão de entrada
+    let bestEntryPattern: 'post-green' | 'post-red' | 'neutral' = 'neutral'
+    if (postGreenWins > postRedWins && postGreenWins > 0) {
+      bestEntryPattern = 'post-green'
+    } else if (postRedWins > postGreenWins && postRedWins > 0) {
+      bestEntryPattern = 'post-red'
+    }
+    
     return {
       totalGreen,
       totalRed,
@@ -541,7 +584,12 @@ export default function Home() {
       thirdAttemptHits,
       mostActivatingNumber: parseInt(mostActivatingNumber) || 0,
       mostActivatingCount: activationCounts[parseInt(mostActivatingNumber)] || 0,
-      activations: activations.length
+      activations: activations.length,
+      maxConsecutiveGreens,
+      maxConsecutiveReds,
+      bestEntryPattern,
+      postGreenWins,
+      postRedWins
     }
   }
 
@@ -562,7 +610,13 @@ export default function Home() {
         mostActivatingNumber: analysis?.mostActivatingNumber || 0,
         mostActivatingCount: analysis?.mostActivatingCount || 0,
         activations: analysis?.activations || 0,
-        profit
+        profit,
+        // Novas métricas
+        maxConsecutiveGreens: analysis?.maxConsecutiveGreens || 0,
+        maxConsecutiveReds: analysis?.maxConsecutiveReds || 0,
+        bestEntryPattern: analysis?.bestEntryPattern || 'neutral',
+        postGreenWins: analysis?.postGreenWins || 0,
+        postRedWins: analysis?.postRedWins || 0
       }
     }).sort((a, b) => b.profit - a.profit)
 
@@ -1220,6 +1274,92 @@ export default function Home() {
                             {lastSelectedStrategyStats.profit >= 0 ? '+' : ''}{lastSelectedStrategyStats.profit}
                           </div>
                           <div className="text-xs text-gray-400 mt-1">APROVEITAMENTO</div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* NOVAS MÉTRICAS: Sequências e Padrão de Entrada */}
+                    <Card className="bg-gray-700 border-gray-600">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base text-gray-300 flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5" />
+                          Padrões de Entrada
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-3">
+                        {/* Maior sequência de GREEN */}
+                        <div className="p-3 bg-gray-800 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">🟢 Sequência GREEN</span>
+                            <span className="text-lg font-bold text-green-400">
+                              {lastSelectedStrategyStats.maxConsecutiveGreens}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Maior sequência de GREEN seguidos
+                          </p>
+                        </div>
+
+                        {/* Maior sequência de RED */}
+                        <div className="p-3 bg-gray-800 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-400">🔴 Sequência RED</span>
+                            <span className="text-lg font-bold text-red-400">
+                              {lastSelectedStrategyStats.maxConsecutiveReds}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Maior sequência de RED seguidos
+                          </p>
+                        </div>
+
+                        {/* Melhor entrada: Pós-GREEN ou Pós-RED */}
+                        <div className={`p-3 rounded-lg ${
+                          lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                            ? 'bg-green-900/30 border border-green-600/30' 
+                            : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                            ? 'bg-red-900/30 border border-red-600/30'
+                            : 'bg-gray-800'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-300">
+                              ✨ Melhor Entrada
+                            </span>
+                            <span className={`text-sm font-bold ${
+                              lastSelectedStrategyStats.bestEntryPattern === 'post-green'
+                                ? 'text-green-400'
+                                : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                                ? 'text-red-400'
+                                : 'text-gray-400'
+                            }`}>
+                              {lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                                ? '🟢 PÓS-GREEN' 
+                                : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                                ? '🔴 PÓS-RED'
+                                : '⚪ SEM PADRÃO'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="text-center p-2 bg-gray-900/50 rounded">
+                              <div className="text-green-400 font-bold">
+                                {lastSelectedStrategyStats.postGreenWins}
+                              </div>
+                              <div className="text-gray-500">Pós-GREEN</div>
+                            </div>
+                            <div className="text-center p-2 bg-gray-900/50 rounded">
+                              <div className="text-red-400 font-bold">
+                                {lastSelectedStrategyStats.postRedWins}
+                              </div>
+                              <div className="text-gray-500">Pós-RED</div>
+                            </div>
+                          </div>
+                          {lastSelectedStrategyStats.bestEntryPattern !== 'neutral' && (
+                            <p className="text-xs text-gray-400 mt-2">
+                              💡 {lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                                ? 'Entrar após um GREEN tem melhor taxa de acerto'
+                                : 'Entrar após um RED tem melhor taxa de acerto'}
+                            </p>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1899,6 +2039,94 @@ export default function Home() {
                         <div className="text-xs text-gray-500 mt-1">
                           {lastSelectedStrategyStats.activations} ativações
                         </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* NOVAS MÉTRICAS: Sequências e Padrão de Entrada - DESKTOP */}
+                {lastSelectedStrategyStats && (
+                  <Card className="bg-gray-700 border-gray-600">
+                    <CardHeader className="pb-3 pt-4 px-4">
+                      <CardTitle className="text-base text-gray-300 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Padrões de Entrada
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-4 px-4 space-y-3">
+                      {/* Maior sequência de GREEN */}
+                      <div className="p-3 bg-gray-800 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">🟢 Sequência GREEN</span>
+                          <span className="text-xl font-bold text-green-400">
+                            {lastSelectedStrategyStats.maxConsecutiveGreens}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Maior sequência de GREEN seguidos
+                        </p>
+                      </div>
+
+                      {/* Maior sequência de RED */}
+                      <div className="p-3 bg-gray-800 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400">🔴 Sequência RED</span>
+                          <span className="text-xl font-bold text-red-400">
+                            {lastSelectedStrategyStats.maxConsecutiveReds}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Maior sequência de RED seguidos
+                        </p>
+                      </div>
+
+                      {/* Melhor entrada: Pós-GREEN ou Pós-RED */}
+                      <div className={`p-3 rounded-lg ${
+                        lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                          ? 'bg-green-900/30 border border-green-600/30' 
+                          : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                          ? 'bg-red-900/30 border border-red-600/30'
+                          : 'bg-gray-800'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-gray-300">
+                            ✨ Melhor Entrada
+                          </span>
+                          <span className={`text-sm font-bold ${
+                            lastSelectedStrategyStats.bestEntryPattern === 'post-green'
+                              ? 'text-green-400'
+                              : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                              ? 'text-red-400'
+                              : 'text-gray-400'
+                          }`}>
+                            {lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                              ? '🟢 PÓS-GREEN' 
+                              : lastSelectedStrategyStats.bestEntryPattern === 'post-red'
+                              ? '🔴 PÓS-RED'
+                              : '⚪ SEM PADRÃO'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="text-center p-2 bg-gray-900/50 rounded">
+                            <div className="text-green-400 font-bold">
+                              {lastSelectedStrategyStats.postGreenWins}
+                            </div>
+                            <div className="text-gray-500">Pós-GREEN</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-900/50 rounded">
+                            <div className="text-red-400 font-bold">
+                              {lastSelectedStrategyStats.postRedWins}
+                            </div>
+                            <div className="text-gray-500">Pós-RED</div>
+                          </div>
+                        </div>
+                        {lastSelectedStrategyStats.bestEntryPattern !== 'neutral' && (
+                          <p className="text-xs text-gray-400 mt-2">
+                            💡 {lastSelectedStrategyStats.bestEntryPattern === 'post-green' 
+                              ? 'Entrar após um GREEN tem melhor taxa de acerto'
+                              : 'Entrar após um RED tem melhor taxa de acerto'}
+                          </p>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
