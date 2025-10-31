@@ -1,8 +1,8 @@
 ﻿// ========================================
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
 // 12 Pastas (223 estratégias) - ATÉ 9 FICHAS
-// 11 Pastas (110 estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 23 PASTAS, 333 ESTRATÉGIAS
+// 6 Pastas (138 estratégias) - MAIS DE 9 FICHAS
+// TOTAL: 18 PASTAS, 361 ESTRATÉGIAS
 // ========================================
 
 export interface Strategy { 
@@ -322,178 +322,178 @@ const strategiesUpTo9: StrategyFolder[] = [
 
 
 // ========================================
-// ESTRATÉGIAS MAIS DE 9 FICHAS - 95 ESTRATÉGIAS
+// ESTRATÉGIAS MAIS DE 9 FICHAS - 138 ESTRATÉGIAS
 // ========================================
 
 const strategiesMoreThan9: StrategyFolder[] = [
   {
-    name: "Números em lugares aleatórios",
+    name: "1 Pasta - Números em lugares aleatórios",
     strategies: [
-      { id: 221, name: "Espelhos", numbers: [6,9,12,13,16,19,21,23,26,29,31,32,33,36] },
-      { id: 222, name: "Espelho vermelho", numbers: [1,3,5,7,9,12,14,16,18,19,21,23,27,30,32,34,36] },
-      { id: 223, name: "4/5/6", numbers: [4,5,6,14,15,16,17,18,24,25,26,28,29,30] },
-      { id: 224, name: "PF", numbers: [1,3,5,7,9,12,14,16,18,21,23,25,27,30,32,34,36] },
-      { id: 225, name: "123", numbers: [1,2,3,11,12,13,21,22,23,31,32,33] },
-      { id: 226, name: "Irmãos de Cor", numbers: [2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35] },
-      { id: 227, name: "Diag Ver", numbers: [1,5,9,12,14,16,18,19,21,23,25,27,30,32,34,36] },
-      { id: 228, name: "Diag Preto", numbers: [2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35] },
-      { id: 229, name: "2x", numbers: [2,4,6,8,10,11,12,13,14,15,16,17,18,20,22,24,26,28,29,31,33,35] },
-      { id: 230, name: "3x", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
-      { id: 231, name: "Terminal Alto", numbers: [19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36] },
-      { id: 232, name: "Terminal baixo Esquerda", numbers: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] },
-      { id: 233, name: "Terminal baixo Direita", numbers: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18] }
+      { id: 224, name: "Espelhos", numbers: [9,12,16,26,29,31,6,13,19,21,23,32] },
+      { id: 225, name: "Espelho vermelho + proteção", numbers: [3,12,9,1,16,23,30,36,21,32,19,8,35] },
+      { id: 226, name: "4/5/6", numbers: [25,15,6,36,34,4,5,35,16,26,14,24] },
+      { id: 227, name: "PF", numbers: [10,11,13,15,17,20,22,24,31,33] },
+      { id: 228, name: "123", numbers: [1,3,12,22,31,33,2,11,13,21,23,32] },
+      { id: 229, name: "Irmãos de Cor", numbers: [9,12,18,21,16,19,27,30,32,29,8,26,33] },
+      { id: 230, name: "Diag Ver", numbers: [3,5,7,16,14,12,25,23,21,30,32,34] },
+      { id: 231, name: "Diag Preto", numbers: [6,8,10,17,15,22,20,28,26,24,35,33] },
+      { id: 232, name: "2x", numbers: [2,4,6,8,10,14,16,20,22,26,28,32,34] },
+      { id: 233, name: "3x", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
+      { id: 234, name: "Terminal Alto", numbers: [6,7,8,9,16,17,18,19,26,27,28,29,36] },
+      { id: 235, name: "Terminal baixo Esquerda", numbers: [1,3,5,12,14,20,22,24,31,33,35] },
+      { id: 236, name: "Terminal baixo Direita", numbers: [2,4,10,11,13,15,21,23,25,30,32,34] }
     ]
   },
   {
-    name: "Cavalo, Coluna, Dúzia",
+    name: "2 Pasta - Cavalo, Coluna, Dúzia",
     strategies: [
-      { id: 234, name: "3 Cavalos 147", numbers: [1,4,7,10,11,14,17,21,24,27,31,34] },
-      { id: 235, name: "3 Cavalos 258", numbers: [2,5,8,12,15,18,20,22,23,25,28,32,35] },
-      { id: 236, name: "3 Cavalos 369", numbers: [3,6,9,13,16,19,23,26,29,30,33,36] },
-      { id: 237, name: "3 Colunas 1", numbers: [1,4,7,10,13,16,19,22,25,28,31,34] },
-      { id: 238, name: "3 Colunas 2", numbers: [2,5,8,11,14,17,20,23,26,29,32,35] },
-      { id: 239, name: "3 Colunas 3", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
-      { id: 240, name: "3 Dúzias 1D", numbers: [1,2,3,4,5,6,7,8,9,10,11,12] },
-      { id: 241, name: "3 Dúzias 2D", numbers: [13,14,15,16,17,18,19,20,21,22,23,24] },
-      { id: 242, name: "3 Dúzias 3D", numbers: [25,26,27,28,29,30,31,32,33,34,35,36] },
-      { id: 243, name: "CA-OC 1", numbers: [1,4,7,10,13,16,19,22,25,28,31,34] },
-      { id: 244, name: "CA-OC 2", numbers: [2,5,8,11,14,17,20,23,26,29,32,35] },
-      { id: 245, name: "CA-OC 3", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
-      { id: 246, name: "CA-OC 4", numbers: [1,2,3,4,5,6,7,8,9,10,11,12] }
+      { id: 237, name: "Cavalo 1-4-7", numbers: [1,11,21,31,4,14,24,34,7,17,27] },
+      { id: 238, name: "Cavalo 2-5-8", numbers: [2,12,22,32,5,15,25,35,8,18,28] },
+      { id: 239, name: "Cavalo 3-6-9", numbers: [3,13,23,33,6,16,26,36,9,19,29] },
+      { id: 240, name: "Coluna 1", numbers: [1,4,7,10,13,16,19,22,25,28,31,34] },
+      { id: 241, name: "Coluna 2", numbers: [2,5,8,11,14,17,20,23,26,29,32,35] },
+      { id: 242, name: "Coluna 3", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
+      { id: 243, name: "Duzia 1", numbers: [1,2,3,4,5,6,7,8,9,10,11,12] },
+      { id: 244, name: "Duzia 2", numbers: [13,14,15,16,17,18,20,21,22,23,24] },
+      { id: 245, name: "Duzia 3", numbers: [25,26,27,28,29,30,31,32,33,34,35,36] },
+      { id: 246, name: "CA-OC 1-4-9", numbers: [1,11,21,31,4,14,24,34,9,19,29] },
+      { id: 247, name: "CA-OC 3-5-7", numbers: [3,13,23,33,5,15,25,35,7,17,27] },
+      { id: 248, name: "CA-OC 3-4-6", numbers: [3,13,23,33,4,14,24,34,6,16,26,36] },
+      { id: 249, name: "CA-OC 5-3-6", numbers: [5,15,25,35,3,13,23,33,6,16,26,36] }
     ]
   },
   {
-    name: "Terminal Iniciante",
+    name: "3 Pasta - Terminal iniciante",
     strategies: [
-      { id: 247, name: "T1", numbers: [1,11,21,31,4,14,24,34,7,17,27] },
-      { id: 248, name: "T2", numbers: [2,12,22,32,5,15,25,35,8,18,28] },
-      { id: 249, name: "T3", numbers: [3,13,23,33,6,16,26,36,9,19,29] }
+      { id: 250, name: "Terminal iniciante 1", numbers: [1,10,11,12,13,14,15,16,17,18,19] },
+      { id: 251, name: "Terminal iniciante 2", numbers: [2,20,21,22,23,24,25,26,27,28,29] },
+      { id: 252, name: "Terminal iniciante 3", numbers: [3,30,31,32,33,34,35,36] }
     ]
   },
   {
-    name: "Quadrantes (9 fichas)",
+    name: "4 Pasta - Quadrantes",
     strategies: [
-      { id: 250, name: "21 com 4v", numbers: [32,15,19,4,21,2,25,17,34] },
-      { id: 251, name: "11 com 4v", numbers: [6,27,13,36,11,30,8,23,10] },
-      { id: 252, name: "1 com 4v", numbers: [5,24,16,33,1,20,14,31,9] },
-      { id: 253, name: "28 com 4v", numbers: [22,18,29,7,28,12,35,3,26] }
+      { id: 253, name: "21com4v", numbers: [32,15,19,4,21,2,25,17,34] },
+      { id: 254, name: "11com4v", numbers: [6,27,13,36,11,30,8,23,10] },
+      { id: 255, name: "1com4v", numbers: [5,24,16,33,1,20,14,31,9] },
+      { id: 256, name: "28com4v", numbers: [22,18,29,7,28,12,35,3,26] }
     ]
   },
   {
-    name: "Fatias (7 fichas)",
+    name: "4 Pasta - Fatias",
     strategies: [
-      { id: 254, name: "4 com 3v", numbers: [32,15,19,4,21,2,25] },
-      { id: 255, name: "27 com 3v", numbers: [17,34,6,27,13,36,11] },
-      { id: 256, name: "10 com 3v", numbers: [30,8,23,10,5,24,16,33] },
-      { id: 257, name: "31 com 3v", numbers: [1,20,14,31,9,22,18] },
-      { id: 258, name: "12 com 3v", numbers: [29,7,28,12,35,3,26] }
+      { id: 257, name: "4com3v", numbers: [32,15,19,4,21,2,25] },
+      { id: 258, name: "27com3v", numbers: [17,34,6,27,13,36,11] },
+      { id: 259, name: "10com3v", numbers: [30,8,23,10,5,24,16,33] },
+      { id: 260, name: "31com3v", numbers: [1,20,14,31,9,22,18] },
+      { id: 261, name: "12com3v", numbers: [29,7,28,12,35,3,26] }
     ]
   },
   {
-    name: "4 Hemisférios (9 fichas)",
+    name: "4 Pasta - 4 Hemisférios",
     strategies: [
-      { id: 259, name: "0 com 6v", numbers: [7,28,12,35,3,26,0,32,15,19,4,21] },
-      { id: 260, name: "10 com 3v", numbers: [16,24,5,10,23,8,30] },
-      { id: 261, name: "6 com 4v", numbers: [2,25,17,34,6,27,13,36,11] },
-      { id: 262, name: "31 com 4v", numbers: [33,1,20,14,31,9,22,18,29] }
+      { id: 262, name: "0com6v", numbers: [7,28,12,35,3,26,0,32,15,19,4,21] },
+      { id: 263, name: "10com3v", numbers: [16,24,5,10,23,8,30] },
+      { id: 264, name: "6com4v", numbers: [2,25,17,34,6,27,13,36,11] },
+      { id: 265, name: "31com4v", numbers: [33,1,20,14,31,9,22,18,29] }
     ]
   },
   {
-    name: "NSM (13 fichas)",
+    name: "4 Pasta - NSM",
     strategies: [
-      { id: 263, name: "2 com 6v", numbers: [32,15,19,4,21,2,25,17,34,6,27,13] },
-      { id: 264, name: "10 com 6v", numbers: [20,1,33,16,24,5,10,23,8,30,11,36] },
-      { id: 265, name: "7 com 6v", numbers: [14,31,9,22,18,29,7,28,12,35,3,26] }
+      { id: 266, name: "2com6v", numbers: [32,15,19,4,21,2,25,17,34,6,27,13] },
+      { id: 267, name: "10com6v", numbers: [20,1,33,16,24,5,10,23,8,30,11,36] },
+      { id: 268, name: "7com6v", numbers: [14,31,9,22,18,29,7,28,12,35,3,26] }
     ]
   },
   {
-    name: "PMZ (13 fichas)",
+    name: "4 Pasta - PMZ",
     strategies: [
-      { id: 266, name: "0 com 6v", numbers: [7,28,12,35,3,26,0,32,15,19,4,21,2] },
-      { id: 267, name: "20 com 6v", numbers: [29,18,22,9,31,14,20,1,33,16,24,5] },
-      { id: 268, name: "36 com 6v", numbers: [10,23,8,30,11,36,13,27,6,34,17,25] }
+      { id: 269, name: "0com6v PMZ", numbers: [7,28,12,35,3,26,0,32,15,19,4,21,2] },
+      { id: 270, name: "20com6v PMZ", numbers: [29,18,22,9,31,14,20,1,33,16,24,5] },
+      { id: 271, name: "36com6v PMZ", numbers: [10,23,8,30,11,36,13,27,6,34,17,25] }
     ]
   },
   {
-    name: "Gringa (13 fichas)",
+    name: "4 Pasta - Gringa",
     strategies: [
-      { id: 269, name: "34 com 6v", numbers: [4,21,2,25,17,34,6,27,13,36,11,30] },
-      { id: 270, name: "16 com 6v", numbers: [8,23,10,5,24,16,33,1,20,14,31,9] },
-      { id: 271, name: "35 com 6v", numbers: [22,18,29,7,28,12,35,3,26,0,32,15,19] }
+      { id: 272, name: "34com6v", numbers: [4,21,2,25,17,34,6,27,13,36,11,30] },
+      { id: 273, name: "16com6v", numbers: [8,23,10,5,24,16,33,1,20,14,31,9] },
+      { id: 274, name: "35com6v", numbers: [22,18,29,7,28,12,35,3,26,0,32,15,19] }
     ]
   },
   {
-    name: "Jogadas nos Vizinhos",
+    name: "5 Pasta - Jogadas nos vizinhos",
     strategies: [
-      { id: 272, name: "Gêmeos", numbers: [2,25,17,36,11,30,16,33,1,9,22,18] },
-      { id: 273, name: "TV9", numbers: [31,9,22,18,29,7,15,19,4,34,6,27] },
-      { id: 274, name: "25-4-6-8", numbers: [23,8,30,27,6,34,17,25,2,21,4,19] },
-      { id: 275, name: "QUATRO 4", numbers: [21,4,19,27,13,36,28,7,29,9,31,14] },
-      { id: 276, name: "28-8-4-16", numbers: [12,28,7,33,16,24,30,8,23,19,4,21] },
-      { id: 277, name: "19-27-9-29", numbers: [15,19,4,6,27,13,22,9,31,7,29,18] },
-      { id: 278, name: "23-24-25-26", numbers: [16,24,5,0,26,3,2,25,17,10,23,8] },
-      { id: 279, name: "16-17-18-19", numbers: [33,16,24,29,18,22,25,17,34,15,19,4] },
-      { id: 280, name: "32-33-34-35", numbers: [0,32,15,17,34,6,3,35,12,1,33,16] },
-      { id: 281, name: "3-9-15-6", numbers: [35,3,26,22,9,31,32,15,19,34,6,27] },
-      { id: 282, name: "12-13-14-15", numbers: [35,12,28,31,14,20,32,15,19,27,13,36] },
-      { id: 283, name: "3-9-33-36", numbers: [26,3,35,18,22,9,31,1,33,16,13,36,11] },
-      { id: 284, name: "11-16-19-35", numbers: [36,11,30,15,19,4,24,16,33,12,35,3] },
-      { id: 285, name: "15-34-36-33", numbers: [32,15,19,17,34,6,13,36,11,1,33,16] },
-      { id: 286, name: "35-31-33-36", numbers: [3,35,12,9,31,14,1,33,16,13,36,11] },
-      { id: 287, name: "21-6-12-24", numbers: [4,21,2,34,6,27,35,12,28,16,24,5] },
-      { id: 288, name: "7-14-24-27", numbers: [28,7,29,31,14,20,16,24,5,13,27,6] },
-      { id: 289, name: "21-25-27-23", numbers: [4,21,2,25,17,34,6,27,13,8,23,10] },
-      { id: 290, name: "9 com 6v", numbers: [16,33,1,20,14,31,9,22,18,29,7,28,12] },
-      { id: 291, name: "6 com 6v", numbers: [8,30,11,36,13,27,6,34,17,25,2,21,4] },
-      { id: 292, name: "GRT 0", numbers: [26,0,32,23,10,5,11,30,8,1,20,14] },
-      { id: 293, name: "GRT 1", numbers: [30,11,36,4,21,2,22,9,31,33,1,20] },
-      { id: 294, name: "GRT 2", numbers: [35,12,28,18,22,9,0,32,15,25,2,21] },
-      { id: 295, name: "GRT 3", numbers: [26,3,35,1,33,16,27,13,36,8,23,10] },
-      { id: 296, name: "GRT 4", numbers: [19,4,21,6,34,17,31,14,20,16,24,5] },
-      { id: 297, name: "GRT 5", numbers: [2,25,17,32,15,19,3,35,12,24,5,10] },
-      { id: 298, name: "GRT 6", numbers: [34,6,27,11,36,13,3,26,0,33,16,24] }
+      { id: 275, name: "Gêmeos", numbers: [2,25,17,36,11,30,16,33,1,9,22,18] },
+      { id: 276, name: "TV9", numbers: [31,9,22,18,29,7,15,19,4,34,6,27] },
+      { id: 277, name: "25-4-6-8", numbers: [23,8,30,27,6,34,17,25,2,21,4,19] },
+      { id: 278, name: "QUATRO 4", numbers: [21,4,19,27,13,36,28,7,29,9,31,14] },
+      { id: 279, name: "28-8-4-16", numbers: [12,28,7,33,16,24,30,8,23,19,4,21] },
+      { id: 280, name: "19-27-9-29", numbers: [15,19,4,6,27,13,22,9,31,7,29,18] },
+      { id: 281, name: "23-24-25-26", numbers: [16,24,5,0,26,3,2,25,17,10,23,8] },
+      { id: 282, name: "16-17-18-19", numbers: [33,16,24,29,18,22,25,17,34,15,19,4] },
+      { id: 283, name: "32-33-34-35", numbers: [0,32,15,17,34,6,3,35,12,1,33,16] },
+      { id: 284, name: "3-9-15-6", numbers: [35,3,26,22,9,31,32,15,19,34,6,27] },
+      { id: 285, name: "12-13-14-15", numbers: [35,12,28,31,14,20,32,15,19,27,13,36] },
+      { id: 286, name: "3-9-33-36", numbers: [26,3,35,18,22,9,31,1,33,16,13,36,11] },
+      { id: 287, name: "11-16-19-35", numbers: [36,11,30,15,19,4,24,16,33,12,35,3] },
+      { id: 288, name: "15-34-36-33", numbers: [32,15,19,17,34,6,13,36,11,1,33,16] },
+      { id: 289, name: "35-31-33-36", numbers: [3,35,12,9,31,14,1,33,16,13,36,11] },
+      { id: 290, name: "21-6-12-24", numbers: [4,21,2,34,6,27,35,12,28,16,24,5] },
+      { id: 291, name: "7-14-24-27", numbers: [28,7,29,31,14,20,16,24,5,13,27,6] },
+      { id: 292, name: "21-25-27-23", numbers: [4,21,2,25,17,34,6,27,13,8,23,10] },
+      { id: 293, name: "9com6v vizinhos", numbers: [16,33,1,20,14,31,9,22,18,29,7,28,12] },
+      { id: 294, name: "6com6v vizinhos", numbers: [8,30,11,36,13,27,6,34,17,25,2,21,4] },
+      { id: 295, name: "GRT 0", numbers: [26,0,32,23,10,5,11,30,8,1,20,14] },
+      { id: 296, name: "GRT 1", numbers: [30,11,36,4,21,2,22,9,31,33,1,20] },
+      { id: 297, name: "GRT 2", numbers: [35,12,28,18,22,9,0,32,15,25,2,21] },
+      { id: 298, name: "GRT 3", numbers: [26,3,35,1,33,16,27,13,36,8,23,10] },
+      { id: 299, name: "GRT 4", numbers: [19,4,21,6,34,17,31,14,20,16,24,5] },
+      { id: 300, name: "GRT 5", numbers: [2,25,17,32,15,19,3,35,12,24,5,10] },
+      { id: 301, name: "GRT 6", numbers: [34,6,27,11,36,13,3,26,0,33,16,24] }
     ]
   },
   {
-    name: "Números que se Puxam",
+    name: "6 Pasta - Números que se puxam",
     strategies: [
-      { id: 283, name: "0+Proteção", numbers: [15,32,0,26,3,35,12,28] },
-      { id: 284, name: "1+Proteção", numbers: [14,20,1,33,16,24,5] },
-      { id: 285, name: "2+Proteção", numbers: [17,25,2,21,4,19,15] },
-      { id: 286, name: "3+Proteção", numbers: [0,26,3,35,12,28,7] },
-      { id: 287, name: "4+Proteção", numbers: [2,21,4,19,15,32,0] },
-      { id: 288, name: "5+Proteção", numbers: [16,24,5,10,23,8,30] },
-      { id: 289, name: "6+Proteção", numbers: [13,27,6,34,17,25,2] },
-      { id: 290, name: "7+Proteção", numbers: [12,28,7,29,18,22,9] },
-      { id: 291, name: "8+Proteção", numbers: [10,23,8,30,11,36,13] },
-      { id: 292, name: "9+Proteção", numbers: [18,22,9,31,14,20,1] },
-      { id: 293, name: "10+Proteção", numbers: [24,5,10,23,8,30,11] },
-      { id: 294, name: "11+Proteção", numbers: [8,30,11,36,13,27,6] },
-      { id: 295, name: "12+Proteção", numbers: [3,35,12,28,7,29,18] },
-      { id: 296, name: "13+Proteção", numbers: [11,36,13,27,6,34,17] },
-      { id: 297, name: "14+Proteção", numbers: [9,31,14,20,1,33,16] },
-      { id: 298, name: "15+Proteção", numbers: [4,19,15,32,0,26,3] },
-      { id: 299, name: "16+Proteção", numbers: [1,33,16,24,5,10,23] },
-      { id: 300, name: "17+Proteção", numbers: [6,34,17,25,2,21,4] },
-      { id: 301, name: "18+Proteção", numbers: [7,29,18,22,9,31,14] },
-      { id: 302, name: "19+Proteção", numbers: [21,4,19,15,32,0,26] },
-      { id: 303, name: "20+Proteção", numbers: [31,14,20,1,33,16,24] },
-      { id: 304, name: "21+Proteção", numbers: [25,2,21,4,19,15,32] },
-      { id: 305, name: "22+Proteção", numbers: [29,18,22,9,31,14,20] },
-      { id: 306, name: "23+Proteção", numbers: [5,10,23,8,30,11,36] },
-      { id: 307, name: "24+Proteção", numbers: [33,16,24,5,10,23,8] },
-      { id: 308, name: "25+Proteção", numbers: [34,17,25,2,21,4,19] },
-      { id: 309, name: "26+Proteção", numbers: [32,0,26,3,35,12,28] },
-      { id: 310, name: "27+Proteção", numbers: [36,13,27,6,34,17,25] },
-      { id: 311, name: "28+Proteção", numbers: [35,12,28,7,29,18,22] },
-      { id: 312, name: "29+Proteção", numbers: [28,7,29,18,22,9,31] },
-      { id: 313, name: "30+Proteção", numbers: [23,8,30,11,36,13,27] },
-      { id: 314, name: "31+Proteção", numbers: [22,9,31,14,20,1,33] },
-      { id: 315, name: "32+Proteção", numbers: [19,15,32,0,26,3,35] },
-      { id: 316, name: "33+Proteção", numbers: [20,1,33,16,24,5,10] },
-      { id: 317, name: "34+Proteção", numbers: [27,6,34,17,25,2,21] },
-      { id: 318, name: "35+Proteção", numbers: [26,3,35,12,28,7,29] },
-      { id: 319, name: "36+Proteção", numbers: [30,11,36,13,27,6,34] }
+      { id: 302, name: "0+Proteção", numbers: [10,20,30,19,28,22,33,11,9] },
+      { id: 303, name: "1+Proteção", numbers: [10,11,26,29,21,31,2] },
+      { id: 304, name: "2+Proteção", numbers: [20,22,17,21,4,11,12,32,1,3] },
+      { id: 305, name: "3+Proteção", numbers: [30,33,36,6,9,11,22,13,23,2,4] },
+      { id: 306, name: "4+Proteção", numbers: [2,13,31,21,8,7,14,24,34,3,5] },
+      { id: 307, name: "5+Proteção", numbers: [32,23,10,16,14,15,25,35,4,6] },
+      { id: 308, name: "6+Proteção", numbers: [12,21,24,3,9,15,33,16,36,26,7,5] },
+      { id: 309, name: "7+Proteção", numbers: [14,28,24,5,29,3,17,27,8,6] },
+      { id: 310, name: "8+Proteção", numbers: [4,16,35,19,26,18,28,17,7,9] },
+      { id: 311, name: "9+Proteção", numbers: [6,18,36,27,19,29,8,10] },
+      { id: 312, name: "10+Proteção", numbers: [4,20,30,5,28,19,0,11,9] },
+      { id: 313, name: "11+Proteção", numbers: [22,33,1,29,26,10,2,21,31,12] },
+      { id: 314, name: "12+Proteção", numbers: [3,6,21,24,1,20,22,2,32,11,13] },
+      { id: 315, name: "13+Proteção", numbers: [2,22,4,31,32,26,14,3,23,33,12] },
+      { id: 316, name: "14+Proteção", numbers: [5,3,7,28,15,4,24,34,13] },
+      { id: 317, name: "15+Proteção", numbers: [6,30,25,14,4,5,35,16] },
+      { id: 318, name: "16+Proteção", numbers: [19,8,7,17,18,2,26,36,15] },
+      { id: 319, name: "17+Proteção", numbers: [27,8,18,20,6,7,16] },
+      { id: 320, name: "18+Proteção", numbers: [17,19,9,36,7,8,28] },
+      { id: 321, name: "19+Proteção", numbers: [16,8,17,18,9,28,20] },
+      { id: 322, name: "20+Proteção", numbers: [17,2,25,22,1,21,10,30,19] },
+      { id: 323, name: "21+Proteção", numbers: [3,12,24,6,1,11,10,31,23,25,27,20,22] },
+      { id: 324, name: "22+Proteção", numbers: [2,11,33,4,21,20,24,26,12,32,23] },
+      { id: 325, name: "23+Proteção", numbers: [32,5,10,1,21,25,27,3,33,13,22,24] },
+      { id: 326, name: "24+Proteção", numbers: [22,26,6,14,7,2,4,34,23,25] },
+      { id: 327, name: "25+Proteção", numbers: [15,21,23,27,7,5,35,24,26] },
+      { id: 328, name: "26+Proteção", numbers: [4,8,29,22,24,6,16,36,25,27,13] },
+      { id: 329, name: "27+Proteção", numbers: [9,5,17,6,7,28,26] },
+      { id: 330, name: "28+Proteção", numbers: [10,14,6,5,7,18,8,27,29] },
+      { id: 331, name: "29+Proteção", numbers: [26,1,10,11,4,7,28,9,19,30] },
+      { id: 332, name: "30+Proteção", numbers: [3,15,33,29,32,34,36,10,20,31] },
+      { id: 333, name: "31+Proteção", numbers: [13,35,33,2,4,21,1,11,30,32] },
+      { id: 334, name: "32+Proteção", numbers: [23,5,34,30,36,2,12,22,31,33] },
+      { id: 335, name: "33+Proteção", numbers: [36,3,11,22,6,35,23,13,32,34] },
+      { id: 336, name: "34+Proteção", numbers: [30,32,36,7,14,4,24,33,35] },
+      { id: 337, name: "35+Proteção", numbers: [31,33,8,5,15,25,36,34] },
+      { id: 338, name: "36+Proteção", numbers: [9,18,3,33,6,16,35] }
     ]
   }
 ]
@@ -557,18 +557,19 @@ ATÉ 9 FICHAS (12 pastas, 223 estratégias):
 11. Todos com 2 Vizinhos: 37 estratégias
 12. Combinações de Terminais Cruzados: 3 estratégias
 
-MAIS DE 9 FICHAS (11 pastas, 110 estratégias):
-1. Números em lugares aleatórios: 13 estratégias
-2. Cavalo, Coluna, Dúzia: 13 estratégias
-3. Terminal Iniciante: 3 estratégias
-4. Quadrantes (9 fichas): 4 estratégias
-5. Fatias (7 fichas): 5 estratégias
-6. 4 Hemisférios (9 fichas): 4 estratégias
-7. NSM (13 fichas): 3 estratégias
-8. PMZ (13 fichas): 3 estratégias
-9. Gringa (13 fichas): 3 estratégias
-10. Jogadas nos Vizinhos: 27 estratégias
-11. Números que se Puxam: 37 estratégias
+MAIS DE 9 FICHAS (6 pastas, 138 estratégias):
+1 Pasta - Números em lugares aleatórios: 13 estratégias
+2 Pasta - Cavalo, Coluna, Dúzia: 13 estratégias
+3 Pasta - Terminal iniciante: 3 estratégias
+4 Pasta - Quadrantes: 4 estratégias
+4 Pasta - Fatias: 5 estratégias
+4 Pasta - 4 Hemisférios: 4 estratégias
+4 Pasta - NSM: 3 estratégias
+4 Pasta - PMZ: 3 estratégias
+4 Pasta - Gringa: 3 estratégias
+5 Pasta - Jogadas nos vizinhos: 27 estratégias
+6 Pasta - Números que se puxam: 37 estratégias
 
-TOTAL GERAL: 23 PASTAS, 333 ESTRATÉGIAS
+TOTAL GERAL: 18 PASTAS, 361 ESTRATÉGIAS
 */
+
