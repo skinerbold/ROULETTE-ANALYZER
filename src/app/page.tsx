@@ -42,6 +42,17 @@ export default function Home() {
     selectRoulette
   } = useRouletteWebSocket()
   
+  // LOG CRÍTICO: Estado do WebSocket
+  useEffect(() => {
+    console.log('\n🔍🔍🔍 DIAGNÓSTICO DO ESTADO WEBSOCKET:')
+    console.log('   ✅ isConnected:', isConnected)
+    console.log('   📊 availableRoulettes.length:', availableRoulettes.length)
+    console.log('   📋 availableRoulettes:', availableRoulettes.map(r => r.id))
+    console.log('   🎯 selectedRoulette:', selectedRoulette)
+    console.log('   🔢 recentNumbers.length:', recentNumbers.length)
+    console.log('   🚫 Select desabilitado?', !isConnected || availableRoulettes.length === 0)
+  }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
+  
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
