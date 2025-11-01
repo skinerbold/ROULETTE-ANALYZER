@@ -75,6 +75,51 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
         const rouletteId = message.game
         
+        // 🔥 FILTRO CRÍTICO: Ignorar mensagens de roletas NÃO selecionadas
+        // Isso evita que mensagens de outras roletas "contaminem" a tela
+        const isSelected = rouletteId === selectedRouletteRef.current
+        
+        if (!isSelected && selectedRouletteRef.current !== '') {
+          // Já temos uma roleta selecionada E esta mensagem é de outra roleta
+          console.log(`🚫 [${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}] Mensagem IGNORADA de roleta não selecionada: ${rouletteId}`)
+          console.log(`   Selecionada: ${selectedRouletteRef.current}`)
+          console.log(`   Mensagem de: ${rouletteId}`)
+          
+          // Salvar no histórico interno para quando o usuário selecionar essa roleta
+          // MAS NÃO ATUALIZAR O ESTADO REACT!
+          const numbersFromAPI = message.results
+            .map((r: any) => parseInt(r))
+            .filter((n: number) => !isNaN(n) && n >= 0 && n <= 37)
+            .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+          
+          if (numbersFromAPI.length > 0) {
+            const now = Date.now()
+            const history: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => ({
+              number: num,
+              color: getRouletteColor(num),
+              timestamp: now - (index * 60000)
+            }))
+            rouletteHistoryRef.current.set(rouletteId, history)
+          }
+          
+          // IMPORTANTE: Adicionar à lista de roletas disponíveis (se for nova)
+          if (!discoveredRoulettesRef.current.has(rouletteId)) {
+            discoveredRoulettesRef.current.add(rouletteId)
+            const newRouletteInfo = parseRouletteName(rouletteId)
+            setAvailableRoulettes(prev => {
+              const exists = prev.some(r => r.id === rouletteId)
+              if (!exists) {
+                const updated = [...prev, newRouletteInfo].sort((a, b) => a.name.localeCompare(b.name))
+                console.log(`   📋 Adicionada à lista (total: ${updated.length})`)
+                return updated
+              }
+              return prev
+            })
+          }
+          
+          return // PARAR AQUI - não processar mais nada
+        }
+        
         // LOG: Mostrar TODAS as mensagens com timestamp preciso
         const timestamp = new Date().toLocaleTimeString('pt-BR', { 
           hour: '2-digit', 
@@ -82,7 +127,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           second: '2-digit', 
           fractionalSecondDigits: 3 
         })
-        const isSelected = rouletteId === selectedRouletteRef.current // USAR REF!
         
         if (isSelected) {
           console.log(`\n🔥🔥� [${timestamp}] MENSAGEM DA ROLETA SELECIONADA: ${rouletteId}`)
