@@ -79,6 +79,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         const isSelected = rouletteId === selectedRouletteRef.current // USAR REF!
         if (isSelected) {
           console.log(`📨 [${new Date().toLocaleTimeString()}] Mensagem da roleta SELECIONADA: ${rouletteId}`)
+          console.log(`   Dados brutos da API:`, message.results.slice(0, 10))
+          console.log(`   Total de números: ${message.results.length}`)
         }
         
         // Adicionar roleta descoberta à lista
@@ -102,9 +104,20 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         
         // Converter results (strings) para números
         const numbersFromAPI = message.results
-          .map((r: any) => parseInt(r))
-          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36)
+          .map((r: any) => {
+            const parsed = parseInt(r)
+            if (isNaN(parsed)) {
+              console.warn(`⚠️ Número inválido recebido: "${r}" em ${rouletteId}`)
+            }
+            return parsed
+          })
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 37) // 0-36 + 37 (00)
           .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+        
+        if (numbersFromAPI.length === 0) {
+          console.warn(`⚠️ Nenhum número válido recebido de ${rouletteId}`)
+          return
+        }
         
         // Obter histórico atual desta roleta
         const currentHistory = rouletteHistoryRef.current.get(rouletteId) || []
