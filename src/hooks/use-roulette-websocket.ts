@@ -135,27 +135,62 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           })
         }
         
-        // Processar o array de resultados (mais recente primeiro)
-        const history: RouletteNumber[] = message.results
-          .filter((r: any) => {
-            const num = parseInt(r)
-            return !isNaN(num) && num >= 0 && num <= 36
-          })
-          .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
-          .map((r: any, index: number) => {
-            const num = parseInt(r)
-            return {
-              number: num,
-              color: getRouletteColor(num),
-              timestamp: Date.now() - (index * 60000) // Estimar timestamp (1 min entre spins)
-            }
-          })
+        // Verificar se o primeiro número mudou (indica novo spin)
+        const currentFirstNumber = message.results[0]
         
-        if (history.length > 0) {
-          setRecentNumbers(history)
-          setLastNumber(history[0]) // Mais recente
-          console.log(`✅ ${history.length} números processados de ${message.game}`)
-        }
+        setRecentNumbers(prev => {
+          // Se não há números anteriores, inicializar com o histórico completo
+          if (prev.length === 0) {
+            const history: RouletteNumber[] = message.results
+              .filter((r: any) => {
+                const num = parseInt(r)
+                return !isNaN(num) && num >= 0 && num <= 36
+              })
+              .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+              .map((r: any, index: number) => {
+                const num = parseInt(r)
+                return {
+                  number: num,
+                  color: getRouletteColor(num),
+                  timestamp: Date.now() - (index * 60000) // Estimativa
+                }
+              })
+            
+            console.log(`📜 Histórico inicial: ${history.length} números de ${message.game}`)
+            if (history.length > 0) {
+              setLastNumber(history[0])
+            }
+            return history
+          }
+          
+          // Verificar se houve novo spin (primeiro número diferente)
+          const prevFirstNumber = prev[0]?.number
+          const newNumber = parseInt(currentFirstNumber)
+          
+          if (!isNaN(newNumber) && newNumber >= 0 && newNumber <= 36) {
+            if (prevFirstNumber !== newNumber) {
+              // NOVO SPIN DETECTADO!
+              const newRouletteNumber: RouletteNumber = {
+                number: newNumber,
+                color: getRouletteColor(newNumber),
+                timestamp: Date.now()
+              }
+              
+              console.log(`🎯 NOVO SPIN em ${message.game}: ${prevFirstNumber} → ${newNumber}`)
+              setLastNumber(newRouletteNumber)
+              
+              // Adicionar novo número NO INÍCIO (mais recente)
+              const updated = [newRouletteNumber, ...prev].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+              return updated
+            } else {
+              // Mesmo número, sem mudança
+              console.log(`ℹ️ ${message.game}: Sem novo spin (ainda ${newNumber})`)
+            }
+          }
+          
+          return prev // Manter estado atual
+        })
+        
         return
       }
       
