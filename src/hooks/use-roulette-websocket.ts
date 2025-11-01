@@ -36,6 +36,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const isIntentionalCloseRef = useRef(false)
   const updateBatchRef = useRef<RouletteNumber[]>([]) // NOVO: Batch de atualizações
   const batchTimerRef = useRef<NodeJS.Timeout | null>(null) // NOVO: Timer para batch
+  const discoveredRoulettesRef = useRef<Set<string>>(new Set()) // NOVO: Roletas descobertas dinamicamente
 
   // Limpar timeouts
   const clearTimeouts = useCallback(() => {
@@ -107,18 +108,68 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const handleMessage = useCallback((data: string) => {
     try {
       // Tentar parsear como JSON
-      const message: RouletteMessage = JSON.parse(data)
+      const message: any = JSON.parse(data)
       
       console.log('📨 Mensagem recebida:', message)
       
-      switch (message.type) {
+      // Verificar se é o formato da API real (game, key, game_type, results)
+      if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
+        console.log(`🎰 Roleta: ${message.game} | Últimos números:`, message.results.slice(0, 5))
+        
+        // Adicionar roleta descoberta à lista
+        if (!discoveredRoulettesRef.current.has(message.game)) {
+          discoveredRoulettesRef.current.add(message.game)
+          
+          // Atualizar lista de roletas
+          const newRouletteInfo = parseRouletteName(message.game)
+          setAvailableRoulettes(prev => {
+            const exists = prev.some(r => r.id === message.game)
+            if (!exists) {
+              const updated = [...prev, newRouletteInfo].sort((a, b) => 
+                a.name.localeCompare(b.name)
+              )
+              console.log(`✨ Nova roleta descoberta: ${message.game} (${newRouletteInfo.provider || 'sem provedor'})`)
+              return updated
+            }
+            return prev
+          })
+        }
+        
+        // Processar o array de resultados (mais recente primeiro)
+        const history: RouletteNumber[] = message.results
+          .filter((r: any) => {
+            const num = parseInt(r)
+            return !isNaN(num) && num >= 0 && num <= 36
+          })
+          .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+          .map((r: any, index: number) => {
+            const num = parseInt(r)
+            return {
+              number: num,
+              color: getRouletteColor(num),
+              timestamp: Date.now() - (index * 60000) // Estimar timestamp (1 min entre spins)
+            }
+          })
+        
+        if (history.length > 0) {
+          setRecentNumbers(history)
+          setLastNumber(history[0]) // Mais recente
+          console.log(`✅ ${history.length} números processados de ${message.game}`)
+        }
+        return
+      }
+      
+      // Formato antigo do WebSocket (compatibilidade)
+      const typedMessage: RouletteMessage = message
+      
+      switch (typedMessage.type) {
         case 'result':
         case 'spin':
-          if (typeof message.number === 'number') {
+          if (typeof typedMessage.number === 'number') {
             const newNumber: RouletteNumber = {
-              number: message.number,
-              color: getRouletteColor(message.number),
-              timestamp: message.timestamp || Date.now()
+              number: typedMessage.number,
+              color: getRouletteColor(typedMessage.number),
+              timestamp: typedMessage.timestamp || Date.now()
             }
             
             console.log('🎰 Novo número:', newNumber)
@@ -129,8 +180,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           break
           
         case 'history':
-          if (Array.isArray(message.data)) {
-            const history: RouletteNumber[] = message.data
+          if (Array.isArray(typedMessage.data)) {
+            const history: RouletteNumber[] = typedMessage.data
               .slice(0, WEBSOCKET_CONFIG.maxHistorySize) // Limitar a 500 números
               .map((item: any) => ({
                 number: typeof item === 'number' ? item : item.number,
@@ -155,9 +206,9 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         
         case 'roulettes':
           // Lista de roletas disponíveis
-          if (Array.isArray(message.data)) {
+          if (Array.isArray(typedMessage.data)) {
             // Converter strings para RouletteInfo
-            const roulettesInfo: RouletteInfo[] = message.data.map((rouletteName: string) => 
+            const roulettesInfo: RouletteInfo[] = typedMessage.data.map((rouletteName: string) => 
               parseRouletteName(rouletteName)
             )
             setAvailableRoulettes(roulettesInfo)
@@ -166,8 +217,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           break
           
         case 'error':
-          setError(message.error || 'Erro desconhecido')
-          console.error('❌ Erro do servidor:', message.error)
+          setError(typedMessage.error || 'Erro desconhecido')
+          console.error('❌ Erro do servidor:', typedMessage.error)
           break
       }
     } catch (err) {
@@ -187,7 +238,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         console.log('📝 Mensagem de texto:', data)
       }
     }
-  }, [])
+  }, [addToBatch])
 
   // Tentar reconectar
   const attemptReconnect = useCallback(() => {

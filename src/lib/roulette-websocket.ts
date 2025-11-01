@@ -60,16 +60,69 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
   // - "ezugi_auto_roulette" → Ezugi
   
   const providerMap: Record<string, string> = {
+    // Prefixos conhecidos
     'pragmatic': 'Pragmatic Play',
     'evolution': 'Evolution Gaming',
     'ezugi': 'Ezugi',
     'playtech': 'Playtech',
     'netent': 'NetEnt',
     'authentic': 'Authentic Gaming',
-    'vivo': 'Vivo Gaming',
+    'vivo gaming': 'Vivo Gaming',
     'betgames': 'BetGames.TV',
     'tvbet': 'TVBet',
     'xpg': 'XPG',
+    
+    // Evolution Gaming
+    'lightning': 'Evolution Gaming', // Lightning Roulette, XXXtreme Lightning, etc
+    'speed auto': 'Evolution Gaming', // Speed Auto Roulette
+    'relampago': 'Evolution Gaming', // Roleta Relampago
+    'bac bo': 'Evolution Gaming',
+    'en vivo': 'Evolution Gaming', // Ruleta en Vivo
+    'immersive': 'Evolution Gaming', // Immersive Roulette
+    'mega fire blaze': 'Evolution Gaming', // Mega Fire Blaze Roulette
+    'quantum': 'Evolution Gaming', // Quantum Roulette, Quantum Auto Roulette
+    'mega roulette': 'Evolution Gaming', // Mega Roulette
+    'auto mega roulette': 'Evolution Gaming',
+    'american roulette': 'Evolution Gaming', // American Roulette
+    
+    // Pragmatic Play
+    'brasileira': 'Pragmatic Play', // Roleta Brasileira
+    'auto-roulette': 'Pragmatic Play', // Auto-Roulette
+    
+    // Ezugi
+    'greek roulette': 'Ezugi',
+    'turkish roulette': 'Ezugi',
+    'ruby roulette': 'Ezugi',
+    'rapida': 'Ezugi', // Roleta Rapida
+    
+    // Playtech
+    'grand roulette': 'Playtech',
+    'latinoamérica': 'Playtech', // Ruleta Latinoamérica
+    'age of the gods': 'Playtech',
+    'bet365 roulette': 'Playtech', // bet365 Roulette
+    'bet365 dutch': 'Playtech', // bet365 Dutch Roulette
+    
+    // Gaming Corps
+    'slingshot': 'Gaming Corps', // Slingshot, Prime Slingshot
+    
+    // Outros identificados
+    'vip roulette': 'Evolution Gaming', // VIP Roulette
+    'prestige': 'Evolution Gaming', // Prestige Roulette
+    'super spin': 'NetEnt', // Super Spin Roulette
+    'speed roulette': 'Evolution Gaming', // Speed Roulette
+    'auto roulette': 'Evolution Gaming', // Auto Roulette
+    'power up': 'Pragmatic Play', // Power Up Roulette
+    'roulette macao': 'Evolution Gaming', // Roulette Macao
+    'arabic': 'Evolution Gaming', // Arabic Roulette
+    'ao vivo': 'Evolution Gaming', // Roleta ao Vivo
+    'super roulette': 'Evolution Gaming', // Super Roulette
+    'football roulette': 'Evolution Gaming', // Football Roulette
+    'football french': 'Evolution Gaming', // Football French Roulette
+    'azure': 'Ezugi', // Roleta Azure
+    'italiana': 'Evolution Gaming', // Roulette Italiana
+    'bucharest': 'Evolution Gaming', // Bucharest Roulette
+    'spread bet': 'Playtech', // Spread Bet Roulette
+    'espanol': 'Evolution Gaming', // Ruleta en Espanol
   }
   
   const lowerName = rouletteName.toLowerCase()
