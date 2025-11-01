@@ -441,12 +441,12 @@ export default function Home() {
     if (isConnected && availableRoulettes.length > 0 && !selectedRoulette) {
       const firstRoulette = availableRoulettes[0]
       console.log('🎰 Selecionando primeira roleta disponível:', firstRoulette)
-      setSelectedRoulette(firstRoulette)
+      setSelectedRoulette(firstRoulette.id) // Usar o ID da roleta
       
       // Enviar mensagem de inscrição
       sendMessage(JSON.stringify({
         type: 'subscribe',
-        roulette: firstRoulette,
+        roulette: firstRoulette.id,
         limit: 500
       }))
     }
@@ -468,6 +468,11 @@ export default function Home() {
       }))
     }
   }, [selectedRoulette, isConnected, sendMessage])
+
+  // Obter informações da roleta selecionada
+  const selectedRouletteInfo = useMemo(() => {
+    return availableRoulettes.find(r => r.id === selectedRoulette)
+  }, [availableRoulettes, selectedRoulette])
 
   const analyzeStrategy = (strategyId: number, numbersArray: number[]) => {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
@@ -902,22 +907,40 @@ export default function Home() {
               disabled={!isConnected || availableRoulettes.length === 0}
             >
               <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
-                <SelectValue placeholder={
-                  !isConnected 
-                    ? "Aguardando conexão..." 
-                    : availableRoulettes.length === 0 
-                      ? "Nenhuma roleta disponível" 
-                      : "Selecione uma roleta"
-                } />
+                <SelectValue>
+                  {selectedRouletteInfo ? (
+                    <div className="flex items-center gap-2">
+                      <span>🎰 {selectedRouletteInfo.name}</span>
+                      {selectedRouletteInfo.provider && (
+                        <span className="text-xs text-gray-400">
+                          ({selectedRouletteInfo.provider})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    !isConnected 
+                      ? "Aguardando conexão..." 
+                      : availableRoulettes.length === 0 
+                        ? "Nenhuma roleta disponível" 
+                        : "Selecione uma roleta"
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-gray-700 border-gray-600">
-                {availableRoulettes.map((roulette) => (
+                {availableRoulettes.map((rouletteInfo) => (
                   <SelectItem 
-                    key={roulette} 
-                    value={roulette} 
+                    key={rouletteInfo.id} 
+                    value={rouletteInfo.id} 
                     className="text-white hover:bg-gray-600 focus:bg-gray-600"
                   >
-                    🎰 {roulette}
+                    <div className="flex items-center gap-2">
+                      🎰 <span className="font-medium">{rouletteInfo.name}</span>
+                      {rouletteInfo.provider && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          ({rouletteInfo.provider})
+                        </span>
+                      )}
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1598,22 +1621,40 @@ export default function Home() {
                 disabled={!isConnected || availableRoulettes.length === 0}
               >
                 <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
-                  <SelectValue placeholder={
-                    !isConnected 
-                      ? "Aguardando conexão..." 
-                      : availableRoulettes.length === 0 
-                        ? "Nenhuma roleta disponível" 
-                        : "Selecione uma roleta"
-                  } />
+                  <SelectValue>
+                    {selectedRouletteInfo ? (
+                      <div className="flex items-center gap-2">
+                        <span>🎰 {selectedRouletteInfo.name}</span>
+                        {selectedRouletteInfo.provider && (
+                          <span className="text-xs text-gray-400">
+                            ({selectedRouletteInfo.provider})
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      !isConnected 
+                        ? "Aguardando conexão..." 
+                        : availableRoulettes.length === 0 
+                          ? "Nenhuma roleta disponível" 
+                          : "Selecione uma roleta"
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-gray-700 border-gray-600">
-                  {availableRoulettes.map((roulette) => (
+                  {availableRoulettes.map((rouletteInfo) => (
                     <SelectItem 
-                      key={roulette} 
-                      value={roulette} 
+                      key={rouletteInfo.id} 
+                      value={rouletteInfo.id} 
                       className="text-white hover:bg-gray-600 focus:bg-gray-600"
                     >
-                      🎰 {roulette}
+                      <div className="flex items-center gap-2">
+                        🎰 <span className="font-medium">{rouletteInfo.name}</span>
+                        {rouletteInfo.provider && (
+                          <span className="text-xs text-gray-400 ml-2">
+                            ({rouletteInfo.provider})
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

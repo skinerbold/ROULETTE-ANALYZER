@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { 
   RouletteNumber, 
-  RouletteMessage, 
+  RouletteMessage,
+  RouletteInfo,
   WEBSOCKET_CONFIG,
-  getRouletteColor 
+  getRouletteColor,
+  parseRouletteName
 } from '@/lib/roulette-websocket'
 
 export interface UseRouletteWebSocketReturn {
@@ -14,7 +16,7 @@ export interface UseRouletteWebSocketReturn {
   recentNumbers: RouletteNumber[]
   error: string | null
   reconnectAttempts: number
-  availableRoulettes: string[]
+  availableRoulettes: RouletteInfo[]
   connect: () => void
   disconnect: () => void
   sendMessage: (message: string) => void
@@ -26,7 +28,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const [recentNumbers, setRecentNumbers] = useState<RouletteNumber[]>([])
   const [error, setError] = useState<string | null>(null)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
-  const [availableRoulettes, setAvailableRoulettes] = useState<string[]>([])
+  const [availableRoulettes, setAvailableRoulettes] = useState<RouletteInfo[]>([])
   
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -154,8 +156,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         case 'roulettes':
           // Lista de roletas disponíveis
           if (Array.isArray(message.data)) {
-            setAvailableRoulettes(message.data)
-            console.log('🎰 Roletas disponíveis:', message.data)
+            // Converter strings para RouletteInfo
+            const roulettesInfo: RouletteInfo[] = message.data.map((rouletteName: string) => 
+              parseRouletteName(rouletteName)
+            )
+            setAvailableRoulettes(roulettesInfo)
+            console.log('🎰 Roletas disponíveis:', roulettesInfo)
           }
           break
           
