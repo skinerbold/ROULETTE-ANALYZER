@@ -75,12 +75,24 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
         const rouletteId = message.game
         
-        // LOG: Mostrar qual roleta está enviando dados
+        // LOG: Mostrar TODAS as mensagens com timestamp preciso
+        const timestamp = new Date().toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit', 
+          fractionalSecondDigits: 3 
+        })
         const isSelected = rouletteId === selectedRouletteRef.current // USAR REF!
+        
         if (isSelected) {
-          console.log(`📨 [${new Date().toLocaleTimeString()}] Mensagem da roleta SELECIONADA: ${rouletteId}`)
-          console.log(`   Dados brutos da API:`, message.results.slice(0, 10))
-          console.log(`   Total de números: ${message.results.length}`)
+          console.log(`\n🔥🔥� [${timestamp}] MENSAGEM DA ROLETA SELECIONADA: ${rouletteId}`)
+          console.log(`   📦 Dados COMPLETOS da API:`, JSON.stringify(message, null, 2))
+          console.log(`   🎲 Primeiros 15 números: [${message.results.slice(0, 15).join(', ')}]`)
+          console.log(`   📊 Total de números: ${message.results.length}`)
+          console.log(`   🔑 Message keys:`, Object.keys(message))
+        } else {
+          // Log de mensagens de outras roletas (resumido)
+          console.log(`📭 [${timestamp}] Mensagem de outra roleta: ${rouletteId} (${message.results.length} números)`)
         }
         
         // Adicionar roleta descoberta à lista
@@ -152,6 +164,14 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         const areEqual = currentNumbers.length === numbersFromAPI.length && 
                         currentNumbers.every((n, i) => n === numbersFromAPI[i])
         
+        // LOG para debug: mostrar resultado da comparação
+        if (isSelected) {
+          console.log(`   🔍 Comparação de arrays:`)
+          console.log(`      Atual: [${currentNumbers.slice(0, 10).join(', ')}...] (${currentNumbers.length})`)
+          console.log(`      Nova:  [${numbersFromAPI.slice(0, 10).join(', ')}...] (${numbersFromAPI.length})`)
+          console.log(`      Arrays iguais? ${areEqual}`)
+        }
+        
         if (!areEqual) {
           // Houve mudança! Reconstruir histórico completo
           const now = Date.now()
@@ -197,8 +217,19 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           
           // Se esta roleta estiver selecionada, atualizar estado SEMPRE
           if (rouletteId === selectedRouletteRef.current) { // USAR REF!
-            console.log(`   🔄 Atualizando estado React...`)
-            console.log(`   ANTES - recentNumbers.length: ${recentNumbers.length}`)
+            const timestampUpdate = new Date().toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit', 
+              second: '2-digit', 
+              fractionalSecondDigits: 3 
+            })
+            
+            console.log(`\n⚡⚡⚡ [${timestampUpdate}] ATUALIZANDO ESTADO REACT`)
+            console.log(`   🎰 Roleta: ${rouletteId}`)
+            console.log(`   📊 ANTES - números na tela: [${recentNumbers.slice(0, 10).map(n => n.number).join(', ')}...]`)
+            console.log(`   📊 DEPOIS - novos números: [${updatedHistory.slice(0, 10).map(n => n.number).join(', ')}...]`)
+            console.log(`   🔢 Quantidade: ${recentNumbers.length} → ${updatedHistory.length}`)
+            console.log(`   🆕 É novo spin? ${isNewSpin}`)
             
             // FORÇA atualização criando novo array com spread
             setRecentNumbers([...updatedHistory])
@@ -207,19 +238,9 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               setLastNumber({...updatedHistory[0]}) // Clone do objeto para forçar update
             }
             
-            console.log(`   DEPOIS - updatedHistory.length: ${updatedHistory.length}`)
-            console.log(`   Incrementando updateVersion...`)
-            setUpdateVersion(v => {
-              console.log(`   updateVersion: ${v} → ${v + 1}`)
-              return v + 1
-            })
+            setUpdateVersion(v => v + 1)
             
-            if (isNewSpin) {
-              console.log(`🎯 [SELECIONADA] NOVO SPIN em ${rouletteId}: ${currentNumbers[0]} → ${numbersFromAPI[0]}`)
-            } else {
-              console.log(`🔄 [SELECIONADA] Sincronizando ${rouletteId}: histórico atualizado (${numbersFromAPI.length} números)`)
-            }
-            console.log(`   ✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]\n`)
+            console.log(`   ✅ setRecentNumbers e setUpdateVersion chamados\n`)
           }
         }
         
