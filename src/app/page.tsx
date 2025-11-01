@@ -1097,12 +1097,11 @@ export default function Home() {
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center w-full max-w-4xl">
-                {[...numbersToAnalyze].reverse().map((number, reversedIndex) => {
-                  const realIndex = numbersToAnalyze.length - 1 - reversedIndex
+                {numbersToAnalyze.map((number, index) => {
                   return (
                     <div
-                      key={realIndex}
-                      className={`relative group w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-base sm:text-lg md:text-xl flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, realIndex)} transition-all duration-200 hover:scale-110`}
+                      key={index}
+                      className={`relative group w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-base sm:text-lg md:text-xl flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                     >
                       {number}
                       <button
@@ -1927,11 +1926,10 @@ export default function Home() {
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-1 sm:gap-1.5 md:gap-1.5 lg:gap-2 xl:gap-2.5 2xl:gap-3 justify-items-center">
-                  {[...numbersToAnalyze].reverse().map((number, reversedIndex) => {
-                    const realIndex = numbersToAnalyze.length - 1 - reversedIndex
+                  {numbersToAnalyze.map((number, index) => {
                     return (
                       <div
-                        key={realIndex}
+                        key={index}
                         className={`relative group 
                           w-6 h-6 text-xs
                           sm:w-7 sm:h-7 sm:text-xs
@@ -1939,7 +1937,7 @@ export default function Home() {
                           lg:w-10 lg:h-10 lg:text-base
                           xl:w-12 xl:h-12 xl:text-lg
                           2xl:w-16 2xl:h-16 2xl:text-2xl
-                          flex items-center justify-center rounded font-bold ${getNumberColor(number, realIndex)} transition-all duration-200 hover:scale-110`}
+                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                       >
                         {number}
                         <button
