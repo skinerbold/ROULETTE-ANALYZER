@@ -470,7 +470,13 @@ export default function Home() {
 
   // Handler para mudança manual de roleta pelo usuário
   const handleRouletteChange = useCallback((roulette: string) => {
-    if (!roulette || roulette === selectedRoulette) return
+    console.log(`📱 [handleRouletteChange] CHAMADO com: "${roulette}"`)
+    console.log(`   selectedRoulette atual: "${selectedRoulette}"`)
+    
+    if (!roulette || roulette === selectedRoulette) {
+      console.log(`   ⏭️ Ignorando (vazio ou já selecionada)`)
+      return
+    }
     
     console.log('🎰 Mudança de roleta:', selectedRoulette, '→', roulette)
     selectRoulette(roulette) // Usar selectRoulette do hook
