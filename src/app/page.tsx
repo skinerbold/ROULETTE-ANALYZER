@@ -429,16 +429,26 @@ export default function Home() {
   const numbersFromWebSocket = useMemo(() => {
     if (recentNumbers.length === 0) return []
     const converted = recentNumbers.map(rn => rn.number)
-    console.log(`🔄 [CONVERSÃO v${updateVersion}] recentNumbers (${recentNumbers.length}) → numbers: [${converted.slice(0, 10).join(', ')}...]`)
+    console.log(`\n🔄 [CONVERSÃO v${updateVersion}] recentNumbers mudou!`)
+    console.log(`   Length: ${recentNumbers.length}`)
+    console.log(`   Números: [${converted.slice(0, 10).join(', ')}...]`)
+    console.log(`   Timestamps: [${recentNumbers.slice(0, 3).map(n => new Date(n.timestamp).toLocaleTimeString()).join(', ')}...]`)
     return converted
   }, [recentNumbers, updateVersion]) // Adicionar updateVersion como dependência
 
   useEffect(() => {
+    console.log(`\n🌐 [SYNC v${updateVersion}] useEffect disparado!`)
+    console.log(`   numbersFromWebSocket.length: ${numbersFromWebSocket.length}`)
+    console.log(`   selectedRoulette: ${selectedRoulette}`)
+    
     if (numbersFromWebSocket.length > 0) {
-      console.log(`🌐 [SYNC v${updateVersion}] Atualizando estado numbers com ${numbersFromWebSocket.length} números do WebSocket`)
-      console.log(`   Roleta selecionada: ${selectedRoulette}`)
+      console.log(`   ✅ Atualizando estado 'numbers'`)
+      console.log(`   ANTES - numbers.length: ${numbers.length}`)
       console.log(`   Primeiros 10: [${numbersFromWebSocket.slice(0, 10).join(', ')}]`)
       setNumbers(numbersFromWebSocket)
+      console.log(`   DEPOIS - setNumbers chamado\n`)
+    } else {
+      console.log(`   ⚠️ numbersFromWebSocket vazio, não atualizando\n`)
     }
   }, [numbersFromWebSocket, selectedRoulette, updateVersion])
 

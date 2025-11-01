@@ -41,6 +41,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const isIntentionalCloseRef = useRef(false)
   const discoveredRoulettesRef = useRef<Set<string>>(new Set())
   const rouletteHistoryRef = useRef<Map<string, RouletteNumber[]>>(new Map())
+  const selectedRouletteRef = useRef<string>('') // REF para valor sempre atualizado
 
   // Limpar timeouts
   const clearTimeouts = useCallback(() => {
@@ -75,7 +76,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         const rouletteId = message.game
         
         // LOG: Mostrar qual roleta está enviando dados
-        const isSelected = rouletteId === selectedRoulette
+        const isSelected = rouletteId === selectedRouletteRef.current // USAR REF!
         if (isSelected) {
           console.log(`📨 [${new Date().toLocaleTimeString()}] Mensagem da roleta SELECIONADA: ${rouletteId}`)
         }
@@ -143,6 +144,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           const now = Date.now()
           const isNewSpin = currentNumbers[0] !== numbersFromAPI[0]
           
+          console.log(`\n🔍 [DEBUG] Detectada mudança em ${rouletteId}:`)
+          console.log(`   Atual (${currentNumbers.length}): [${currentNumbers.slice(0, 10).join(', ')}]`)
+          console.log(`   Nova  (${numbersFromAPI.length}): [${numbersFromAPI.slice(0, 10).join(', ')}]`)
+          console.log(`   É novo spin? ${isNewSpin}`)
+          console.log(`   Está selecionada? ${rouletteId === selectedRouletteRef.current}`) // USAR REF!
+          
           const updatedHistory: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => {
             // Para o primeiro número (se for novo spin), usar timestamp atual
             if (index === 0 && isNewSpin) {
@@ -166,7 +173,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           rouletteHistoryRef.current.set(rouletteId, updatedHistory)
           
           // Se esta roleta estiver selecionada, atualizar estado SEMPRE
-          if (rouletteId === selectedRoulette) {
+          if (rouletteId === selectedRouletteRef.current) { // USAR REF!
+            console.log(`   🔄 Atualizando estado React...`)
+            console.log(`   ANTES - recentNumbers.length: ${recentNumbers.length}`)
+            
             // FORÇA atualização criando novo array com spread
             setRecentNumbers([...updatedHistory])
             
@@ -174,13 +184,19 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               setLastNumber({...updatedHistory[0]}) // Clone do objeto para forçar update
             }
             
+            console.log(`   DEPOIS - updatedHistory.length: ${updatedHistory.length}`)
+            console.log(`   Incrementando updateVersion...`)
+            setUpdateVersion(v => {
+              console.log(`   updateVersion: ${v} → ${v + 1}`)
+              return v + 1
+            })
+            
             if (isNewSpin) {
               console.log(`🎯 [SELECIONADA] NOVO SPIN em ${rouletteId}: ${currentNumbers[0]} → ${numbersFromAPI[0]}`)
             } else {
               console.log(`🔄 [SELECIONADA] Sincronizando ${rouletteId}: histórico atualizado (${numbersFromAPI.length} números)`)
             }
-            console.log(`   ✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]`)
-            setUpdateVersion(v => v + 1) // Incrementar versão para forçar re-render
+            console.log(`   ✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]\n`)
           }
         }
         
@@ -193,7 +209,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       // Ignorar mensagens que não são JSON válido
       console.log('ℹ️ Mensagem não-JSON ignorada')
     }
-  }, [selectedRoulette])
+  }, []) // REMOVIDO selectedRoulette - agora usa REF!
 
   // Tentar reconectar
   const attemptReconnect = useCallback(() => {
@@ -327,6 +343,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       disconnect()
     }
   }, []) // Executar apenas uma vez
+
+  // Sincronizar ref com state sempre que selectedRoulette mudar
+  useEffect(() => {
+    selectedRouletteRef.current = selectedRoulette
+    console.log(`🔄 [REF SYNC] selectedRouletteRef atualizada para: "${selectedRoulette}"`)
+  }, [selectedRoulette])
 
   return {
     isConnected,
