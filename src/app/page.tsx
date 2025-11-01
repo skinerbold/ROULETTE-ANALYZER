@@ -36,6 +36,7 @@ export default function Home() {
     availableRoulettes, 
     recentNumbers,
     selectedRoulette,
+    updateVersion, // NOVO: força re-render
     sendMessage,
     connect,
     selectRoulette
@@ -428,18 +429,18 @@ export default function Home() {
   const numbersFromWebSocket = useMemo(() => {
     if (recentNumbers.length === 0) return []
     const converted = recentNumbers.map(rn => rn.number)
-    console.log(`🔄 [CONVERSÃO] recentNumbers (${recentNumbers.length}) → numbers: [${converted.slice(0, 10).join(', ')}...]`)
+    console.log(`🔄 [CONVERSÃO v${updateVersion}] recentNumbers (${recentNumbers.length}) → numbers: [${converted.slice(0, 10).join(', ')}...]`)
     return converted
-  }, [recentNumbers])
+  }, [recentNumbers, updateVersion]) // Adicionar updateVersion como dependência
 
   useEffect(() => {
     if (numbersFromWebSocket.length > 0) {
-      console.log(`🌐 [SYNC] Atualizando estado numbers com ${numbersFromWebSocket.length} números do WebSocket`)
+      console.log(`🌐 [SYNC v${updateVersion}] Atualizando estado numbers com ${numbersFromWebSocket.length} números do WebSocket`)
       console.log(`   Roleta selecionada: ${selectedRoulette}`)
       console.log(`   Primeiros 10: [${numbersFromWebSocket.slice(0, 10).join(', ')}]`)
       setNumbers(numbersFromWebSocket)
     }
-  }, [numbersFromWebSocket, selectedRoulette])
+  }, [numbersFromWebSocket, selectedRoulette, updateVersion])
 
   // Selecionar automaticamente a primeira roleta disponível
   useEffect(() => {
