@@ -125,17 +125,28 @@ export default function Home() {
 
   useEffect(() => {
     if (numbers.length > 0) {
-      calculateAllStrategies()
-      updateNumberStatuses()
-      // Salvar sessão sempre que os números mudarem
-      if (user && !isLoadingSession) {
-        saveUserSession()
+      // OTIMIZAÇÃO: Adicionar debounce para evitar cálculos excessivos
+      const debounceTimer = setTimeout(() => {
+        calculateAllStrategies()
+        updateNumberStatuses()
+      }, 100) // Aguardar 100ms antes de recalcular
+      
+      // Salvar sessão (com debounce maior para evitar muitas escritas)
+      const saveTimer = setTimeout(() => {
+        if (user && !isLoadingSession) {
+          saveUserSession()
+        }
+      }, 1000) // Aguardar 1 segundo antes de salvar
+      
+      return () => {
+        clearTimeout(debounceTimer)
+        clearTimeout(saveTimer)
       }
     } else if (user && !isLoadingSession) {
       // Salvar sessão vazia também
       saveUserSession()
     }
-  }, [numbers, selectedStrategies, analysisLimit]) // MUDANÇA: Adicionado analysisLimit
+  }, [numbers, selectedStrategies, analysisLimit])
 
   const checkUser = async () => {
     try {
@@ -412,14 +423,18 @@ export default function Home() {
   }
 
   // Sincronizar números do WebSocket com o estado local
-  useEffect(() => {
-    if (recentNumbers.length > 0) {
-      console.log('🌐 Sincronizando números do WebSocket:', recentNumbers.length)
-      // Extrair apenas os números do array de RouletteNumber
-      const numbersOnly = recentNumbers.map(rn => rn.number)
-      setNumbers(numbersOnly)
-    }
+  // OTIMIZAÇÃO: Usar useMemo para evitar conversões desnecessárias
+  const numbersFromWebSocket = useMemo(() => {
+    if (recentNumbers.length === 0) return []
+    return recentNumbers.map(rn => rn.number)
   }, [recentNumbers])
+
+  useEffect(() => {
+    if (numbersFromWebSocket.length > 0) {
+      console.log('🌐 Sincronizando números do WebSocket:', numbersFromWebSocket.length)
+      setNumbers(numbersFromWebSocket)
+    }
+  }, [numbersFromWebSocket])
 
   // Selecionar automaticamente a primeira roleta disponível
   useEffect(() => {

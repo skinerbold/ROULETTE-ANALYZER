@@ -32,6 +32,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isIntentionalCloseRef = useRef(false)
+  const updateBatchRef = useRef<RouletteNumber[]>([]) // NOVO: Batch de atualizações
+  const batchTimerRef = useRef<NodeJS.Timeout | null>(null) // NOVO: Timer para batch
 
   // Limpar timeouts
   const clearTimeouts = useCallback(() => {
@@ -43,7 +45,50 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current)
+      batchTimerRef.current = null
+    }
   }, [])
+
+  // NOVO: Processar batch de números acumulados
+  const processBatch = useCallback(() => {
+    if (updateBatchRef.current.length > 0) {
+      const batch = [...updateBatchRef.current]
+      updateBatchRef.current = []
+      
+      console.log(`📦 Processando batch de ${batch.length} números`)
+      
+      setRecentNumbers(prev => {
+        const newNumbers = [...batch, ...prev].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+        return newNumbers
+      })
+      
+      // Atualizar último número
+      if (batch.length > 0) {
+        setLastNumber(batch[0])
+      }
+    }
+  }, [])
+
+  // NOVO: Adicionar número ao batch
+  const addToBatch = useCallback((newNumber: RouletteNumber) => {
+    updateBatchRef.current.push(newNumber)
+    
+    // Limpar timer anterior
+    if (batchTimerRef.current) {
+      clearTimeout(batchTimerRef.current)
+    }
+    
+    // Processar batch após 50ms (ou imediatamente se batch estiver grande)
+    if (updateBatchRef.current.length >= 10) {
+      processBatch() // Processar imediatamente se batch >= 10
+    } else {
+      batchTimerRef.current = setTimeout(() => {
+        processBatch()
+      }, 50) // Aguardar 50ms
+    }
+  }, [processBatch])
 
   // Iniciar heartbeat (manter conexão viva)
   const startHeartbeat = useCallback(() => {
@@ -74,9 +119,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               timestamp: message.timestamp || Date.now()
             }
             
-            setLastNumber(newNumber)
-            setRecentNumbers(prev => [newNumber, ...prev].slice(0, WEBSOCKET_CONFIG.maxHistorySize)) // Manter últimos 500
             console.log('🎰 Novo número:', newNumber)
+            
+            // OTIMIZAÇÃO: Adicionar ao batch ao invés de atualizar imediatamente
+            addToBatch(newNumber)
           }
           break
           
