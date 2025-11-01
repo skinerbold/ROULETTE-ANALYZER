@@ -140,37 +140,25 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           })
         }
         
+        // Converter results (strings) para números
+        const numbersFromAPI = message.results
+          .map((r: any) => parseInt(r))
+          .filter((n: number) => !isNaN(n) && n >= 0 && n <= 36)
+          .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+        
         // Obter histórico atual desta roleta
         const currentHistory = rouletteHistoryRef.current.get(rouletteId) || []
-        const currentFirstNumber = message.results[0]
-        const parsedNumber = parseInt(currentFirstNumber)
         
-        // Validar número
-        if (isNaN(parsedNumber) || parsedNumber < 0 || parsedNumber > 36) {
-          console.warn(`⚠️ Número inválido em ${rouletteId}: ${currentFirstNumber}`)
-          return
-        }
-        
-        // Se não há histórico, inicializar
+        // Se não há histórico, inicializar com TODOS os números da API
         if (currentHistory.length === 0) {
-          const history: RouletteNumber[] = message.results
-            .filter((r: any) => {
-              const num = parseInt(r)
-              return !isNaN(num) && num >= 0 && num <= 36
-            })
-            .slice(0, WEBSOCKET_CONFIG.maxHistorySize)
-            .map((r: any, index: number) => {
-              const num = parseInt(r)
-              return {
-                number: num,
-                color: getRouletteColor(num),
-                timestamp: Date.now() - (index * 60000)
-              }
-            })
+          const history: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => ({
+            number: num,
+            color: getRouletteColor(num),
+            timestamp: Date.now() - (index * 60000) // Aproximação de timestamps
+          }))
           
-          // Salvar no histórico desta roleta
           rouletteHistoryRef.current.set(rouletteId, history)
-          console.log(`📜 Histórico inicial de ${rouletteId}: ${history.length} números`)
+          console.log(`📜 INICIALIZANDO ${rouletteId}: ${history.length} números - [${history.slice(0, 5).map(n => n.number).join(', ')}...]`)
           
           // Se esta roleta estiver selecionada, atualizar estado
           if (rouletteId === selectedRoulette) {
@@ -182,33 +170,43 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           return
         }
         
-        // Verificar se houve novo spin
-        const prevFirstNumber = currentHistory[0]?.number
+        // SINCRONIZAÇÃO COMPLETA: Comparar arrays inteiros
+        // A API sempre envia o histórico completo atualizado
+        const currentNumbers = currentHistory.map(h => h.number)
+        const areEqual = currentNumbers.length === numbersFromAPI.length && 
+                        currentNumbers.every((n, i) => n === numbersFromAPI[i])
         
-        if (prevFirstNumber !== parsedNumber) {
-          // NOVO SPIN!
-          const newRouletteNumber: RouletteNumber = {
-            number: parsedNumber,
-            color: getRouletteColor(parsedNumber),
-            timestamp: Date.now()
+        if (!areEqual) {
+          // Houve mudança! Reconstruir histórico completo
+          const updatedHistory: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => {
+            // Manter timestamp existente se número já estava no histórico
+            const existingEntry = currentHistory.find(h => h.number === num && currentHistory.indexOf(h) === index)
+            return {
+              number: num,
+              color: getRouletteColor(num),
+              timestamp: existingEntry?.timestamp || Date.now() - (index * 60000)
+            }
+          })
+          
+          // Detectar novo spin (primeiro número mudou)
+          const isNewSpin = currentNumbers[0] !== numbersFromAPI[0]
+          
+          if (isNewSpin) {
+            console.log(`🎯 NOVO SPIN em ${rouletteId}: ${currentNumbers[0]} → ${numbersFromAPI[0]}`)
+          } else {
+            console.log(`🔄 Sincronizando ${rouletteId}: histórico atualizado (${numbersFromAPI.length} números)`)
           }
           
-          console.log(`🎯 NOVO SPIN em ${rouletteId}: ${prevFirstNumber} → ${parsedNumber}`)
-          
-          // Atualizar histórico desta roleta
-          const updatedHistory = [newRouletteNumber, ...currentHistory].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
           rouletteHistoryRef.current.set(rouletteId, updatedHistory)
           
-          // Se esta roleta estiver selecionada, atualizar estado
+          // Se esta roleta estiver selecionada, atualizar estado SEMPRE
           if (rouletteId === selectedRoulette) {
             setRecentNumbers(updatedHistory)
-            setLastNumber(newRouletteNumber)
-            console.log(`✅ Atualizado estado (roleta selecionada)`)
-          } else {
-            console.log(`ℹ️ Histórico atualizado, mas roleta ${rouletteId} não está selecionada`)
+            if (updatedHistory.length > 0) {
+              setLastNumber(updatedHistory[0])
+            }
+            console.log(`✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]`)
           }
-        } else {
-          console.log(`ℹ️ ${rouletteId}: Sem novo spin (ainda ${parsedNumber})`)
         }
         
         return
