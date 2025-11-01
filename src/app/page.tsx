@@ -35,11 +35,12 @@ export default function Home() {
     isConnected, 
     availableRoulettes, 
     recentNumbers,
+    selectedRoulette,
     sendMessage,
-    connect 
+    connect,
+    selectRoulette
   } = useRouletteWebSocket()
   
-  const [selectedRoulette, setSelectedRoulette] = useState<string>('') // Roleta selecionada
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
@@ -441,7 +442,7 @@ export default function Home() {
     if (isConnected && availableRoulettes.length > 0 && !selectedRoulette) {
       const firstRoulette = availableRoulettes[0]
       console.log('🎰 Selecionando primeira roleta disponível:', firstRoulette)
-      setSelectedRoulette(firstRoulette.id) // Usar o ID da roleta
+      selectRoulette(firstRoulette.id) // Usar selectRoulette do hook
       
       // Enviar mensagem de inscrição
       sendMessage(JSON.stringify({
@@ -450,14 +451,14 @@ export default function Home() {
         limit: 500
       }))
     }
-  }, [isConnected, availableRoulettes, selectedRoulette, sendMessage])
+  }, [isConnected, availableRoulettes, selectedRoulette, sendMessage, selectRoulette])
 
   // Handler para mudança manual de roleta pelo usuário
   const handleRouletteChange = useCallback((roulette: string) => {
     if (!roulette || roulette === selectedRoulette) return
     
     console.log('🎰 Mudança de roleta:', selectedRoulette, '→', roulette)
-    setSelectedRoulette(roulette)
+    selectRoulette(roulette) // Usar selectRoulette do hook
     
     // Enviar mensagem de inscrição na nova roleta
     if (isConnected) {
@@ -467,7 +468,7 @@ export default function Home() {
         limit: 500
       }))
     }
-  }, [selectedRoulette, isConnected, sendMessage])
+  }, [selectedRoulette, isConnected, sendMessage, selectRoulette])
 
   // Obter informações da roleta selecionada
   const selectedRouletteInfo = useMemo(() => {
