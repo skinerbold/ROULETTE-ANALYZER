@@ -924,6 +924,7 @@ export default function Home() {
               )}
             </label>
             <Select 
+              key={`roulette-select-${isConnected}-${availableRoulettes.length}`}
               value={selectedRoulette} 
               onValueChange={handleRouletteChange}
               disabled={!isConnected || availableRoulettes.length === 0}
@@ -1637,6 +1638,7 @@ export default function Home() {
                 )}
               </label>
               <Select 
+                key={`roulette-select-desktop-${isConnected}-${availableRoulettes.length}`}
                 value={selectedRoulette} 
                 onValueChange={handleRouletteChange}
                 disabled={!isConnected || availableRoulettes.length === 0}

@@ -173,12 +173,22 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               }
             }
             
-            // Para os outros, manter timestamp existente se possível
-            const existingEntry = currentHistory.find(h => h.number === num && currentHistory.indexOf(h) === index)
+            // Para os outros, manter timestamp existente se estiver na mesma posição
+            const existingAtSamePosition = currentHistory[index]
+            if (existingAtSamePosition && existingAtSamePosition.number === num) {
+              // Mesmo número na mesma posição = manter timestamp
+              return {
+                number: num,
+                color: getRouletteColor(num),
+                timestamp: existingAtSamePosition.timestamp
+              }
+            }
+            
+            // Número diferente ou posição nova = timestamp estimado
             return {
               number: num,
               color: getRouletteColor(num),
-              timestamp: existingEntry?.timestamp || (now - (index * 60000))
+              timestamp: now - (index * 60000) // Aproximação
             }
           })
           
