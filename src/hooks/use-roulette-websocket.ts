@@ -316,6 +316,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const selectRoulette = useCallback((rouletteId: string) => {
     console.log(`🎯 Selecionando roleta: ${rouletteId}`)
     setSelectedRoulette(rouletteId)
+    selectedRouletteRef.current = rouletteId // Atualizar ref IMEDIATAMENTE
     
     // Carregar histórico desta roleta
     const history = rouletteHistoryRef.current.get(rouletteId) || []
