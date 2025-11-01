@@ -119,7 +119,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       // Verificar se é o formato da API real (game, key, game_type, results)
       if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
         const rouletteId = message.game
-        console.log(`🎰 Roleta: ${rouletteId} | Primeiro número: ${message.results[0]}`)
+        
+        // LOG: Mostrar qual roleta está enviando dados
+        const isSelected = rouletteId === selectedRoulette
+        if (isSelected) {
+          console.log(`📨 [${new Date().toLocaleTimeString()}] Mensagem da roleta SELECIONADA: ${rouletteId}`)
+        }
         
         // Adicionar roleta descoberta à lista
         if (!discoveredRoulettesRef.current.has(rouletteId)) {
@@ -158,7 +163,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           }))
           
           rouletteHistoryRef.current.set(rouletteId, history)
-          console.log(`📜 INICIALIZANDO ${rouletteId}: ${history.length} números - [${history.slice(0, 5).map(n => n.number).join(', ')}...]`)
           
           // Se esta roleta estiver selecionada, atualizar estado
           if (rouletteId === selectedRoulette) {
@@ -166,6 +170,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
             if (history.length > 0) {
               setLastNumber(history[0])
             }
+            console.log(`📜 [SELECIONADA] Inicializado ${rouletteId}: ${history.length} números - [${history.slice(0, 5).map(n => n.number).join(', ')}...]`)
           }
           return
         }
@@ -191,12 +196,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           // Detectar novo spin (primeiro número mudou)
           const isNewSpin = currentNumbers[0] !== numbersFromAPI[0]
           
-          if (isNewSpin) {
-            console.log(`🎯 NOVO SPIN em ${rouletteId}: ${currentNumbers[0]} → ${numbersFromAPI[0]}`)
-          } else {
-            console.log(`🔄 Sincronizando ${rouletteId}: histórico atualizado (${numbersFromAPI.length} números)`)
-          }
-          
           rouletteHistoryRef.current.set(rouletteId, updatedHistory)
           
           // Se esta roleta estiver selecionada, atualizar estado SEMPRE
@@ -205,7 +204,13 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
             if (updatedHistory.length > 0) {
               setLastNumber(updatedHistory[0])
             }
-            console.log(`✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]`)
+            
+            if (isNewSpin) {
+              console.log(`🎯 [SELECIONADA] NOVO SPIN em ${rouletteId}: ${currentNumbers[0]} → ${numbersFromAPI[0]}`)
+            } else {
+              console.log(`🔄 [SELECIONADA] Sincronizando ${rouletteId}: histórico atualizado (${numbersFromAPI.length} números)`)
+            }
+            console.log(`   ✅ Estado atualizado: [${updatedHistory.slice(0, 5).map(n => n.number).join(', ')}...]`)
           }
         }
         

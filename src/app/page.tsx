@@ -427,15 +427,19 @@ export default function Home() {
   // OTIMIZAÇÃO: Usar useMemo para evitar conversões desnecessárias
   const numbersFromWebSocket = useMemo(() => {
     if (recentNumbers.length === 0) return []
-    return recentNumbers.map(rn => rn.number)
+    const converted = recentNumbers.map(rn => rn.number)
+    console.log(`🔄 [CONVERSÃO] recentNumbers (${recentNumbers.length}) → numbers: [${converted.slice(0, 10).join(', ')}...]`)
+    return converted
   }, [recentNumbers])
 
   useEffect(() => {
     if (numbersFromWebSocket.length > 0) {
-      console.log('🌐 Sincronizando números do WebSocket:', numbersFromWebSocket.length)
+      console.log(`🌐 [SYNC] Atualizando estado numbers com ${numbersFromWebSocket.length} números do WebSocket`)
+      console.log(`   Roleta selecionada: ${selectedRoulette}`)
+      console.log(`   Primeiros 10: [${numbersFromWebSocket.slice(0, 10).join(', ')}]`)
       setNumbers(numbersFromWebSocket)
     }
-  }, [numbersFromWebSocket])
+  }, [numbersFromWebSocket, selectedRoulette])
 
   // Selecionar automaticamente a primeira roleta disponível
   useEffect(() => {
