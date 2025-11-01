@@ -29,7 +29,7 @@ export interface WebSocketConfig {
 
 export const WEBSOCKET_CONFIG: WebSocketConfig = {
   // FORÇAR URL CORRETA - ignorar variável de ambiente configurada incorretamente
-  url: 'ws://177.93.108.140:8777', // API real (FORÇADO)
+  url: 'wss://177.93.108.140:8777', // API real com WSS (FORÇADO) - WSS é obrigatório para HTTPS
   reconnectInterval: 5000, // 5 segundos
   maxReconnectAttempts: 10,
   heartbeatInterval: 30000, // 30 segundos
