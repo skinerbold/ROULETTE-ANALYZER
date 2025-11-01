@@ -350,7 +350,7 @@ const strategiesMoreThan9: StrategyFolder[] = [
       { id: 237, name: "Cavalo 1-4-7", numbers: [1,11,21,31,4,14,24,34,7,17,27] },
       { id: 238, name: "Cavalo 2-5-8", numbers: [2,12,22,32,5,15,25,35,8,18,28] },
       { id: 239, name: "Cavalo 3-6-9", numbers: [3,13,23,33,6,16,26,36,9,19,29] },
-      { id: 240, name: "Coluna 1", numbers: [1,4,7,10,13,16,19,22,25,28,31,34] },
+      { id: 240, name: "Coluna 1", numbers: [1,4,7,10,13,16,19,22,25,28,32,34] },
       { id: 241, name: "Coluna 2", numbers: [2,5,8,11,14,17,20,23,26,29,32,35] },
       { id: 242, name: "Coluna 3", numbers: [3,6,9,12,15,18,21,24,27,30,33,36] },
       { id: 243, name: "Duzia 1", numbers: [1,2,3,4,5,6,7,8,9,10,11,12] },
@@ -457,7 +457,7 @@ const strategiesMoreThan9: StrategyFolder[] = [
   {
     name: "6 Pasta - Números que se puxam",
     strategies: [
-      { id: 302, name: "0+Proteção", numbers: [10,20,30,19,28,22,33,11,9] },
+      { id: 302, name: "0+Proteção", numbers: [0,10,20,30,19,28,22,33,11,9] },
       { id: 303, name: "1+Proteção", numbers: [10,11,26,29,21,31,2] },
       { id: 304, name: "2+Proteção", numbers: [20,22,17,21,4,11,12,32,1,3] },
       { id: 305, name: "3+Proteção", numbers: [30,33,36,6,9,11,22,13,23,2,4] },
@@ -474,7 +474,7 @@ const strategiesMoreThan9: StrategyFolder[] = [
       { id: 316, name: "14+Proteção", numbers: [5,3,7,28,15,4,24,34,13] },
       { id: 317, name: "15+Proteção", numbers: [6,30,25,14,4,5,35,16] },
       { id: 318, name: "16+Proteção", numbers: [19,8,7,17,18,2,26,36,15] },
-      { id: 319, name: "17+Proteção", numbers: [27,8,18,20,6,7,16] },
+      { id: 319, name: "17+Proteção", numbers: [27,8,18,20,6,7,27,16] },
       { id: 320, name: "18+Proteção", numbers: [17,19,9,36,7,8,28] },
       { id: 321, name: "19+Proteção", numbers: [16,8,17,18,9,28,20] },
       { id: 322, name: "20+Proteção", numbers: [17,2,25,22,1,21,10,30,19] },
