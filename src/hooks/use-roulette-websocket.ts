@@ -33,16 +33,14 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const [availableRoulettes, setAvailableRoulettes] = useState<RouletteInfo[]>([])
   const [selectedRoulette, setSelectedRoulette] = useState<string>('')
-  const [updateVersion, setUpdateVersion] = useState(0) // NOVO: contador para forçar updates
+  const [updateVersion, setUpdateVersion] = useState(0)
   
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isIntentionalCloseRef = useRef(false)
-  const updateBatchRef = useRef<RouletteNumber[]>([]) // NOVO: Batch de atualizações
-  const batchTimerRef = useRef<NodeJS.Timeout | null>(null) // NOVO: Timer para batch
-  const discoveredRoulettesRef = useRef<Set<string>>(new Set()) // NOVO: Roletas descobertas dinamicamente
-  const rouletteHistoryRef = useRef<Map<string, RouletteNumber[]>>(new Map()) // NOVO: Histórico por roleta
+  const discoveredRoulettesRef = useRef<Set<string>>(new Set())
+  const rouletteHistoryRef = useRef<Map<string, RouletteNumber[]>>(new Map())
 
   // Limpar timeouts
   const clearTimeouts = useCallback(() => {
@@ -54,50 +52,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
-    if (batchTimerRef.current) {
-      clearTimeout(batchTimerRef.current)
-      batchTimerRef.current = null
-    }
   }, [])
-
-  // NOVO: Processar batch de números acumulados
-  const processBatch = useCallback(() => {
-    if (updateBatchRef.current.length > 0) {
-      const batch = [...updateBatchRef.current]
-      updateBatchRef.current = []
-      
-      console.log(`📦 Processando batch de ${batch.length} números`)
-      
-      setRecentNumbers(prev => {
-        const newNumbers = [...batch, ...prev].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
-        return newNumbers
-      })
-      
-      // Atualizar último número
-      if (batch.length > 0) {
-        setLastNumber(batch[0])
-      }
-    }
-  }, [])
-
-  // NOVO: Adicionar número ao batch
-  const addToBatch = useCallback((newNumber: RouletteNumber) => {
-    updateBatchRef.current.push(newNumber)
-    
-    // Limpar timer anterior
-    if (batchTimerRef.current) {
-      clearTimeout(batchTimerRef.current)
-    }
-    
-    // Processar batch após 50ms (ou imediatamente se batch estiver grande)
-    if (updateBatchRef.current.length >= 10) {
-      processBatch() // Processar imediatamente se batch >= 10
-    } else {
-      batchTimerRef.current = setTimeout(() => {
-        processBatch()
-      }, 50) // Aguardar 50ms
-    }
-  }, [processBatch])
 
   // Iniciar heartbeat (manter conexão viva)
   const startHeartbeat = useCallback(() => {
@@ -105,7 +60,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     heartbeatIntervalRef.current = setInterval(() => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'ping' }))
-        console.log('💓 Heartbeat enviado')
       }
     }, WEBSOCKET_CONFIG.heartbeatInterval)
   }, [clearTimeouts])
@@ -115,8 +69,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     try {
       // Tentar parsear como JSON
       const message: any = JSON.parse(data)
-      
-      console.log('📨 Mensagem recebida:', message)
       
       // Verificar se é o formato da API real (game, key, game_type, results)
       if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
@@ -235,86 +187,13 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         return
       }
       
-      // Formato antigo do WebSocket (compatibilidade)
-      const typedMessage: RouletteMessage = message
-      
-      switch (typedMessage.type) {
-        case 'result':
-        case 'spin':
-          if (typeof typedMessage.number === 'number') {
-            const newNumber: RouletteNumber = {
-              number: typedMessage.number,
-              color: getRouletteColor(typedMessage.number),
-              timestamp: typedMessage.timestamp || Date.now()
-            }
-            
-            console.log('🎰 Novo número:', newNumber)
-            
-            // OTIMIZAÇÃO: Adicionar ao batch ao invés de atualizar imediatamente
-            addToBatch(newNumber)
-          }
-          break
-          
-        case 'history':
-          if (Array.isArray(typedMessage.data)) {
-            const history: RouletteNumber[] = typedMessage.data
-              .slice(0, WEBSOCKET_CONFIG.maxHistorySize) // Limitar a 500 números
-              .map((item: any) => ({
-                number: typeof item === 'number' ? item : item.number,
-                color: getRouletteColor(typeof item === 'number' ? item : item.number),
-                timestamp: item.timestamp || Date.now()
-              }))
-            setRecentNumbers(history)
-            console.log('📜 Histórico recebido:', history.length, 'números')
-          }
-          break
-          
-        case 'connected':
-          console.log('✅ Confirmação de conexão recebida')
-          // Solicitar lista de roletas disponíveis
-          sendMessage(JSON.stringify({ type: 'get_roulettes' }))
-          // Solicitar últimos 500 números ao conectar
-          sendMessage(JSON.stringify({ 
-            type: 'request_history', 
-            limit: WEBSOCKET_CONFIG.maxHistorySize 
-          }))
-          break
-        
-        case 'roulettes':
-          // Lista de roletas disponíveis
-          if (Array.isArray(typedMessage.data)) {
-            // Converter strings para RouletteInfo
-            const roulettesInfo: RouletteInfo[] = typedMessage.data.map((rouletteName: string) => 
-              parseRouletteName(rouletteName)
-            )
-            setAvailableRoulettes(roulettesInfo)
-            console.log('🎰 Roletas disponíveis:', roulettesInfo)
-          }
-          break
-          
-        case 'error':
-          setError(typedMessage.error || 'Erro desconhecido')
-          console.error('❌ Erro do servidor:', typedMessage.error)
-          break
-      }
+      // Se não for formato da API real, ignorar
+      console.log('ℹ️ Mensagem ignorada (formato desconhecido)')
     } catch (err) {
-      // Se não for JSON, pode ser um número simples
-      const num = parseInt(data.trim())
-      if (!isNaN(num) && num >= 0 && num <= 37) {
-        const newNumber: RouletteNumber = {
-          number: num,
-          color: getRouletteColor(num),
-          timestamp: Date.now()
-        }
-        
-        setLastNumber(newNumber)
-        setRecentNumbers(prev => [newNumber, ...prev].slice(0, 100))
-        console.log('🎰 Número recebido (texto):', newNumber)
-      } else {
-        console.log('📝 Mensagem de texto:', data)
-      }
+      // Ignorar mensagens que não são JSON válido
+      console.log('ℹ️ Mensagem não-JSON ignorada')
     }
-  }, [addToBatch])
+  }, [selectedRoulette])
 
   // Tentar reconectar
   const attemptReconnect = useCallback(() => {
