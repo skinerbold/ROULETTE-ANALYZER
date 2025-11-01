@@ -107,7 +107,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               const updated = [...prev, newRouletteInfo].sort((a, b) => 
                 a.name.localeCompare(b.name)
               )
-              console.log(`✨ Nova roleta descoberta: ${rouletteId} (${newRouletteInfo.provider || 'sem provedor'})`)
+              console.log(`\n🎰 🎰 🎰 NOVA ROLETA DESCOBERTA!`)
+              console.log(`   🆔 ID: ${rouletteId}`)
+              console.log(`   📛 Nome: ${newRouletteInfo.name}`)
+              console.log(`   🏢 Provedor: ${newRouletteInfo.provider || 'N/A'}`)
+              console.log(`   📊 Total de roletas disponíveis: ${updated.length}`)
+              console.log(`   📋 Lista completa:`, updated.map(r => r.id))
               return updated
             }
             return prev
@@ -247,11 +252,14 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         return
       }
       
-      // Se não for formato da API real, ignorar
-      console.log('ℹ️ Mensagem ignorada (formato desconhecido)')
+      // Se não for formato da API real, mostrar detalhes da mensagem
+      console.log('⚠️ MENSAGEM IGNORADA (formato desconhecido)')
+      console.log('   📦 Tipo:', typeof message)
+      console.log('   🔑 Keys:', Object.keys(message))
+      console.log('   📄 Conteúdo:', JSON.stringify(message).substring(0, 200))
     } catch (err) {
       // Ignorar mensagens que não são JSON válido
-      console.log('ℹ️ Mensagem não-JSON ignorada')
+      console.log('ℹ️ Mensagem não-JSON ignorada:', typeof data === 'string' ? data.substring(0, 100) : data)
     }
   }, []) // REMOVIDO selectedRoulette - agora usa REF!
 
@@ -292,7 +300,11 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       wsRef.current = ws
 
       ws.addEventListener('open', () => {
-        console.log('✅ Conectado ao servidor de roleta')
+        console.log('✅ ✅ ✅ CONECTADO AO SERVIDOR WebSocket!')
+        console.log('   🌐 URL:', WEBSOCKET_CONFIG.url)
+        console.log('   🔗 ReadyState:', ws.readyState)
+        console.log('   ⏰ Timestamp:', new Date().toISOString())
+        
         setIsConnected(true)
         setError(null)
         setReconnectAttempts(0)
@@ -302,16 +314,23 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         startHeartbeat()
         
         // Opcional: solicitar histórico
+        console.log('📤 Enviando requisição de histórico...')
         ws.send(JSON.stringify({ type: 'get_history' }))
       })
 
       ws.addEventListener('message', (event) => {
+        console.log('\n📨 📨 📨 MENSAGEM RECEBIDA DO WEBSOCKET:')
+        console.log('   📏 Tamanho:', event.data.length, 'caracteres')
+        console.log('   📄 Preview:', typeof event.data === 'string' ? event.data.substring(0, 200) : event.data)
         handleMessage(event.data)
       })
 
       ws.addEventListener('error', (event) => {
-        console.error('❌ Erro de WebSocket:', event)
-        setError('⚠️ Não foi possível conectar. Verifique se o servidor está rodando em localhost:3000')
+        console.error('❌ ❌ ❌ ERRO DE WEBSOCKET:')
+        console.error('   🔴 Event:', event)
+        console.error('   🔗 URL tentada:', WEBSOCKET_CONFIG.url)
+        console.error('   🔗 ReadyState:', ws.readyState)
+        setError('Erro na conexão WebSocket')
       })
 
       ws.addEventListener('close', (event) => {

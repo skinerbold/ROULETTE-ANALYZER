@@ -455,14 +455,20 @@ export default function Home() {
   // Selecionar automaticamente a primeira roleta disponível
   useEffect(() => {
     if (isConnected && availableRoulettes.length > 0 && !selectedRoulette) {
-      const firstRoulette = availableRoulettes[0]
-      console.log('🎰 Selecionando primeira roleta disponível:', firstRoulette)
-      selectRoulette(firstRoulette.id) // Usar selectRoulette do hook
+      // Tentar selecionar pragmatic-speed-auto-roulette primeiro (é a mais estável)
+      const preferredRoulette = availableRoulettes.find(r => r.id === 'pragmatic-speed-auto-roulette')
+      const rouletteToSelect = preferredRoulette || availableRoulettes[0]
+      
+      console.log('🎰 Selecionando roleta automaticamente:', rouletteToSelect)
+      console.log('   Preferida (pragmatic)? ', !!preferredRoulette)
+      console.log('   Total disponível:', availableRoulettes.length)
+      
+      selectRoulette(rouletteToSelect.id) // Usar selectRoulette do hook
       
       // Enviar mensagem de inscrição
       sendMessage(JSON.stringify({
         type: 'subscribe',
-        roulette: firstRoulette.id,
+        roulette: rouletteToSelect.id,
         limit: 500
       }))
     }

@@ -35,6 +35,12 @@ export const WEBSOCKET_CONFIG: WebSocketConfig = {
   maxHistorySize: 500, // Últimos 500 números
 }
 
+// LOG CRÍTICO: Mostrar configuração carregada
+console.log('🔧 WEBSOCKET_CONFIG carregado:')
+console.log('   URL:', WEBSOCKET_CONFIG.url)
+console.log('   Variável de ambiente NEXT_PUBLIC_WEBSOCKET_URL:', process.env.NEXT_PUBLIC_WEBSOCKET_URL)
+console.log('   Está usando fallback?', !process.env.NEXT_PUBLIC_WEBSOCKET_URL)
+
 // Determinar cor do número da roleta
 export function getRouletteColor(number: number): 'red' | 'black' | 'green' {
   if (number === 0 || number === 37) return 'green' // 0 e 00
