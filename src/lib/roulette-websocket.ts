@@ -28,7 +28,8 @@ export interface WebSocketConfig {
 }
 
 export const WEBSOCKET_CONFIG: WebSocketConfig = {
-  url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'ws://177.93.108.140:8777', // API real
+  // FORÇAR URL CORRETA - ignorar variável de ambiente configurada incorretamente
+  url: 'ws://177.93.108.140:8777', // API real (FORÇADO)
   reconnectInterval: 5000, // 5 segundos
   maxReconnectAttempts: 10,
   heartbeatInterval: 30000, // 30 segundos
@@ -38,8 +39,7 @@ export const WEBSOCKET_CONFIG: WebSocketConfig = {
 // LOG CRÍTICO: Mostrar configuração carregada
 console.log('🔧 WEBSOCKET_CONFIG carregado:')
 console.log('   URL:', WEBSOCKET_CONFIG.url)
-console.log('   Variável de ambiente NEXT_PUBLIC_WEBSOCKET_URL:', process.env.NEXT_PUBLIC_WEBSOCKET_URL)
-console.log('   Está usando fallback?', !process.env.NEXT_PUBLIC_WEBSOCKET_URL)
+console.log('   ⚠️ ATENÇÃO: URL FORÇADA no código (ignorando variável de ambiente)')
 
 // Determinar cor do número da roleta
 export function getRouletteColor(number: number): 'red' | 'black' | 'green' {
