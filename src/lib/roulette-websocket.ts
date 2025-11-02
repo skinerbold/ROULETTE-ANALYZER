@@ -28,8 +28,8 @@ export interface WebSocketConfig {
 }
 
 export const WEBSOCKET_CONFIG: WebSocketConfig = {
-  // FORÇAR URL CORRETA - ignorar variável de ambiente configurada incorretamente
-  url: 'wss://177.93.108.140:8777', // API real com WSS (FORÇADO) - WSS é obrigatório para HTTPS
+  // Usar Railway em produção, localhost em desenvolvimento
+  url: process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://roulette-websocket-server-production.up.railway.app',
   reconnectInterval: 5000, // 5 segundos
   maxReconnectAttempts: 10,
   heartbeatInterval: 30000, // 30 segundos
@@ -39,7 +39,6 @@ export const WEBSOCKET_CONFIG: WebSocketConfig = {
 // LOG CRÍTICO: Mostrar configuração carregada
 console.log('🔧 WEBSOCKET_CONFIG carregado:')
 console.log('   URL:', WEBSOCKET_CONFIG.url)
-console.log('   ⚠️ ATENÇÃO: URL FORÇADA no código (ignorando variável de ambiente)')
 
 // Determinar cor do número da roleta
 export function getRouletteColor(number: number): 'red' | 'black' | 'green' {
