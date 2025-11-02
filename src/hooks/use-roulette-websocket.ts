@@ -93,11 +93,19 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       }
       
       // FORMATO 1.5: Railway - Histórico completo de uma roleta
-      if (message.type === 'history' && message.roulette && Array.isArray(message.numbers)) {
-        const rouletteId = message.roulette
-        const numbers = message.numbers
+      // Pode vir como {"type":"history","roulette":"...","numbers":[...]}
+      // OU como {"type":"history","data":[...]} (sem identificar roleta - usar selecionada)
+      if (message.type === 'history') {
+        const numbers = message.numbers || message.data || []
+        const rouletteId = message.roulette || selectedRouletteRef.current || ''
+        
+        if (!rouletteId) {
+          console.warn('⚠️ Histórico recebido mas sem identificar roleta!')
+          return
+        }
         
         console.log(`📜 Histórico recebido para ${rouletteId}:`, numbers.length, 'números')
+        console.log(`   Primeiros 10: [${numbers.slice(0, 10).join(', ')}]`)
         
         // Converter para RouletteNumber[]
         const now = Date.now()
@@ -110,9 +118,9 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         // Salvar histórico
         rouletteHistoryRef.current.set(rouletteId, history)
         
-        // Se for a roleta selecionada, atualizar tela
+        // Se for a roleta selecionada, atualizar tela IMEDIATAMENTE
         if (rouletteId === selectedRouletteRef.current) {
-          console.log(`   ⚡ Atualizando tela com histórico completo!`)
+          console.log(`   ⚡⚡⚡ ATUALIZANDO TELA com histórico completo!`)
           setRecentNumbers([...history])
           if (history.length > 0) {
             setLastNumber({...history[0]})
