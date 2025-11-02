@@ -1827,7 +1827,66 @@ export default function Home() {
             }}
           >
             <div className="p-4 space-y-2">
-              {sortedFolders.map((folder) => (
+              {chipCategory === 'all' ? (
+                // Modo "Todas": Listar todas as estratégias ordenadas por desempenho
+                <>
+                  <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-lg">
+                    <p className="text-blue-300 text-sm font-medium text-center">
+                      📊 Todas as estratégias ordenadas por desempenho
+                    </p>
+                  </div>
+                  {STRATEGIES
+                    .map(strategy => {
+                      const stats = strategyStats.find(s => s.id === strategy.id)
+                      return { strategy, stats }
+                    })
+                    .sort((a, b) => {
+                      // Ordenar por profit (maior para menor)
+                      const profitA = a.stats?.profit ?? 0
+                      const profitB = b.stats?.profit ?? 0
+                      return profitB - profitA
+                    })
+                    .map(({ strategy, stats }) => {
+                      const isSelected = isStrategySelected(strategy.id)
+                      return (
+                        <button
+                          key={strategy.id}
+                          onClick={() => toggleStrategy(strategy.id)}
+                          className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-enhanced-lg border border-blue-500'
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 hover:border-gray-500'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                            isSelected ? 'bg-white border-white' : 'border-gray-400'
+                          }`}>
+                            {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-sm mb-1">{strategy.name}</div>
+                            <div className="text-[10px] text-gray-400 mb-1">📁 {strategy.category}</div>
+                            {stats && (
+                              <div className="flex justify-between items-center text-xs">
+                                <div className="flex gap-3">
+                                  <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
+                                  <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
+                                </div>
+                                <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {stats.profit >= 0 ? '+' : ''}{stats.profit}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })
+                  }
+                </>
+              ) : (
+                // Modo normal: Mostrar por pastas
+                <>
+                  {sortedFolders.map((folder) => (
                 <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
                   {/* Header da pasta */}
                   <div className="bg-gray-700">
@@ -1902,6 +1961,8 @@ export default function Home() {
                   )}
                 </div>
               ))}
+                </>
+              )}
             </div>
           </ScrollArea>
         </div>
