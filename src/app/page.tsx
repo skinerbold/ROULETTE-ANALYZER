@@ -1846,18 +1846,21 @@ export default function Home() {
               {chipCategory === 'all' ? (
                 // Modo "Todas": Listar todas as estratégias ordenadas por desempenho
                 <>
-                  {STRATEGIES
-                    .map(strategy => {
-                      const stats = strategyStats.find(s => s.id === strategy.id)
-                      return { strategy, stats }
-                    })
+                  {FOLDERS
+                    .flatMap(folder => 
+                      folder.strategies.map(strategy => ({
+                        strategy,
+                        category: folder.name,
+                        stats: strategyStats.find(s => s.id === strategy.id)
+                      }))
+                    )
                     .sort((a, b) => {
                       // Ordenar por profit (maior para menor)
                       const profitA = a.stats?.profit ?? 0
                       const profitB = b.stats?.profit ?? 0
                       return profitB - profitA
                     })
-                    .map(({ strategy, stats }) => {
+                    .map(({ strategy, category, stats }) => {
                       const isSelected = isStrategySelected(strategy.id)
                       return (
                         <button
@@ -1876,7 +1879,7 @@ export default function Home() {
                           </div>
                           <div className="flex-1">
                             <div className="font-semibold text-sm mb-1">{strategy.name}</div>
-                            <div className="text-[10px] text-gray-400 mb-1">📁 {strategy.category}</div>
+                            <div className="text-[10px] text-gray-400 mb-1">📁 {category}</div>
                             {stats && (
                               <div className="flex justify-between items-center text-xs">
                                 <div className="flex gap-3">
