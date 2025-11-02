@@ -1745,16 +1745,22 @@ export default function Home() {
             </div>
 
             {/* Grupo de botões de categoria */}
-            <div className="space-y-2">
-              {!isStrategiesScrolled && (
+            <div className="space-y-2 transition-all duration-300">
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-10 opacity-100'
+              }`}>
                 <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
                   📊 Categorias de Fichas
                 </label>
-              )}
-              <div className="grid grid-cols-3 gap-2">
+              </div>
+              <div className={`grid grid-cols-3 gap-2 transition-all duration-300 ${
+                isStrategiesScrolled ? 'gap-1' : 'gap-2'
+              }`}>
               <Button
                 onClick={() => setChipCategory('up-to-9')}
-                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                className={`flex items-center justify-center font-semibold transition-all duration-300 ${
+                  isStrategiesScrolled ? 'py-1 text-[10px]' : 'py-2 text-xs'
+                } ${
                   chipCategory === 'up-to-9' 
                     ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1765,7 +1771,9 @@ export default function Home() {
               
               <Button
                 onClick={() => setChipCategory('more-than-9')}
-                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                className={`flex items-center justify-center font-semibold transition-all duration-300 ${
+                  isStrategiesScrolled ? 'py-1 text-[10px]' : 'py-2 text-xs'
+                } ${
                   chipCategory === 'more-than-9' 
                     ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1776,7 +1784,9 @@ export default function Home() {
               
               <Button
                 onClick={() => setChipCategory('all')}
-                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                className={`flex items-center justify-center font-semibold transition-all duration-300 ${
+                  isStrategiesScrolled ? 'py-1 text-[10px]' : 'py-2 text-xs'
+                } ${
                   chipCategory === 'all' 
                     ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1789,10 +1799,12 @@ export default function Home() {
 
             {/* Botão All Pastas - Ocultar no modo "Todas" */}
             {chipCategory !== 'all' && (
-              <div>
+              <div className="transition-all duration-300">
                 <Button
                   onClick={toggleSelectAllFolders}
-                  className={`w-full py-2.5 text-sm font-semibold transition-all ${
+                  className={`w-full font-semibold transition-all duration-300 ${
+                    isStrategiesScrolled ? 'py-1.5 text-xs' : 'py-2.5 text-sm'
+                  } ${
                     selectAllFolders
                       ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
                       : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1800,24 +1812,26 @@ export default function Home() {
                 >
                   {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
                 </Button>
-                <p className={`text-gray-500 text-center transition-all ${
-                  isStrategiesScrolled ? 'text-[10px] mt-1' : 'text-xs mt-2'
+                <div className={`overflow-hidden transition-all duration-300 ${
+                  isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-10 opacity-100'
                 }`}>
-                  {selectAllFolders 
-                    ? `${selectedStrategies.length} estratégias selecionadas` 
-                    : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
-                  }
-                </p>
+                  <p className="text-gray-500 text-center text-xs mt-2">
+                    {selectAllFolders 
+                      ? `${selectedStrategies.length} estratégias selecionadas` 
+                      : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
+                    }
+                  </p>
+                </div>
               </div>
             )}
             
             {/* Título "Estratégias" - Ocultar no modo "Todas" */}
             {chipCategory !== 'all' && (
-              <div className={`transition-all ${
-                isStrategiesScrolled ? 'py-2' : 'py-0'
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-8 py-1' : 'max-h-16 py-0'
               }`}>
-                <h2 className={`font-semibold text-white transition-all ${
-                  isStrategiesScrolled ? 'text-base mb-0' : 'text-xl mb-2'
+                <h2 className={`font-semibold text-white transition-all duration-300 ${
+                  isStrategiesScrolled ? 'text-sm mb-0' : 'text-xl mb-2'
                 }`}>Estratégias</h2>
               </div>
             )}
