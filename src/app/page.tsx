@@ -76,8 +76,9 @@ export default function Home() {
   // Números filtrados com base no limite de análise
   const numbersToAnalyze = useMemo(() => {
     if (numbers.length === 0) return []
-    // Pegar apenas os últimos N números
-    return numbers.slice(-analysisLimit)
+    // Pegar apenas os PRIMEIROS N números (mais recentes)
+    // O array já vem ordenado do mais recente para o mais antigo
+    return numbers.slice(0, analysisLimit)
   }, [numbers, analysisLimit])
 
   useEffect(() => {
