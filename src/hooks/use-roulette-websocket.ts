@@ -71,7 +71,84 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       // Tentar parsear como JSON
       const message: any = JSON.parse(data)
       
-      // Verificar se é o formato da API real (game, key, game_type, results)
+      // FORMATO 1: Railway - Lista de roletas disponíveis
+      if (message.type === 'roulettes' && Array.isArray(message.data)) {
+        console.log('📋 Recebida lista de roletas do Railway:', message.data.length)
+        message.data.forEach((rouletteName: string) => {
+          if (!discoveredRoulettesRef.current.has(rouletteName)) {
+            discoveredRoulettesRef.current.add(rouletteName)
+            const newRouletteInfo = parseRouletteName(rouletteName)
+            setAvailableRoulettes(prev => {
+              const exists = prev.some(r => r.id === rouletteName)
+              if (!exists) {
+                const updated = [...prev, newRouletteInfo].sort((a, b) => a.name.localeCompare(b.name))
+                console.log(`   ✅ Roleta adicionada: ${rouletteName}`)
+                return updated
+              }
+              return prev
+            })
+          }
+        })
+        return
+      }
+      
+      // FORMATO 2: Railway - Resultado individual
+      if (message.type === 'result' && message.roulette && typeof message.number === 'number') {
+        const rouletteId = message.roulette
+        const number = message.number
+        const isSelected = rouletteId === selectedRouletteRef.current
+        
+        console.log(`\n🎲 [RAILWAY] Resultado recebido:`)
+        console.log(`   🎰 Roleta: ${rouletteId}`)
+        console.log(`   🔢 Número: ${number}`)
+        console.log(`   ✅ Selecionada?: ${isSelected}`)
+        console.log(`   📝 Roleta selecionada atual: "${selectedRouletteRef.current}"`)
+        
+        // Adicionar roleta à lista se não existir
+        if (!discoveredRoulettesRef.current.has(rouletteId)) {
+          discoveredRoulettesRef.current.add(rouletteId)
+          const newRouletteInfo = parseRouletteName(rouletteId)
+          setAvailableRoulettes(prev => {
+            const exists = prev.some(r => r.id === rouletteId)
+            if (!exists) {
+              console.log(`   🆕 Nova roleta adicionada: ${rouletteId}`)
+              return [...prev, newRouletteInfo].sort((a, b) => a.name.localeCompare(b.name))
+            }
+            return prev
+          })
+        }
+        
+        // Pegar histórico atual
+        const currentHistory = rouletteHistoryRef.current.get(rouletteId) || []
+        
+        // Adicionar novo número no início
+        const now = Date.now()
+        const newEntry: RouletteNumber = {
+          number,
+          color: getRouletteColor(number),
+          timestamp: now
+        }
+        
+        const updatedHistory = [newEntry, ...currentHistory].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
+        rouletteHistoryRef.current.set(rouletteId, updatedHistory)
+        
+        console.log(`   📊 Histórico atualizado: ${updatedHistory.length} números`)
+        
+        // Se estiver selecionada, atualizar estado
+        if (isSelected) {
+          console.log(`   ⚡⚡⚡ ATUALIZANDO TELA!`)
+          console.log(`   📋 Primeiros 10 números: [${updatedHistory.slice(0, 10).map(n => n.number).join(', ')}]`)
+          setRecentNumbers([...updatedHistory])
+          setLastNumber({...newEntry})
+          setUpdateVersion(v => v + 1)
+        } else {
+          console.log(`   🚫 Não atualizar tela (roleta não selecionada)`)
+        }
+        
+        return
+      }
+      
+      // FORMATO 3: API Local - Histórico completo (game, game_type, results)
       if (message.game && message.game_type === 'roleta' && Array.isArray(message.results)) {
         const rouletteId = message.game
         
