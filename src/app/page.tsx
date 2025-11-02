@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -69,6 +69,9 @@ export default function Home() {
   const [isDashboardScrolled, setIsDashboardScrolled] = useState(false)
   const [isStrategiesScrolled, setIsStrategiesScrolled] = useState(false)
   
+  // Ref para o container de scroll das estratégias
+  const strategiesScrollRef = useRef<HTMLDivElement>(null)
+  
   // Obter pastas e estratégias da categoria atual
   const FOLDERS = getAllStrategies(chipCategory)
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
@@ -110,6 +113,20 @@ export default function Home() {
     return () => {
       authListener?.subscription?.unsubscribe()
     }
+  }, [])
+
+  // useEffect para detectar scroll nas estratégias
+  useEffect(() => {
+    const scrollContainer = strategiesScrollRef.current
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      const scrollTop = scrollContainer.scrollTop
+      setIsStrategiesScrolled(scrollTop > 20)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    return () => scrollContainer.removeEventListener('scroll', handleScroll)
   }, [])
 
   useEffect(() => {
@@ -1802,38 +1819,30 @@ export default function Home() {
                 >
                   {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
                 </Button>
-                <div className={`overflow-hidden transition-all duration-300 ${
-                  isStrategiesScrolled ? 'max-h-0 opacity-0 mt-0' : 'max-h-10 opacity-100 mt-2'
-                }`}>
-                  <p className="text-gray-500 text-center text-xs">
+                {/* Texto descritivo - desaparece ao rolar */}
+                {!isStrategiesScrolled && (
+                  <p className="text-gray-500 text-center text-xs mt-2 animate-in fade-in duration-300">
                     {selectAllFolders 
                       ? `${selectedStrategies.length} estratégias selecionadas` 
                       : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
                     }
                   </p>
-                </div>
+                )}
               </div>
             )}
             
-            {/* Título "Estratégias" - Ocultar no modo "Todas" */}
-            {chipCategory !== 'all' && (
-              <div className={`overflow-hidden transition-all duration-300 ${
-                isStrategiesScrolled ? 'max-h-0 opacity-0 py-0' : 'max-h-16 opacity-100 py-0'
-              }`}>
-                <h2 className="text-xl font-semibold text-white mb-2">Estratégias</h2>
-              </div>
+            {/* Título "Estratégias" - desaparece ao rolar */}
+            {chipCategory !== 'all' && !isStrategiesScrolled && (
+              <h2 className="text-xl font-semibold text-white mb-2 animate-in fade-in duration-300">
+                Estratégias
+              </h2>
             )}
           </div>
           
-          <ScrollArea 
-            className="flex-1 overflow-y-auto"
-            onScroll={(e) => {
-              const target = e.target as HTMLDivElement
-              const scrollTop = target.scrollTop
-              setIsStrategiesScrolled(scrollTop > 20)
-            }}
+          <div 
+            ref={strategiesScrollRef}
+            className="flex-1 overflow-y-auto p-4 space-y-2"
           >
-            <div className="p-4 space-y-2">
               {chipCategory === 'all' ? (
                 // Modo "Todas": Listar todas as estratégias ordenadas por desempenho
                 <>
@@ -1965,8 +1974,7 @@ export default function Home() {
               ))}
                 </>
               )}
-            </div>
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Área Central */}
