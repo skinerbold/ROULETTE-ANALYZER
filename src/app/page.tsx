@@ -1787,35 +1787,40 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Botão All Pastas */}
-            <div>
-              <Button
-                onClick={toggleSelectAllFolders}
-                className={`w-full py-2.5 text-sm font-semibold transition-all ${
-                  selectAllFolders
-                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                }`}
-              >
-                {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
-              </Button>
-              <p className={`text-gray-500 text-center transition-all ${
-                isStrategiesScrolled ? 'text-[10px] mt-1' : 'text-xs mt-2'
-              }`}>
-                {selectAllFolders 
-                  ? `${selectedStrategies.length} estratégias selecionadas` 
-                  : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
-                }
-              </p>
-            </div>
+            {/* Botão All Pastas - Ocultar no modo "Todas" */}
+            {chipCategory !== 'all' && (
+              <div>
+                <Button
+                  onClick={toggleSelectAllFolders}
+                  className={`w-full py-2.5 text-sm font-semibold transition-all ${
+                    selectAllFolders
+                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
+                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                  }`}
+                >
+                  {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
+                </Button>
+                <p className={`text-gray-500 text-center transition-all ${
+                  isStrategiesScrolled ? 'text-[10px] mt-1' : 'text-xs mt-2'
+                }`}>
+                  {selectAllFolders 
+                    ? `${selectedStrategies.length} estratégias selecionadas` 
+                    : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
+                  }
+                </p>
+              </div>
+            )}
             
-            <div className={`transition-all ${
-              isStrategiesScrolled ? 'py-2' : 'py-0'
-            }`}>
-              <h2 className={`font-semibold text-white transition-all ${
-                isStrategiesScrolled ? 'text-base mb-0' : 'text-xl mb-2'
-              }`}>Estratégias</h2>
-            </div>
+            {/* Título "Estratégias" - Ocultar no modo "Todas" */}
+            {chipCategory !== 'all' && (
+              <div className={`transition-all ${
+                isStrategiesScrolled ? 'py-2' : 'py-0'
+              }`}>
+                <h2 className={`font-semibold text-white transition-all ${
+                  isStrategiesScrolled ? 'text-base mb-0' : 'text-xl mb-2'
+                }`}>Estratégias</h2>
+              </div>
+            )}
           </div>
           
           <ScrollArea 
@@ -1830,11 +1835,6 @@ export default function Home() {
               {chipCategory === 'all' ? (
                 // Modo "Todas": Listar todas as estratégias ordenadas por desempenho
                 <>
-                  <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded-lg">
-                    <p className="text-blue-300 text-sm font-medium text-center">
-                      📊 Todas as estratégias ordenadas por desempenho
-                    </p>
-                  </div>
                   {STRATEGIES
                     .map(strategy => {
                       const stats = strategyStats.find(s => s.id === strategy.id)
