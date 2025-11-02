@@ -822,6 +822,15 @@ export default function Home() {
     ? strategyStats.find(s => s.id === lastSelectedStrategyId) 
     : null
 
+  // Calcular números da estratégia dinamicamente (para estratégias dinâmicas como Terminais Cruzados)
+  const currentStrategyNumbers = useMemo(() => {
+    if (!lastSelectedStrategy) return []
+    
+    // Import getStrategyNumbers
+    const { getStrategyNumbers } = require('@/lib/strategies')
+    return getStrategyNumbers(lastSelectedStrategy.id, numbersToAnalyze)
+  }, [lastSelectedStrategy, numbersToAnalyze])
+
   // NOVA FUNCIONALIDADE: Ordenar pastas e estratégias dinamicamente por desempenho
   const getSortedFolders = () => {
     // Verificar se temos estatísticas calculadas para ordenar
@@ -1118,12 +1127,12 @@ export default function Home() {
                   📋 Números da Estratégia
                 </label>
                 <Badge variant="outline" className="bg-blue-600/20 text-blue-400 border-blue-500/50 text-xs">
-                  {lastSelectedStrategy.numbers.length} números
+                  {currentStrategyNumbers.length} números
                 </Badge>
               </div>
               <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
                 <p className="text-sm text-white font-mono leading-relaxed">
-                  {lastSelectedStrategy.numbers.join(', ')}
+                  {currentStrategyNumbers.join(', ')}
                 </p>
               </div>
               <div className="flex items-center justify-between">
@@ -1468,8 +1477,8 @@ export default function Home() {
                         </CardHeader>
                         <CardContent className="pt-0 pb-3 px-4">
                           {(() => {
-                            // Obter números da estratégia
-                            const strategyNumbers = lastSelectedStrategy.numbers
+                            // Obter números da estratégia dinamicamente
+                            const strategyNumbers = currentStrategyNumbers
                             
                             // Contar aparições de cada número da estratégia
                             const numberCounts = strategyNumbers.map(num => ({
@@ -1998,7 +2007,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant="outline" className="bg-blue-600/20 text-blue-400 border-blue-500/50">
-                        {lastSelectedStrategy.numbers.length} números
+                        {currentStrategyNumbers.length} números
                       </Badge>
                       <Button 
                         onClick={clearNumbers}
@@ -2013,7 +2022,7 @@ export default function Home() {
                   
                   <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
                     <div className="flex flex-wrap gap-2">
-                      {lastSelectedStrategy.numbers.map((num, idx) => (
+                      {currentStrategyNumbers.map((num, idx) => (
                         <span 
                           key={idx} 
                           className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg font-mono font-medium"
@@ -2311,8 +2320,8 @@ export default function Home() {
                     </CardHeader>
                     <CardContent className="pt-0 pb-3 px-4">
                       {(() => {
-                        // Obter números da estratégia
-                        const strategyNumbers = lastSelectedStrategy.numbers
+                        // Obter números da estratégia dinamicamente
+                        const strategyNumbers = currentStrategyNumbers
                         
                         // Contar aparições de cada número da estratégia
                         const numberCounts = strategyNumbers.map(num => ({

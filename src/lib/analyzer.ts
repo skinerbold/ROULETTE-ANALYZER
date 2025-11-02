@@ -1,4 +1,5 @@
 import { Strategy, AnalysisResult, Activation, NumberResult } from './types';
+import { getStrategyNumbers } from './strategies';
 
 export class RouletteAnalyzer {
   private strategy: Strategy;
@@ -19,9 +20,13 @@ export class RouletteAnalyzer {
     for (let i = 0; i < this.numbers.length; i++) {
       const currentNumber = this.numbers[i];
       
+      // Pega os números restantes ANTES do atual para estratégias dinâmicas
+      const previousNumbers = this.numbers.slice(0, i);
+      const strategyNumbers = getStrategyNumbers(this.strategy.id, previousNumbers);
+      
       // Se não há ativação atual, verifica se o número ativa a estratégia
       if (!currentActivation) {
-        if (this.strategy.numbers.includes(currentNumber)) {
+        if (strategyNumbers.includes(currentNumber)) {
           // Estratégia ativada
           currentActivation = {
             position: i,
@@ -51,8 +56,10 @@ export class RouletteAnalyzer {
         attemptsCount++;
         currentActivation.attempts = attemptsCount;
         
+        // Recalcula os números da estratégia para checagem (pode ter mudado dinamicamente)
+        const checkNumbers = getStrategyNumbers(this.strategy.id, previousNumbers);
         const allNumbers = [
-          ...this.strategy.numbers,
+          ...checkNumbers,
           ...(this.strategy.protectionNumbers || [])
         ];
         
@@ -175,8 +182,12 @@ export class RouletteAnalyzer {
     for (let i = 0; i < this.numbers.length; i++) {
       const currentNumber = this.numbers[i];
       
+      // Pega os números restantes ANTES do atual para estratégias dinâmicas
+      const previousNumbers = this.numbers.slice(0, i);
+      const strategyNumbers = getStrategyNumbers(this.strategy.id, previousNumbers);
+      
       if (!currentActivation) {
-        if (this.strategy.numbers.includes(currentNumber)) {
+        if (strategyNumbers.includes(currentNumber)) {
           currentActivation = {
             position: i,
             activatingNumber: currentNumber,
@@ -203,8 +214,10 @@ export class RouletteAnalyzer {
         attemptsCount++;
         currentActivation.attempts = attemptsCount;
         
+        // Recalcula os números da estratégia para checagem (pode ter mudado dinamicamente)
+        const checkNumbers = getStrategyNumbers(this.strategy.id, previousNumbers);
         const allNumbers = [
-          ...this.strategy.numbers,
+          ...checkNumbers,
           ...(this.strategy.protectionNumbers || [])
         ];
         

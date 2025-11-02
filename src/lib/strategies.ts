@@ -1,8 +1,8 @@
 ﻿// ========================================
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
-// 12 Pastas (223 estratégias) - ATÉ 9 FICHAS
+// 12 Pastas (221 estratégias) - ATÉ 9 FICHAS
 // 6 Pastas (138 estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 18 PASTAS, 361 ESTRATÉGIAS
+// TOTAL: 18 PASTAS, 359 ESTRATÉGIAS
 // ========================================
 
 export interface Strategy { 
@@ -299,22 +299,12 @@ const strategiesUpTo9: StrategyFolder[] = [
     ]
   },
   {
-    name: "Combinações de Terminais Cruzados",
+    name: "Terminais Cruzados (Dinâmico)",
     strategies: [
       { 
         id: 221, 
-        name: "T5 e T4 chamando T9", 
-        numbers: [5,15,25,35,4,14,24,34,9,19,29] 
-      },
-      { 
-        id: 222, 
-        name: "T5 e T9 chamando T4", 
-        numbers: [5,15,25,35,9,19,29,4,14,24,34] 
-      },
-      { 
-        id: 223, 
-        name: "T4 e T9 chamando T5", 
-        numbers: [9,19,29,4,14,24,34,5,15,25,35] 
+        name: "Terminais Cruzados", 
+        numbers: [] // Dinâmico - será calculado baseado nos últimos 2 números
       }
     ]
   }
@@ -573,3 +563,73 @@ MAIS DE 9 FICHAS (6 pastas, 138 estratégias):
 TOTAL GERAL: 18 PASTAS, 361 ESTRATÉGIAS
 */
 
+// ========================================
+// FUNÇÃO PARA ESTRATÉGIAS DINÂMICAS
+// ========================================
+
+/**
+ * Calcula os números para a estratégia "Terminais Cruzados"
+ * Regra: Quando saem 2 números consecutivos de terminais diferentes (4, 5 ou 9),
+ * jogar no terminal que falta.
+ * 
+ * Exemplo: Se saiu 4 e depois 5, jogar no terminal 9: [9,19,29]
+ */
+export function calculateTerminaisCruzados(lastNumbers: number[]): number[] {
+  if (lastNumbers.length < 2) return []
+  
+  const last1 = lastNumbers[0] // Mais recente
+  const last2 = lastNumbers[1] // Penúltimo
+  
+  // Ignora zero
+  if (last1 === 0 || last2 === 0) return []
+  
+  // Determina o terminal de cada número (4, 5 ou 9)
+  const getTerminal = (num: number): number | null => {
+    const lastDigit = num % 10
+    if (lastDigit === 4) return 4
+    if (lastDigit === 5) return 5
+    if (lastDigit === 9) return 9
+    return null
+  }
+  
+  const terminal1 = getTerminal(last1)
+  const terminal2 = getTerminal(last2)
+  
+  // Se algum dos números não termina em 4, 5 ou 9, não aplica
+  if (!terminal1 || !terminal2) return []
+  
+  // Se os terminais são iguais, não aplica
+  if (terminal1 === terminal2) return []
+  
+  // Determina qual terminal jogar (o que falta)
+  const terminais = [4, 5, 9]
+  const terminalFaltante = terminais.find(t => t !== terminal1 && t !== terminal2)
+  
+  if (!terminalFaltante) return []
+  
+  // Retorna os 4 números do terminal faltante
+  switch (terminalFaltante) {
+    case 4: return [4, 14, 24, 34]
+    case 5: return [5, 15, 25, 35]
+    case 9: return [9, 19, 29]
+    default: return []
+  }
+}
+
+// ========================================
+// FUNÇÃO PARA OBTER ESTRATÉGIAS COM LÓGICA DINÂMICA
+// ========================================
+
+export function getStrategyNumbers(strategyId: number, lastNumbers: number[]): number[] {
+  // Estratégia 221: Terminais Cruzados (dinâmica)
+  if (strategyId === 221) {
+    return calculateTerminaisCruzados(lastNumbers)
+  }
+  
+  // Para outras estratégias, retornar os números fixos
+  const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9]
+    .flatMap(folder => folder.strategies)
+  
+  const strategy = allStrategies.find(s => s.id === strategyId)
+  return strategy?.numbers || []
+}
