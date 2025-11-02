@@ -1481,20 +1481,20 @@ export default function Home() {
                             const strategyNumbers = currentStrategyNumbers
                             
                             // Contar aparições de cada número da estratégia
-                            const numberCounts = strategyNumbers.map(num => ({
+                            const numberCounts = strategyNumbers.map((num: number) => ({
                               number: num,
-                              count: numbers.filter(n => n === num).length
+                              count: numbers.filter((n: number) => n === num).length
                             }))
                             
                             // Separar em Quentes (que apareceram) e Frios (que não apareceram)
                             const hotNumbers = numberCounts
-                              .filter(nc => nc.count > 0)
-                              .sort((a, b) => b.count - a.count) // Mais apareceram primeiro
+                              .filter((nc: { number: number; count: number }) => nc.count > 0)
+                              .sort((a: { count: number }, b: { count: number }) => b.count - a.count) // Mais apareceram primeiro
                             
                             const coldNumbers = numberCounts
-                              .filter(nc => nc.count === 0)
-                              .map(nc => nc.number)
-                              .sort((a, b) => a - b) // Ordem crescente
+                              .filter((nc: { number: number; count: number }) => nc.count === 0)
+                              .map((nc: { number: number; count: number }) => nc.number)
+                              .sort((a: number, b: number) => a - b) // Ordem crescente
                             
                             return (
                               <div className="space-y-3">
@@ -1506,7 +1506,7 @@ export default function Home() {
                                   </div>
                                   {hotNumbers.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                      {hotNumbers.map(({ number, count }) => (
+                                      {hotNumbers.map(({ number, count }: { number: number; count: number }) => (
                                         <div 
                                           key={number}
                                           className="relative inline-flex items-center justify-center"
@@ -1533,7 +1533,7 @@ export default function Home() {
                                   </div>
                                   {coldNumbers.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
-                                      {coldNumbers.map(number => (
+                                      {coldNumbers.map((number: number) => (
                                         <div 
                                           key={number}
                                           className="w-8 h-8 rounded-md bg-cyan-700 text-white font-bold text-xs flex items-center justify-center border border-cyan-500"
@@ -2022,7 +2022,7 @@ export default function Home() {
                   
                   <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
                     <div className="flex flex-wrap gap-2">
-                      {currentStrategyNumbers.map((num, idx) => (
+                      {currentStrategyNumbers.map((num: number, idx: number) => (
                         <span 
                           key={idx} 
                           className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg font-mono font-medium"
@@ -2324,20 +2324,20 @@ export default function Home() {
                         const strategyNumbers = currentStrategyNumbers
                         
                         // Contar aparições de cada número da estratégia
-                        const numberCounts = strategyNumbers.map(num => ({
+                        const numberCounts = strategyNumbers.map((num: number) => ({
                           number: num,
-                          count: numbers.filter(n => n === num).length
+                          count: numbers.filter((n: number) => n === num).length
                         }))
                         
                         // Separar em Quentes (que apareceram) e Frios (que não apareceram)
                         const hotNumbers = numberCounts
-                          .filter(nc => nc.count > 0)
-                          .sort((a, b) => b.count - a.count) // Mais apareceram primeiro
+                          .filter((nc: { number: number; count: number }) => nc.count > 0)
+                          .sort((a: { count: number }, b: { count: number }) => b.count - a.count) // Mais apareceram primeiro
                         
                         const coldNumbers = numberCounts
-                          .filter(nc => nc.count === 0)
-                          .map(nc => nc.number)
-                          .sort((a, b) => a - b) // Ordem crescente
+                          .filter((nc: { number: number; count: number }) => nc.count === 0)
+                          .map((nc: { number: number; count: number }) => nc.number)
+                          .sort((a: number, b: number) => a - b) // Ordem crescente
                         
                         return (
                           <div className="space-y-3">
@@ -2349,7 +2349,7 @@ export default function Home() {
                               </div>
                               {hotNumbers.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
-                                  {hotNumbers.map(({ number, count }) => (
+                                  {hotNumbers.map(({ number, count }: { number: number; count: number }) => (
                                     <div 
                                       key={number}
                                       className="relative inline-flex items-center justify-center"
@@ -2376,7 +2376,7 @@ export default function Home() {
                               </div>
                               {coldNumbers.length > 0 ? (
                                 <div className="flex flex-wrap gap-1.5">
-                                  {coldNumbers.map(number => (
+                                  {coldNumbers.map((number: number) => (
                                     <div 
                                       key={number}
                                       className="w-8 h-8 rounded-md bg-cyan-700 text-white font-bold text-xs flex items-center justify-center border border-cyan-500"

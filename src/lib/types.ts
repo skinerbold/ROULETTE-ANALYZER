@@ -45,3 +45,44 @@ export interface UserSession {
   created_at?: string
   updated_at?: string
 }
+
+// ========================================
+// TIPOS PARA ANÁLISE DE ESTRATÉGIAS
+// ========================================
+
+export interface Strategy {
+  id: number
+  name: string
+  numbers: number[]
+  protectionNumbers?: number[]
+}
+
+export interface Activation {
+  position: number
+  activatingNumber: number
+  result: 'GREEN' | 'RED'
+  attempts: number
+  winningNumber?: number
+}
+
+export interface NumberResult {
+  number: number
+  position: number
+  status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
+  strategyId?: number
+}
+
+export interface AnalysisResult {
+  totalGreen: number
+  totalRed: number
+  maxGreenSequence: number
+  maxRedSequence: number
+  firstAttemptHits: number
+  secondAttemptHits: number
+  thirdAttemptHits: number
+  mostActivatingNumber: number
+  mostActivatingCount: number
+  profit: number
+  activations: Activation[]
+}
+}
