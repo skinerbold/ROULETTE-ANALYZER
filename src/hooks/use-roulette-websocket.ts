@@ -92,6 +92,37 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         return
       }
       
+      // FORMATO 1.5: Railway - Histórico completo de uma roleta
+      if (message.type === 'history' && message.roulette && Array.isArray(message.numbers)) {
+        const rouletteId = message.roulette
+        const numbers = message.numbers
+        
+        console.log(`📜 Histórico recebido para ${rouletteId}:`, numbers.length, 'números')
+        
+        // Converter para RouletteNumber[]
+        const now = Date.now()
+        const history: RouletteNumber[] = numbers.map((num: number, index: number) => ({
+          number: num,
+          color: getRouletteColor(num),
+          timestamp: now - (index * 60000) // Estimativa de 1 min entre spins
+        }))
+        
+        // Salvar histórico
+        rouletteHistoryRef.current.set(rouletteId, history)
+        
+        // Se for a roleta selecionada, atualizar tela
+        if (rouletteId === selectedRouletteRef.current) {
+          console.log(`   ⚡ Atualizando tela com histórico completo!`)
+          setRecentNumbers([...history])
+          if (history.length > 0) {
+            setLastNumber({...history[0]})
+          }
+          setUpdateVersion(v => v + 1)
+        }
+        
+        return
+      }
+      
       // FORMATO 2: Railway - Resultado individual
       if (message.type === 'result' && message.roulette && typeof message.number === 'number') {
         const rouletteId = message.roulette
@@ -434,9 +465,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         // Iniciar heartbeat
         startHeartbeat()
         
-        // Opcional: solicitar histórico
-        console.log('📤 Enviando requisição de histórico...')
-        ws.send(JSON.stringify({ type: 'get_history' }))
+        // Solicitar lista de roletas e histórico completo
+        console.log('📤 Solicitando lista de roletas e histórico completo...')
+        ws.send(JSON.stringify({ type: 'get_roulettes' }))
+        ws.send(JSON.stringify({ type: 'get_all_history' }))
       })
 
       ws.addEventListener('message', (event) => {
