@@ -156,8 +156,10 @@ export class RouletteAnalyzer {
       }
     }
     
+    // Calcular profit (greens - reds)
+    const profit = totalGreen - totalRed;
+    
     return {
-      strategyId: this.strategy.id,
       totalGreen,
       totalRed,
       maxGreenSequence,
@@ -167,6 +169,7 @@ export class RouletteAnalyzer {
       thirdAttemptHits,
       mostActivatingNumber,
       mostActivatingCount,
+      profit,
       activations
     };
   }

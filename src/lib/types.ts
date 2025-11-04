@@ -1,5 +1,5 @@
 // ========================================
-// TIPOS DO SISTEMA DE ESTRAT脡GIAS
+// TIPOS DO SISTEMA DE ESTRAT蒅IAS
 // ========================================
 
 export interface StrategyStats {
@@ -16,12 +16,12 @@ export interface StrategyStats {
   mostActivatingCount: number
   activations: number
   profit: number
-  // Novas m茅tricas de padr茫o de entrada
-  maxConsecutiveGreens: number // Maior sequ锚ncia de GREEN seguidos
-  maxConsecutiveReds: number   // Maior sequ锚ncia de RED seguidos
-  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: ap贸s GREEN ou RED
-  postGreenWins: number        // Vit贸rias ap贸s GREEN
-  postRedWins: number          // Vit贸rias ap贸s RED
+  // Novas m閠ricas de padr鉶 de entrada
+  maxConsecutiveGreens: number // Maior sequ阯cia de GREEN seguidos
+  maxConsecutiveReds: number   // Maior sequ阯cia de RED seguidos
+  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: ap髎 GREEN ou RED
+  postGreenWins: number        // Vit髍ias ap髎 GREEN
+  postRedWins: number          // Vit髍ias ap髎 RED
 }
 
 export interface NumberStatus {
@@ -29,7 +29,7 @@ export interface NumberStatus {
   status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
 }
 
-// Nova interface para sele莽茫o de estrat茅gias
+// Nova interface para sele玢o de estrat間ias
 export interface StrategySelection {
   folderName: string
   strategyIds: number[] | 'all' // 'all' para todas da pasta
@@ -41,13 +41,13 @@ export interface UserSession {
   numbers: number[]
   chip_category?: 'up-to-9' | 'more-than-9' | 'all' // Atualizado para incluir 'all'
   selected_strategy?: number // Mantido para compatibilidade (backward)
-  selected_strategies?: number[] // NOVO: Array de IDs de estrat茅gias selecionadas
+  selected_strategies?: number[] // NOVO: Array de IDs de estrat間ias selecionadas
   created_at?: string
   updated_at?: string
 }
 
 // ========================================
-// TIPOS PARA AN脕LISE DE ESTRAT脡GIAS
+// TIPOS PARA AN罫ISE DE ESTRAT蒅IAS
 // ========================================
 
 export interface Strategy {
@@ -84,5 +84,4 @@ export interface AnalysisResult {
   mostActivatingCount: number
   profit: number
   activations: Activation[]
-}
 }
