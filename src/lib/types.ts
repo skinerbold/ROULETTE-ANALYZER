@@ -1,5 +1,5 @@
 // ========================================
-// TIPOS DO SISTEMA DE ESTRATÉGIAS
+// TIPOS DO SISTEMA DE ESTRATï¿½GIAS
 // ========================================
 
 export interface StrategyStats {
@@ -16,12 +16,12 @@ export interface StrategyStats {
   mostActivatingCount: number
   activations: number
   profit: number
-  // Novas métricas de padrão de entrada
-  maxConsecutiveGreens: number // Maior sequência de GREEN seguidos
-  maxConsecutiveReds: number   // Maior sequência de RED seguidos
-  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: após GREEN ou RED
-  postGreenWins: number        // Vitórias após GREEN
-  postRedWins: number          // Vitórias após RED
+  // Novas mï¿½tricas de padrï¿½o de entrada
+  maxConsecutiveGreens: number // Maior sequï¿½ncia de GREEN seguidos
+  maxConsecutiveReds: number   // Maior sequï¿½ncia de RED seguidos
+  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: apï¿½s GREEN ou RED
+  postGreenWins: number        // Vitï¿½rias apï¿½s GREEN
+  postRedWins: number          // Vitï¿½rias apï¿½s RED
 }
 
 export interface NumberStatus {
@@ -29,7 +29,7 @@ export interface NumberStatus {
   status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
 }
 
-// Nova interface para seleção de estratégias
+// Nova interface para seleï¿½ï¿½o de estratï¿½gias
 export interface StrategySelection {
   folderName: string
   strategyIds: number[] | 'all' // 'all' para todas da pasta
@@ -41,13 +41,13 @@ export interface UserSession {
   numbers: number[]
   chip_category?: 'up-to-9' | 'more-than-9' | 'all' // Atualizado para incluir 'all'
   selected_strategy?: number // Mantido para compatibilidade (backward)
-  selected_strategies?: number[] // NOVO: Array de IDs de estratégias selecionadas
+  selected_strategies?: number[] // NOVO: Array de IDs de estratï¿½gias selecionadas
   created_at?: string
   updated_at?: string
 }
 
 // ========================================
-// TIPOS PARA ANÁLISE DE ESTRATÉGIAS
+// TIPOS PARA ANï¿½LISE DE ESTRATï¿½GIAS
 // ========================================
 
 export interface Strategy {
