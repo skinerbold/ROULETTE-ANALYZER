@@ -54,6 +54,7 @@ export default function Home() {
   }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
   
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
+  const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (3, 4, 5 ou 6)
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
@@ -176,7 +177,7 @@ export default function Home() {
       // Salvar sessão vazia também
       saveUserSession()
     }
-  }, [numbers, selectedStrategies, analysisLimit])
+  }, [numbers, selectedStrategies, analysisLimit, greenRedAttempts])
 
   const checkUser = async () => {
     try {
@@ -229,6 +230,7 @@ export default function Home() {
           : []
         setSelectedStrategies(Array.isArray(strategies) ? strategies : [strategies].filter(Boolean))
         setChipCategory(session.chip_category || 'up-to-9')
+        setGreenRedAttempts(session.green_red_attempts || 3) // NOVO: Carregar casas GREEN/RED (padrão: 3)
         console.log('Sessão carregada:', session.numbers?.length || 0, 'números')
       } else {
         console.log('Nenhuma sessão encontrada, criando nova')
@@ -247,6 +249,7 @@ export default function Home() {
         numbers: numbers,
         chip_category: chipCategory,
         selected_strategies: selectedStrategies, // MUDANÇA: Array de IDs
+        green_red_attempts: greenRedAttempts, // NOVO: Casas para GREEN/RED
         updated_at: new Date().toISOString()
       }
 
@@ -259,9 +262,9 @@ export default function Home() {
         
         if (error) {
           // Se erro for de coluna inexistente, tentar sem chip_category e selected_strategies
-          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || !error.message) {
-            console.warn('Colunas chip_category/selected_strategies não existem no banco. Execute a migração SQL.')
-            const { chip_category, selected_strategies, ...dataWithoutNewColumns } = sessionData
+          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts') || !error.message) {
+            console.warn('Colunas chip_category/selected_strategies/green_red_attempts não existem no banco. Execute a migração SQL.')
+            const { chip_category, selected_strategies, green_red_attempts, ...dataWithoutNewColumns } = sessionData
             await supabase
               .from('user_sessions')
               .update(dataWithoutNewColumns)
@@ -282,9 +285,9 @@ export default function Home() {
 
         if (error) {
           // Se erro for de coluna inexistente, tentar sem chip_category e selected_strategies
-          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || !error.message) {
-            console.warn('Colunas chip_category/selected_strategies não existem no banco. Execute a migração SQL.')
-            const { chip_category, selected_strategies, ...dataWithoutNewColumns } = sessionData
+          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts') || !error.message) {
+            console.warn('Colunas chip_category/selected_strategies/green_red_attempts não existem no banco. Execute a migração SQL.')
+            const { chip_category, selected_strategies, green_red_attempts, ...dataWithoutNewColumns } = sessionData
             const result = await supabase
               .from('user_sessions')
               .insert(dataWithoutNewColumns)
@@ -497,7 +500,10 @@ export default function Home() {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
     if (!strategy) return null
 
-    const allNumbers = [...strategy.numbers]
+    // Import getStrategyNumbers para suportar estratégias dinâmicas
+    const { getStrategyNumbers } = require('@/lib/strategies')
+    const allNumbers = getStrategyNumbers(strategyId, numbersArray)
+    
     const activations: Array<{position: number, activatingNumber: number, result: 'GREEN' | 'RED', attempts: number}> = []
     
     let totalGreen = 0
@@ -521,61 +527,70 @@ export default function Home() {
     
     const activationCounts: {[key: number]: number} = {}
     
-    // CORREÇÃO: Processa do primeiro para o último (ordem cronológica correta)
-    // Como agora os números mais recentes ficam no final, processamos normalmente
+    // Processa do índice 0 até o final
     let i = 0
     while (i < numbersArray.length) {
       const currentNum = numbersArray[i]
       
-      // Verifica se é um número de ativação (não proteção)
-      if (strategy.numbers.includes(currentNum)) {
+      // Verifica se é um número da estratégia (ativação)
+      if (allNumbers.includes(currentNum)) {
         activationCounts[currentNum] = (activationCounts[currentNum] || 0) + 1
         
         // Procura por GREEN nas próximas 3 posições
-        let found = false
-        let attempts = 0
+        let foundGreen = false
+        let attemptsCount = 0
+        let greenIndex = -1
         
-        for (let j = i + 1; j <= i + 3 && j < numbersArray.length; j++) {
-          attempts++
-          if (allNumbers.includes(numbersArray[j])) {
-            // GREEN encontrado
-            totalGreen++
-            currentGreenSequence++
-            currentRedSequence = 0
-            maxGreenSequence = Math.max(maxGreenSequence, currentGreenSequence)
-            
-            // Atualizar sequências consecutivas
-            currentConsecutiveGreens++
-            currentConsecutiveReds = 0
-            maxConsecutiveGreens = Math.max(maxConsecutiveGreens, currentConsecutiveGreens)
-            
-            // Verificar padrão de entrada (pós-GREEN ou pós-RED)
-            if (lastResult === 'GREEN') {
-              postGreenWins++
-            } else if (lastResult === 'RED') {
-              postRedWins++
-            }
-            lastResult = 'GREEN'
-            
-            if (attempts === 1) firstAttemptHits++
-            else if (attempts === 2) secondAttemptHits++
-            else if (attempts === 3) thirdAttemptHits++
-            
-            activations.push({
-              position: i,
-              activatingNumber: currentNum,
-              result: 'GREEN',
-              attempts
-            })
-            
-            found = true
-            i = j + 1 // Pula para depois do GREEN
+        // Verifica as próximas N posições (configurável: 3, 4, 5 ou 6)
+        for (let j = 1; j <= greenRedAttempts; j++) {
+          const checkIndex = i + j
+          if (checkIndex >= numbersArray.length) break // Fim do array
+          
+          attemptsCount = j
+          if (allNumbers.includes(numbersArray[checkIndex])) {
+            // GREEN encontrado!
+            foundGreen = true
+            greenIndex = checkIndex
             break
           }
         }
         
-        if (!found) {
-          // RED - não encontrou em 3 tentativas
+        if (foundGreen) {
+          // GREEN: acertou dentro das N tentativas configuradas
+          totalGreen++
+          currentGreenSequence++
+          currentRedSequence = 0
+          maxGreenSequence = Math.max(maxGreenSequence, currentGreenSequence)
+          
+          // Atualizar sequências consecutivas
+          currentConsecutiveGreens++
+          currentConsecutiveReds = 0
+          maxConsecutiveGreens = Math.max(maxConsecutiveGreens, currentConsecutiveGreens)
+          
+          // Verificar padrão de entrada (pós-GREEN ou pós-RED)
+          if (lastResult === 'GREEN') {
+            postGreenWins++
+          } else if (lastResult === 'RED') {
+            postRedWins++
+          }
+          lastResult = 'GREEN'
+          
+          // Contar em qual tentativa acertou
+          if (attemptsCount === 1) firstAttemptHits++
+          else if (attemptsCount === 2) secondAttemptHits++
+          else if (attemptsCount === 3) thirdAttemptHits++
+          
+          activations.push({
+            position: i,
+            activatingNumber: currentNum,
+            result: 'GREEN',
+            attempts: attemptsCount
+          })
+          
+          // Continua após o GREEN
+          i = greenIndex + 1
+        } else {
+          // RED: não encontrou nas N tentativas configuradas (ou chegou no fim do array)
           totalRed++
           currentRedSequence++
           currentGreenSequence = 0
@@ -592,12 +607,14 @@ export default function Home() {
             position: i,
             activatingNumber: currentNum,
             result: 'RED',
-            attempts: 3
+            attempts: Math.min(greenRedAttempts, numbersArray.length - i - 1)
           })
           
-          i += 4 // Pula 3 posições após RED + 1 para próxima iteração
+          // Continua após as N tentativas configuradas
+          i = i + greenRedAttempts + 1
         }
       } else {
+        // Não é número da estratégia, continua
         i++
       }
     }
@@ -663,7 +680,7 @@ export default function Home() {
   }
 
   const updateNumberStatuses = () => {
-    // CORREÇÃO: Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
+    // Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
     if (selectedStrategies.length === 0) {
       const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
@@ -680,49 +697,56 @@ export default function Home() {
       return
     }
 
+    // Import getStrategyNumbers para suportar estratégias dinâmicas
+    const { getStrategyNumbers } = require('@/lib/strategies')
+    const allNumbers = getStrategyNumbers(lastSelectedId, numbersToAnalyze)
+
     // Inicializa todos os status como NEUTRAL
     const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
-    const allNumbers = [...strategy.numbers]
     
-    // CORREÇÃO COMPLETA DA LÓGICA: Processa do primeiro para o último (ordem cronológica correta)
+    // Processa do índice 0 até o final (mesma lógica do analyzeStrategy)
     let i = 0
     while (i < numbersToAnalyze.length) {
       const currentNum = numbersToAnalyze[i]
       
-      // Verifica se é um número de ativação (apenas números principais, não proteção)
-      if (strategy.numbers.includes(currentNum)) {
+      // Verifica se é um número da estratégia (ativação)
+      if (allNumbers.includes(currentNum)) {
         // Marca como ACTIVATION (amarelo)
         statuses[i] = { number: currentNum, status: 'ACTIVATION' }
         
-        // Procura por GREEN nas próximas 3 posições
-        let found = false
-        let greenPosition = -1
+        // Procura por GREEN nas próximas N posições (configurável: 3, 4, 5 ou 6)
+        let foundGreen = false
+        let greenIndex = -1
         
-        // Verifica as próximas 3 posições
-        for (let j = i + 1; j <= i + 3 && j < numbersToAnalyze.length; j++) {
-          if (allNumbers.includes(numbersToAnalyze[j])) {
-            // GREEN encontrado
-            found = true
-            greenPosition = j
+        // Verifica as próximas N posições
+        for (let j = 1; j <= greenRedAttempts; j++) {
+          const checkIndex = i + j
+          if (checkIndex >= numbersToAnalyze.length) break // Fim do array
+          
+          if (allNumbers.includes(numbersToAnalyze[checkIndex])) {
+            // GREEN encontrado!
+            foundGreen = true
+            greenIndex = checkIndex
             break
           }
         }
         
-        if (found) {
-          // GREEN: marca o GREEN como GREEN
-          statuses[greenPosition] = { number: numbersToAnalyze[greenPosition], status: 'GREEN' }
-          // Próxima iteração começa APÓS o GREEN
-          i = greenPosition + 1
+        if (foundGreen) {
+          // GREEN: marca o número GREEN
+          statuses[greenIndex] = { number: numbersToAnalyze[greenIndex], status: 'GREEN' }
+          // Continua após o GREEN
+          i = greenIndex + 1
         } else {
-          // RED: marca a 3ª posição como RED (se existir)
-          const redPosition = i + 3
-          if (redPosition < numbersToAnalyze.length) {
-            statuses[redPosition] = { number: numbersToAnalyze[redPosition], status: 'RED' }
+          // RED: marca a N-ésima posição como RED (se existir)
+          const redIndex = i + greenRedAttempts
+          if (redIndex < numbersToAnalyze.length) {
+            statuses[redIndex] = { number: numbersToAnalyze[redIndex], status: 'RED' }
           }
-          // Pula 3 posições após RED
-          i += 4
+          // Continua após as N tentativas configuradas
+          i = i + greenRedAttempts + 1
         }
       } else {
+        // Não é número da estratégia, continua
         i++
       }
     }
@@ -1002,6 +1026,40 @@ export default function Home() {
             </Select>
             <p className="text-xs text-gray-500">
               Analisando {numbersToAnalyze.length} de {numbers.length} números disponíveis
+            </p>
+          </div>
+        </div>
+
+        {/* Seletor de Casas GREEN/RED - Mobile */}
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              🎯 Casas para GREEN/RED
+            </label>
+            <Select 
+              value={greenRedAttempts.toString()} 
+              onValueChange={(value) => setGreenRedAttempts(Number(value))}
+            >
+              <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 border-gray-600">
+                <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  3 casas
+                </SelectItem>
+                <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  4 casas
+                </SelectItem>
+                <SelectItem value="5" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  5 casas
+                </SelectItem>
+                <SelectItem value="6" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  6 casas
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500">
+              Analisando {greenRedAttempts} casas após ativação
             </p>
           </div>
         </div>
@@ -1829,6 +1887,42 @@ export default function Home() {
                 isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
               }`}>
                 {numbersToAnalyze.length} de {numbers.length} números
+              </p>
+            </div>
+
+            {/* Seletor de Casas GREEN/RED - Desktop */}
+            <div className="space-y-2">
+              <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
+                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+              }`}>
+                🎯 Casas para GREEN/RED
+              </label>
+              <Select 
+                value={greenRedAttempts.toString()} 
+                onValueChange={(value) => setGreenRedAttempts(Number(value))}
+              >
+                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700 border-gray-600">
+                  <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    3 casas
+                  </SelectItem>
+                  <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    4 casas
+                  </SelectItem>
+                  <SelectItem value="5" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    5 casas
+                  </SelectItem>
+                  <SelectItem value="6" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    6 casas
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className={`text-gray-500 transition-all ${
+                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+              }`}>
+                Analisando {greenRedAttempts} casas após ativação
               </p>
             </div>
 
