@@ -8,14 +8,14 @@
 ALTER TABLE user_sessions 
 ADD COLUMN IF NOT EXISTS green_red_attempts INTEGER DEFAULT 3;
 
--- Validação: verificar que o valor está entre 3 e 6
+-- Validação: verificar que o valor está entre 1 e 6
 ALTER TABLE user_sessions 
 ADD CONSTRAINT check_green_red_attempts 
-CHECK (green_red_attempts >= 3 AND green_red_attempts <= 6);
+CHECK (green_red_attempts >= 1 AND green_red_attempts <= 6);
 
 -- Comentário para documentação
 COMMENT ON COLUMN user_sessions.green_red_attempts IS 
-'Quantidade de casas após ativação para contabilizar GREEN ou RED (3, 4, 5 ou 6). Padrão: 3';
+'Quantidade de casas após ativação para contabilizar GREEN ou RED (1, 2, 3, 4, 5 ou 6). Padrão: 3';
 
 -- Verificar estrutura atualizada
 SELECT column_name, data_type, column_default, is_nullable

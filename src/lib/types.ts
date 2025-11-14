@@ -42,7 +42,7 @@ export interface UserSession {
   chip_category?: 'up-to-9' | 'more-than-9' | 'all' // Atualizado para incluir 'all'
   selected_strategy?: number // Mantido para compatibilidade (backward)
   selected_strategies?: number[] // NOVO: Array de IDs de estratégias selecionadas
-  green_red_attempts?: number // NOVO: Quantidade de casas para analisar GREEN/RED (3, 4, 5 ou 6)
+  green_red_attempts?: number // NOVO: Quantidade de casas para analisar GREEN/RED (1, 2, 3, 4, 5 ou 6)
   created_at?: string
   updated_at?: string
 }

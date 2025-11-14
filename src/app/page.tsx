@@ -54,7 +54,7 @@ export default function Home() {
   }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
   
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
-  const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (3, 4, 5 ou 6)
+  const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (1, 2, 3, 4, 5 ou 6)
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
@@ -527,10 +527,14 @@ export default function Home() {
     
     const activationCounts: {[key: number]: number} = {}
     
-    // Processa do índice 0 até o final
+    // CORREÇÃO: Inverter array para processar do mais antigo para o mais recente
+    // Array original: [RECENTE → ANTIGO], precisamos: [ANTIGO → RECENTE]
+    const reversedArray = [...numbersArray].reverse()
+    
+    // Processa do índice 0 até o final (agora do mais antigo para o mais recente)
     let i = 0
-    while (i < numbersArray.length) {
-      const currentNum = numbersArray[i]
+    while (i < reversedArray.length) {
+      const currentNum = reversedArray[i]
       
       // Verifica se é um número da estratégia (ativação)
       if (allNumbers.includes(currentNum)) {
@@ -541,13 +545,13 @@ export default function Home() {
         let attemptsCount = 0
         let greenIndex = -1
         
-        // Verifica as próximas N posições (configurável: 3, 4, 5 ou 6)
+        // Verifica as próximas N posições (configurável: 1, 2, 3, 4, 5 ou 6)
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
-          if (checkIndex >= numbersArray.length) break // Fim do array
+          if (checkIndex >= reversedArray.length) break // Fim do array
           
           attemptsCount = j
-          if (allNumbers.includes(numbersArray[checkIndex])) {
+          if (allNumbers.includes(reversedArray[checkIndex])) {
             // GREEN encontrado!
             foundGreen = true
             greenIndex = checkIndex
@@ -607,7 +611,7 @@ export default function Home() {
             position: i,
             activatingNumber: currentNum,
             result: 'RED',
-            attempts: Math.min(greenRedAttempts, numbersArray.length - i - 1)
+            attempts: Math.min(greenRedAttempts, reversedArray.length - i - 1)
           })
           
           // Continua após as N tentativas configuradas
@@ -704,26 +708,33 @@ export default function Home() {
     // Inicializa todos os status como NEUTRAL
     const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
     
-    // Processa do índice 0 até o final (mesma lógica do analyzeStrategy)
+    // CORREÇÃO: Inverter array para processar do mais antigo para o mais recente
+    // Array original: [RECENTE → ANTIGO], precisamos: [ANTIGO → RECENTE]
+    const reversedArray = [...numbersToAnalyze].reverse()
+    
+    // Processa do índice 0 até o final (agora do mais antigo para o mais recente)
     let i = 0
-    while (i < numbersToAnalyze.length) {
-      const currentNum = numbersToAnalyze[i]
+    while (i < reversedArray.length) {
+      const currentNum = reversedArray[i]
       
       // Verifica se é um número da estratégia (ativação)
       if (allNumbers.includes(currentNum)) {
-        // Marca como ACTIVATION (amarelo)
-        statuses[i] = { number: currentNum, status: 'ACTIVATION' }
+        // CORREÇÃO: Calcular índice original (não invertido) para marcar status correto
+        const originalIndex = reversedArray.length - 1 - i
         
-        // Procura por GREEN nas próximas N posições (configurável: 3, 4, 5 ou 6)
+        // Marca como ACTIVATION (amarelo)
+        statuses[originalIndex] = { number: currentNum, status: 'ACTIVATION' }
+        
+        // Procura por GREEN nas próximas N posições (configurável: 1, 2, 3, 4, 5 ou 6)
         let foundGreen = false
         let greenIndex = -1
         
         // Verifica as próximas N posições
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
-          if (checkIndex >= numbersToAnalyze.length) break // Fim do array
+          if (checkIndex >= reversedArray.length) break // Fim do array
           
-          if (allNumbers.includes(numbersToAnalyze[checkIndex])) {
+          if (allNumbers.includes(reversedArray[checkIndex])) {
             // GREEN encontrado!
             foundGreen = true
             greenIndex = checkIndex
@@ -733,14 +744,16 @@ export default function Home() {
         
         if (foundGreen) {
           // GREEN: marca o número GREEN
-          statuses[greenIndex] = { number: numbersToAnalyze[greenIndex], status: 'GREEN' }
+          const originalGreenIndex = reversedArray.length - 1 - greenIndex
+          statuses[originalGreenIndex] = { number: reversedArray[greenIndex], status: 'GREEN' }
           // Continua após o GREEN
           i = greenIndex + 1
         } else {
           // RED: marca a N-ésima posição como RED (se existir)
           const redIndex = i + greenRedAttempts
-          if (redIndex < numbersToAnalyze.length) {
-            statuses[redIndex] = { number: numbersToAnalyze[redIndex], status: 'RED' }
+          if (redIndex < reversedArray.length) {
+            const originalRedIndex = reversedArray.length - 1 - redIndex
+            statuses[originalRedIndex] = { number: reversedArray[redIndex], status: 'RED' }
           }
           // Continua após as N tentativas configuradas
           i = i + greenRedAttempts + 1
@@ -1044,6 +1057,12 @@ export default function Home() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-gray-700 border-gray-600">
+                <SelectItem value="1" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  1 casa
+                </SelectItem>
+                <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  2 casas
+                </SelectItem>
                 <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
                   3 casas
                 </SelectItem>
@@ -1905,6 +1924,12 @@ export default function Home() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-700 border-gray-600">
+                  <SelectItem value="1" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    1 casa
+                  </SelectItem>
+                  <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                    2 casas
+                  </SelectItem>
                   <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
                     3 casas
                   </SelectItem>
