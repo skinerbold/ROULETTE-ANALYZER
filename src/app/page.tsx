@@ -1480,6 +1480,141 @@ export default function Home() {
                       </Card>
                     )}
 
+                    {/* NOVA ANÁLISE: Intervalos entre Acertos - MOBILE */}
+                    {lastSelectedStrategy && numbers.length > 0 && intervalAnalysis.totalIntervals > 0 && (
+                      <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
+                        <CardHeader className="pb-3 pt-3 px-4">
+                          <CardTitle className="text-sm text-gray-300">📊 Análise de Intervalos</CardTitle>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Casas entre acertos: {lastSelectedStrategy.name}
+                          </p>
+                        </CardHeader>
+                        <CardContent className="pt-0 pb-3 px-4">
+                          <div className="space-y-3">
+                            {/* Tabela de Frequências */}
+                            <div>
+                              <div className="text-xs font-semibold text-blue-400 mb-2">
+                                📈 Frequência ({intervalAnalysis.totalIntervals} registros)
+                              </div>
+                              <div className="space-y-1.5">
+                                {Array.from({ length: 10 }, (_, i) => i + 1).map(interval => {
+                                  const count = intervalAnalysis.frequencyMap.get(interval.toString()) || 0
+                                  const percentage = intervalAnalysis.totalIntervals > 0 
+                                    ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
+                                    : '0.0'
+                                  
+                                  return (
+                                    <div 
+                                      key={interval}
+                                      className="flex items-center justify-between p-2 bg-gray-800 rounded text-xs"
+                                    >
+                                      <span className="text-gray-300">
+                                        {interval} casa{interval > 1 ? 's' : ''}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-16 bg-gray-700 rounded-full h-2">
+                                          <div 
+                                            className="bg-blue-500 h-2 rounded-full transition-all"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-blue-400 font-bold w-14 text-right text-[10px]">
+                                          {count}x ({percentage}%)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                                
+                                {/* Mais de 10 casas */}
+                                {(() => {
+                                  const count = intervalAnalysis.frequencyMap.get('Mais de 10') || 0
+                                  const percentage = intervalAnalysis.totalIntervals > 0 
+                                    ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
+                                    : '0.0'
+                                  
+                                  return (
+                                    <div 
+                                      className="flex items-center justify-between p-2 bg-red-900/30 border border-red-600/30 rounded text-xs"
+                                    >
+                                      <span className="text-red-300 font-semibold">
+                                        +10 casas
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-16 bg-gray-700 rounded-full h-2">
+                                          <div 
+                                            className="bg-red-500 h-2 rounded-full transition-all"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-red-400 font-bold w-14 text-right text-[10px]">
+                                          {count}x ({percentage}%)
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            </div>
+
+                            {/* Lista Completa de Intervalos */}
+                            <div>
+                              <div className="text-xs font-semibold text-purple-400 mb-2">
+                                📋 Lista Completa
+                              </div>
+                              <div className="bg-gray-800 rounded p-2 max-h-32 overflow-y-auto">
+                                <div className="flex flex-wrap gap-1">
+                                  {[...intervalAnalysis.intervals].reverse().map((interval, index) => (
+                                    <span 
+                                      key={index}
+                                      className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                                        interval === 0 
+                                          ? 'bg-green-600 text-white'
+                                          : interval <= 3
+                                          ? 'bg-blue-600 text-white'
+                                          : interval <= 6
+                                          ? 'bg-yellow-600 text-white'
+                                          : interval <= 10
+                                          ? 'bg-orange-600 text-white'
+                                          : 'bg-red-600 text-white'
+                                      }`}
+                                    >
+                                      {interval}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-gray-500 mt-1.5 italic">
+                                💡 Recente → Antigo
+                              </p>
+                            </div>
+
+                            {/* Estatísticas Resumidas */}
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="text-center p-2 bg-gray-800 rounded">
+                                <div className="text-lg font-bold text-green-400">
+                                  {Math.min(...intervalAnalysis.intervals)}
+                                </div>
+                                <div className="text-[10px] text-gray-400">Menor</div>
+                              </div>
+                              <div className="text-center p-2 bg-gray-800 rounded">
+                                <div className="text-lg font-bold text-blue-400">
+                                  {(intervalAnalysis.intervals.reduce((a, b) => a + b, 0) / intervalAnalysis.intervals.length).toFixed(1)}
+                                </div>
+                                <div className="text-[10px] text-gray-400">Média</div>
+                              </div>
+                              <div className="text-center p-2 bg-gray-800 rounded">
+                                <div className="text-lg font-bold text-red-400">
+                                  {Math.max(...intervalAnalysis.intervals)}
+                                </div>
+                                <div className="text-[10px] text-gray-400">Maior</div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
                     {/* Outras métricas... */}
                     <Card className="bg-gray-700 border-gray-600">
                       <CardHeader className="pb-3">
@@ -2261,8 +2396,6 @@ export default function Home() {
                                 ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
                                 : '0.0'
                               
-                              if (count === 0) return null
-                              
                               return (
                                 <div 
                                   key={interval}
@@ -2292,8 +2425,6 @@ export default function Home() {
                               const percentage = intervalAnalysis.totalIntervals > 0 
                                 ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
                                 : '0.0'
-                              
-                              if (count === 0) return null
                               
                               return (
                                 <div 
@@ -2326,7 +2457,7 @@ export default function Home() {
                           </div>
                           <div className="bg-gray-800 rounded p-2 max-h-32 overflow-y-auto">
                             <div className="flex flex-wrap gap-1">
-                              {intervalAnalysis.intervals.map((interval, index) => (
+                              {[...intervalAnalysis.intervals].reverse().map((interval, index) => (
                                 <span 
                                   key={index}
                                   className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
@@ -2347,7 +2478,7 @@ export default function Home() {
                             </div>
                           </div>
                           <p className="text-xs text-gray-500 mt-1.5 italic">
-                            💡 Intervalos mostrados em ordem cronológica (mais antigo → mais recente)
+                            💡 Intervalos mostrados em ordem cronológica (mais recente → mais antigo)
                           </p>
                         </div>
 
