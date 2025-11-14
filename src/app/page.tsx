@@ -749,13 +749,9 @@ export default function Home() {
           // Continua após o GREEN
           i = greenIndex + 1
         } else {
-          // RED: marca a N-ésima posição como RED (se existir)
-          const redIndex = i + greenRedAttempts
-          if (redIndex < reversedArray.length) {
-            const originalRedIndex = reversedArray.length - 1 - redIndex
-            statuses[originalRedIndex] = { number: reversedArray[redIndex], status: 'RED' }
-          }
-          // Continua após as N tentativas configuradas
+          // RED: NÃO marca nenhum número como RED na pintura
+          // (A análise conta o RED, mas visualmente não marcamos nenhum número específico)
+          // Apenas pula as próximas N tentativas configuradas
           i = i + greenRedAttempts + 1
         }
       } else {

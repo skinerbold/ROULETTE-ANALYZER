@@ -1,8 +1,8 @@
 ﻿// ========================================
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
-// 12 Pastas (221 estratégias) - ATÉ 9 FICHAS
-// 6 Pastas (138 estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 18 PASTAS, 359 ESTRATÉGIAS
+// 13 Pastas (226 estratégias) - ATÉ 9 FICHAS
+// 7 Pastas (146 estratégias) - MAIS DE 9 FICHAS
+// TOTAL: 20 PASTAS, 372 ESTRATÉGIAS
 // ========================================
 
 export interface Strategy { 
@@ -19,7 +19,7 @@ export interface StrategyFolder {
 export type ChipCategory = 'up-to-9' | 'more-than-9' | 'all'
 
 // ========================================
-// ESTRATÉGIAS ATÉ 9 FICHAS - 223 ESTRATÉGIAS
+// ESTRATÉGIAS ATÉ 9 FICHAS - 226 ESTRATÉGIAS
 // ========================================
 
 const strategiesUpTo9: StrategyFolder[] = [
@@ -307,12 +307,22 @@ const strategiesUpTo9: StrategyFolder[] = [
         numbers: [] // Dinâmico - será calculado baseado nos últimos 2 números
       }
     ]
+  },
+  {
+    name: "Voisins e Setores",
+    strategies: [
+      { id: 339, name: "Voisins", numbers: [7,29,18,22,4,21,2,25] },
+      { id: 340, name: "Meio direita", numbers: [2,25,17,34,6,27,13,36,11] },
+      { id: 341, name: "Meio esquerda", numbers: [29,18,22,9,31,14,20,1,33] },
+      { id: 342, name: "Espelhos de baixo", numbers: [3,26,0,32,2,12,19,21,29] },
+      { id: 343, name: "Espelho preto", numbers: [26,0,2,29,6,10,20,31,33] }
+    ]
   }
 ]
 
 
 // ========================================
-// ESTRATÉGIAS MAIS DE 9 FICHAS - 138 ESTRATÉGIAS
+// ESTRATÉGIAS MAIS DE 9 FICHAS - 146 ESTRATÉGIAS
 // ========================================
 
 const strategiesMoreThan9: StrategyFolder[] = [
@@ -484,6 +494,19 @@ const strategiesMoreThan9: StrategyFolder[] = [
       { id: 336, name: "34+Proteção", numbers: [30,32,36,7,14,4,24,33,35] },
       { id: 337, name: "35+Proteção", numbers: [31,33,8,5,15,25,36,34] },
       { id: 338, name: "36+Proteção", numbers: [9,18,3,33,6,16,35] }
+    ]
+  },
+  {
+    name: "Voisins e Setores Expandidos",
+    strategies: [
+      { id: 344, name: "10com5v", numbers: [36,11,30,8,23,10,5,24,16,33,1] },
+      { id: 345, name: "0com5v", numbers: [28,12,35,3,26,0,32,15,19,4,21] },
+      { id: 346, name: "Voisins2", numbers: [28,7,29,18,22,9,19,4,21,2,25,17] },
+      { id: 347, name: "Meio", numbers: [17,34,6,27,13,9,31,14,20,1] },
+      { id: 348, name: "Meio2", numbers: [25,17,34,6,27,13,22,9,31,14,20,1] },
+      { id: 349, name: "Espelhos de cima", numbers: [1,6,9,10,13,16,20,23,31,33,36] },
+      { id: 350, name: "Espelho vermelho", numbers: [1,9,16,23,36,3,0,32,12,19,21] },
+      { id: 351, name: "OC5 completo (13 fichas)", numbers: [32,23,27,14,16,5,24,10,28,19,15,25,35] }
     ]
   }
 ]
