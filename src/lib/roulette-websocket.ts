@@ -56,6 +56,15 @@ export function formatRouletteNumber(number: number): string {
   return number.toString()
 }
 
+// Provedores permitidos (filtro)
+const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
+
+// Verificar se o provedor está na lista permitida
+export function isAllowedProvider(provider?: string): boolean {
+  if (!provider) return false
+  return ALLOWED_PROVIDERS.includes(provider)
+}
+
 // Extrair informações da roleta (nome e provedor)
 export function parseRouletteName(rouletteName: string): RouletteInfo {
   // Formato esperado: "provedor_nome" ou apenas "nome"

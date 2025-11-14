@@ -7,7 +7,8 @@ import {
   RouletteInfo,
   WEBSOCKET_CONFIG,
   getRouletteColor,
-  parseRouletteName
+  parseRouletteName,
+  isAllowedProvider
 } from '@/lib/roulette-websocket'
 
 export interface UseRouletteWebSocketReturn {
@@ -75,16 +76,13 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       if (message.type === 'roulettes' && Array.isArray(message.data)) {
         console.log('📋 Recebida lista de roletas do Railway:', message.data.length)
         
-        // Provedores a serem ignorados
-        const ignoredProviders = ['Ezugi', 'Gaming Corps', 'NetEnt']
-        
         message.data.forEach((rouletteName: string) => {
           if (!discoveredRoulettesRef.current.has(rouletteName)) {
             discoveredRoulettesRef.current.add(rouletteName)
             const newRouletteInfo = parseRouletteName(rouletteName)
             
-            // Filtrar roletas de provedores indesejados e sem provedor
-            if (!newRouletteInfo.provider || ignoredProviders.includes(newRouletteInfo.provider)) {
+            // Filtrar apenas provedores permitidos (Evolution, Playtech, Pragmatic)
+            if (!isAllowedProvider(newRouletteInfo.provider)) {
               console.log(`   🚫 Roleta ignorada (provedor: ${newRouletteInfo.provider || 'N/A'}): ${rouletteName}`)
               return
             }
@@ -148,12 +146,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         const number = message.number
         const isSelected = rouletteId === selectedRouletteRef.current
         
-        // Provedores a serem ignorados
-        const ignoredProviders = ['Ezugi', 'Gaming Corps', 'NetEnt']
         const rouletteInfo = parseRouletteName(rouletteId)
         
-        // Filtrar roletas de provedores indesejados e sem provedor
-        if (!rouletteInfo.provider || ignoredProviders.includes(rouletteInfo.provider)) {
+        // Filtrar apenas provedores permitidos (Evolution, Playtech, Pragmatic)
+        if (!isAllowedProvider(rouletteInfo.provider)) {
           return // Ignorar silenciosamente
         }
         
