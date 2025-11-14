@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, ChevronLeft, Layers } from 'lucide-react'
+import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
 import { StrategyStats, UserSession } from '@/lib/types'
 import { supabase, getCurrentUser } from '@/lib/supabase'
@@ -63,7 +63,6 @@ export default function Home() {
   // Estados para mobile
   const [showStrategiesMenu, setShowStrategiesMenu] = useState(false)
   const [showMetricsPanel, setShowMetricsPanel] = useState(false)
-  const [expandedFolders, setExpandedFolders] = useState<string[]>([])
   
   // Estado para controlar scroll do dashboard e estratégias
   const [isDashboardScrolled, setIsDashboardScrolled] = useState(false)
@@ -363,18 +362,6 @@ export default function Home() {
     setStrategyStats(initialStats)
   }
 
-  const toggleFolder = (folderName: string) => {
-    setExpandedFolders(prev => 
-      prev.includes(folderName) 
-        ? prev.filter(name => name !== folderName)
-        : [...prev, folderName]
-    )
-  }
-
-  const isFolderExpanded = (folderName: string) => {
-    return expandedFolders.includes(folderName)
-  }
-
   // Funções para seleção múltipla de estratégias
   const toggleStrategy = (strategyId: number) => {
     setSelectedStrategies(prev => 
@@ -386,25 +373,6 @@ export default function Home() {
 
   const isStrategySelected = (strategyId: number) => {
     return selectedStrategies.includes(strategyId)
-  }
-
-  const selectAllInFolder = (folderName: string) => {
-    const folder = FOLDERS.find(f => f.name === folderName)
-    if (!folder) return
-
-    const folderStrategyIds = folder.strategies.map(s => s.id)
-    const allSelected = folderStrategyIds.every(id => selectedStrategies.includes(id))
-
-    if (allSelected) {
-      // Se todas já estão selecionadas, desselecionar todas
-      setSelectedStrategies(prev => prev.filter(id => !folderStrategyIds.includes(id)))
-    } else {
-      // Selecionar todas que ainda não estão
-      setSelectedStrategies(prev => {
-        const newIds = folderStrategyIds.filter(id => !prev.includes(id))
-        return [...prev, ...newIds]
-      })
-    }
   }
 
   // Função para selecionar/desselecionar todas as estratégias da categoria atual (otimizada)
@@ -436,12 +404,6 @@ export default function Home() {
     
     return () => clearTimeout(timer)
   }, [selectedStrategies, chipCategory, areAllFoldersSelected])
-
-  const isFolderFullySelected = (folderName: string) => {
-    const folder = FOLDERS.find(f => f.name === folderName)
-    if (!folder) return false
-    return folder.strategies.every(s => selectedStrategies.includes(s.id))
-  }
 
   const removeNumber = (indexToRemove: number) => {
     setNumbers(prev => prev.filter((_, index) => index !== indexToRemove))
@@ -831,66 +793,55 @@ export default function Home() {
     return getStrategyNumbers(lastSelectedStrategy.id, numbersToAnalyze)
   }, [lastSelectedStrategy, numbersToAnalyze])
 
-  // NOVA FUNCIONALIDADE: Ordenar pastas e estratégias dinamicamente por desempenho
-  const getSortedFolders = () => {
-    // Verificar se temos estatísticas calculadas para ordenar
-    const hasStats = strategyStats.length > 0 && strategyStats.some(s => s.activations > 0)
-    
-    if (!hasStats) {
-      // Sem estatísticas, manter ordem original
-      return FOLDERS
+  // NOVA ANÁLISE: Calcular intervalos entre acertos da estratégia
+  const intervalAnalysis = useMemo(() => {
+    if (!lastSelectedStrategy || numbersToAnalyze.length === 0 || currentStrategyNumbers.length === 0) {
+      return {
+        intervals: [],
+        frequencyMap: new Map<string, number>(),
+        totalIntervals: 0
+      }
     }
 
-    return FOLDERS.map(folder => {
-      // Calcular desempenho médio da pasta
-      const folderStrategiesStats = folder.strategies
-        .map(strategy => strategyStats.find(s => s.id === strategy.id))
-        .filter(Boolean)
-      
-      if (folderStrategiesStats.length === 0) {
-        return {
-          ...folder,
-          avgPerformance: 0,
-          strategies: folder.strategies // Manter ordem original
+    const strategyNumbersSet = new Set(currentStrategyNumbers)
+    const intervals: number[] = []
+    let currentInterval = 0
+    let hasFoundFirstHit = false
+
+    // Percorrer os números do mais antigo para o mais recente (inverter array)
+    const numbersReversed = [...numbersToAnalyze].reverse()
+
+    for (const num of numbersReversed) {
+      if (strategyNumbersSet.has(num)) {
+        // Encontrou um acerto
+        if (hasFoundFirstHit) {
+          // Só registrar intervalo após o primeiro acerto
+          intervals.push(currentInterval)
+        }
+        hasFoundFirstHit = true
+        currentInterval = 0
+      } else {
+        // Não é um número da estratégia
+        if (hasFoundFirstHit) {
+          currentInterval++
         }
       }
+    }
 
-      // Performance = taxa de aproveitamento (GREEN / ATIVAÇÕES)
-      const totalActivations = folderStrategiesStats.reduce((sum, s) => sum + (s?.activations || 0), 0)
-      const totalGreen = folderStrategiesStats.reduce((sum, s) => sum + (s?.totalGreen || 0), 0)
-      const avgPerformance = totalActivations > 0 ? (totalGreen / totalActivations) : 0
-
-      // Ordenar estratégias dentro da pasta por desempenho
-      const sortedStrategies = [...folder.strategies].sort((a, b) => {
-        const statsA = strategyStats.find(s => s.id === a.id)
-        const statsB = strategyStats.find(s => s.id === b.id)
-        
-        if (!statsA || !statsB) return 0
-        
-        // Performance individual = GREEN / ATIVAÇÕES
-        const perfA = statsA.activations > 0 ? (statsA.totalGreen / statsA.activations) : 0
-        const perfB = statsB.activations > 0 ? (statsB.totalGreen / statsB.activations) : 0
-        
-        // Em caso de empate, usar profit como desempate
-        if (perfB === perfA) {
-          return (statsB.profit || 0) - (statsA.profit || 0)
-        }
-        
-        return perfB - perfA // Maior performance primeiro
-      })
-
-      return {
-        ...folder,
-        avgPerformance,
-        strategies: sortedStrategies
-      }
-    }).sort((a, b) => {
-      // Ordenar pastas por performance média (da melhor para a pior)
-      return b.avgPerformance - a.avgPerformance
+    // Criar mapa de frequência
+    const frequencyMap = new Map<string, number>()
+    
+    intervals.forEach(interval => {
+      const key = interval > 10 ? 'Mais de 10' : interval.toString()
+      frequencyMap.set(key, (frequencyMap.get(key) || 0) + 1)
     })
-  }
 
-  const sortedFolders = getSortedFolders()
+    return {
+      intervals,
+      frequencyMap,
+      totalIntervals: intervals.length
+    }
+  }, [lastSelectedStrategy, numbersToAnalyze, currentStrategyNumbers])
 
   // Memoizar estratégias selecionadas ordenadas por desempenho (OTIMIZAÇÃO)
   const sortedSelectedStrategies = useMemo(() => {
@@ -1214,7 +1165,7 @@ export default function Home() {
                   size="sm"
                   className="text-gray-400 hover:text-white"
                 >
-                  <ChevronLeft className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </Button>
               </div>
 
@@ -1240,81 +1191,57 @@ export default function Home() {
               
               <ScrollArea className="h-[calc(100vh-220px)] pb-20">
                 <div className="p-4 space-y-2 pb-8">
-                  {sortedFolders.map((folder) => (
-                    <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
-                      {/* Header da pasta */}
-                      <div className="bg-gray-700">
+                  {/* Listar TODAS as estratégias individuais, ordenadas por desempenho - MOBILE */}
+                  {FOLDERS
+                    .flatMap(folder => 
+                      folder.strategies.map(strategy => ({
+                        strategy,
+                        folderName: folder.name,
+                        stats: strategyStats.find(s => s.id === strategy.id)
+                      }))
+                    )
+                    .sort((a, b) => {
+                      // Ordenar por profit (melhor desempenho primeiro)
+                      const profitA = a.stats?.profit ?? 0
+                      const profitB = b.stats?.profit ?? 0
+                      return profitB - profitA
+                    })
+                    .map(({ strategy, folderName, stats }) => {
+                      const isSelected = isStrategySelected(strategy.id)
+                      return (
                         <button
-                          onClick={() => toggleFolder(folder.name)}
-                          className="w-full p-3 hover:bg-gray-600 transition-all flex items-center justify-between"
+                          key={strategy.id}
+                          onClick={() => toggleStrategy(strategy.id)}
+                          className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
+                            isSelected
+                              ? 'bg-blue-600 text-white shadow-lg border border-blue-500'
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600'
+                          }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-white font-semibold">{folder.name}</span>
-                            <span className="text-xs text-gray-400">({folder.strategies.length})</span>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                            isSelected ? 'bg-white border-white' : 'border-gray-400'
+                          }`}>
+                            {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
                           </div>
-                          <ChevronLeft 
-                            className={`w-5 h-5 text-gray-400 transition-transform ${
-                              isFolderExpanded(folder.name) ? '-rotate-90' : 'rotate-180'
-                            }`} 
-                          />
+                          <div className="flex-1">
+                            <div className="font-semibold text-sm mb-1">{strategy.name}</div>
+                            <div className="text-[10px] text-gray-400 mb-1">📁 {folderName}</div>
+                            {stats && (
+                              <div className="flex justify-between items-center text-xs">
+                                <div className="flex gap-3">
+                                  <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
+                                  <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
+                                </div>
+                                <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {stats.profit >= 0 ? '+' : ''}{stats.profit}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </button>
-                        {/* Botão "Selecionar todas da pasta" */}
-                        {isFolderExpanded(folder.name) && (
-                          <button
-                            onClick={() => selectAllInFolder(folder.name)}
-                            className={`w-full px-3 py-2 text-xs font-medium transition-colors border-t border-gray-600 ${
-                              isFolderFullySelected(folder.name)
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                            }`}
-                          >
-                            {isFolderFullySelected(folder.name) ? '✓ Todas selecionadas' : 'Selecionar todas'}
-                          </button>
-                        )}
-                      </div>
-                      
-                      {/* Estratégias da pasta */}
-                      {isFolderExpanded(folder.name) && (
-                        <div className="bg-gray-800 p-2 space-y-2">
-                          {folder.strategies.map((strategy) => {
-                            const stats = strategyStats.find(s => s.id === strategy.id)
-                            const isSelected = isStrategySelected(strategy.id)
-                            return (
-                              <button
-                                key={strategy.id}
-                                onClick={() => toggleStrategy(strategy.id)}
-                                className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
-                                  isSelected
-                                    ? 'bg-blue-600 text-white shadow-lg border border-blue-500'
-                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600'
-                                }`}
-                              >
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
-                                  isSelected ? 'bg-white border-white' : 'border-gray-400'
-                                }`}>
-                                  {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="font-semibold text-sm mb-1">{strategy.name}</div>
-                                  {stats && (
-                                    <div className="flex justify-between items-center text-xs">
-                                      <div className="flex gap-3">
-                                        <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
-                                        <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
-                                      </div>
-                                      <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                        {stats.profit >= 0 ? '+' : ''}{stats.profit}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                      )
+                    })
+                  }
                 </div>
               </ScrollArea>
             </div>
@@ -1815,33 +1742,31 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Botão All Pastas - Ocultar no modo "Todas" */}
-            {chipCategory !== 'all' && (
-              <div>
-                <Button
-                  onClick={toggleSelectAllFolders}
-                  className={`w-full py-1.5 text-[11px] font-semibold transition-all ${
-                    selectAllFolders
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
-                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                  }`}
-                >
-                  {selectAllFolders ? '✓ All Pastas Selecionadas' : '📁 Selecionar All Pastas'}
-                </Button>
-                {/* Texto descritivo - desaparece ao rolar */}
-                {!isStrategiesScrolled && (
-                  <p className="text-gray-500 text-center text-xs mt-2 animate-in fade-in duration-300">
-                    {selectAllFolders 
-                      ? `${selectedStrategies.length} estratégias selecionadas` 
-                      : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
-                    }
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Botão "Selecionar Todas" */}
+            <div>
+              <Button
+                onClick={toggleSelectAllFolders}
+                className={`w-full py-1.5 text-[11px] font-semibold transition-all ${
+                  selectAllFolders
+                    ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {selectAllFolders ? '✓ Todas Selecionadas' : '� Selecionar Todas'}
+              </Button>
+              {/* Texto descritivo - desaparece ao rolar */}
+              {!isStrategiesScrolled && (
+                <p className="text-gray-500 text-center text-xs mt-2 animate-in fade-in duration-300">
+                  {selectAllFolders 
+                    ? `${selectedStrategies.length} estratégias selecionadas` 
+                    : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
+                  }
+                </p>
+              )}
+            </div>
             
             {/* Título "Estratégias" - desaparece ao rolar */}
-            {chipCategory !== 'all' && !isStrategiesScrolled && (
+            {!isStrategiesScrolled && (
               <h2 className="text-xl font-semibold text-white mb-2 animate-in fade-in duration-300">
                 Estratégias
               </h2>
@@ -1852,140 +1777,57 @@ export default function Home() {
             ref={strategiesScrollRef}
             className="flex-1 overflow-y-auto p-4 space-y-2"
           >
-              {chipCategory === 'all' ? (
-                // Modo "Todas": Listar todas as estratégias ordenadas por desempenho
-                <>
-                  {FOLDERS
-                    .flatMap(folder => 
-                      folder.strategies.map(strategy => ({
-                        strategy,
-                        category: folder.name,
-                        stats: strategyStats.find(s => s.id === strategy.id)
-                      }))
-                    )
-                    .sort((a, b) => {
-                      // Ordenar por profit (maior para menor)
-                      const profitA = a.stats?.profit ?? 0
-                      const profitB = b.stats?.profit ?? 0
-                      return profitB - profitA
-                    })
-                    .map(({ strategy, category, stats }) => {
-                      const isSelected = isStrategySelected(strategy.id)
-                      return (
-                        <button
-                          key={strategy.id}
-                          onClick={() => toggleStrategy(strategy.id)}
-                          className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
-                            isSelected
-                              ? 'bg-blue-600 text-white shadow-enhanced-lg border border-blue-500'
-                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 hover:border-gray-500'
-                          }`}
-                        >
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
-                            isSelected ? 'bg-white border-white' : 'border-gray-400'
-                          }`}>
-                            {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
-                          </div>
-                          <div className="flex-1">
-                            <div className="font-semibold text-sm mb-1">{strategy.name}</div>
-                            <div className="text-[10px] text-gray-400 mb-1">📁 {category}</div>
-                            {stats && (
-                              <div className="flex justify-between items-center text-xs">
-                                <div className="flex gap-3">
-                                  <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
-                                  <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
-                                </div>
-                                <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                  {stats.profit >= 0 ? '+' : ''}{stats.profit}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })
-                  }
-                </>
-              ) : (
-                // Modo normal: Mostrar por pastas
-                <>
-                  {sortedFolders.map((folder) => (
-                <div key={folder.name} className="border border-gray-700 rounded-lg overflow-hidden">
-                  {/* Header da pasta */}
-                  <div className="bg-gray-700">
-                    <button
-                      onClick={() => toggleFolder(folder.name)}
-                      className="w-full p-3 hover:bg-gray-600 transition-all flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-semibold text-sm">{folder.name}</span>
-                        <span className="text-xs text-gray-400">({folder.strategies.length})</span>
-                      </div>
-                      <ChevronLeft 
-                        className={`w-5 h-5 text-gray-400 transition-transform ${
-                          isFolderExpanded(folder.name) ? '-rotate-90' : 'rotate-180'
-                        }`} 
-                      />
-                    </button>
-                    {/* Botão "Selecionar todas da pasta" */}
-                    {isFolderExpanded(folder.name) && (
-                      <button
-                        onClick={() => selectAllInFolder(folder.name)}
-                        className={`w-full px-3 py-2 text-xs font-medium transition-colors border-t border-gray-600 ${
-                          isFolderFullySelected(folder.name)
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                        }`}
-                      >
-                        {isFolderFullySelected(folder.name) ? '✓ Todas selecionadas' : 'Selecionar todas'}
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Estratégias da pasta */}
-                  {isFolderExpanded(folder.name) && (
-                    <div className="bg-gray-800 p-2 space-y-2">
-                      {folder.strategies.map((strategy) => {
-                        const stats = strategyStats.find(s => s.id === strategy.id)
-                        const isSelected = isStrategySelected(strategy.id)
-                        return (
-                          <button
-                            key={strategy.id}
-                            onClick={() => toggleStrategy(strategy.id)}
-                            className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
-                              isSelected
-                                ? 'bg-blue-600 text-white shadow-enhanced-lg border border-blue-500'
-                                : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 hover:border-gray-500'
-                            }`}
-                          >
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
-                              isSelected ? 'bg-white border-white' : 'border-gray-400'
-                            }`}>
-                              {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-semibold text-sm mb-1">{strategy.name}</div>
-                              {stats && (
-                                <div className="flex justify-between items-center text-xs">
-                                  <div className="flex gap-3">
-                                    <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
-                                    <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
-                                  </div>
-                                  <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {stats.profit >= 0 ? '+' : ''}{stats.profit}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        )
-                      })}
+            {/* Listar TODAS as estratégias individuais, ordenadas por desempenho */}
+            {FOLDERS
+              .flatMap(folder => 
+                folder.strategies.map(strategy => ({
+                  strategy,
+                  folderName: folder.name,
+                  stats: strategyStats.find(s => s.id === strategy.id)
+                }))
+              )
+              .sort((a, b) => {
+                // Ordenar por profit (melhor desempenho primeiro)
+                const profitA = a.stats?.profit ?? 0
+                const profitB = b.stats?.profit ?? 0
+                return profitB - profitA
+              })
+              .map(({ strategy, folderName, stats }) => {
+                const isSelected = isStrategySelected(strategy.id)
+                return (
+                  <button
+                    key={strategy.id}
+                    onClick={() => toggleStrategy(strategy.id)}
+                    className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-enhanced-lg border border-blue-500'
+                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 hover:border-gray-500'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                      isSelected ? 'bg-white border-white' : 'border-gray-400'
+                    }`}>
+                      {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
                     </div>
-                  )}
-                </div>
-              ))}
-                </>
-              )}
+                    <div className="flex-1">
+                      <div className="font-semibold text-sm mb-1">{strategy.name}</div>
+                      <div className="text-[10px] text-gray-400 mb-1">📁 {folderName}</div>
+                      {stats && (
+                        <div className="flex justify-between items-center text-xs">
+                          <div className="flex gap-3">
+                            <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
+                            <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
+                          </div>
+                          <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {stats.profit >= 0 ? '+' : ''}{stats.profit}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                )
+              })
+            }
           </div>
         </div>
 
@@ -2392,6 +2234,145 @@ export default function Home() {
                           </div>
                         )
                       })()}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* NOVA ANÁLISE: Intervalos entre Acertos */}
+                {lastSelectedStrategy && numbers.length > 0 && intervalAnalysis.totalIntervals > 0 && (
+                  <Card className="bg-gray-700 border-gray-600 shadow-enhanced">
+                    <CardHeader className="pb-3 pt-3 px-4">
+                      <CardTitle className="text-sm text-gray-300">📊 Análise de Intervalos</CardTitle>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Casas entre acertos da estratégia: {lastSelectedStrategy.name}
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-3 px-4">
+                      <div className="space-y-3">
+                        {/* Tabela de Frequências */}
+                        <div>
+                          <div className="text-xs font-semibold text-blue-400 mb-2">
+                            📈 Frequência de Intervalos ({intervalAnalysis.totalIntervals} registros)
+                          </div>
+                          <div className="space-y-1.5">
+                            {Array.from({ length: 10 }, (_, i) => i + 1).map(interval => {
+                              const count = intervalAnalysis.frequencyMap.get(interval.toString()) || 0
+                              const percentage = intervalAnalysis.totalIntervals > 0 
+                                ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
+                                : '0.0'
+                              
+                              if (count === 0) return null
+                              
+                              return (
+                                <div 
+                                  key={interval}
+                                  className="flex items-center justify-between p-2 bg-gray-800 rounded text-xs"
+                                >
+                                  <span className="text-gray-300">
+                                    {interval} casa{interval > 1 ? 's' : ''}
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-24 bg-gray-700 rounded-full h-2">
+                                      <div 
+                                        className="bg-blue-500 h-2 rounded-full transition-all"
+                                        style={{ width: `${percentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-blue-400 font-bold w-16 text-right">
+                                      {count}x ({percentage}%)
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            
+                            {/* Mais de 10 casas */}
+                            {(() => {
+                              const count = intervalAnalysis.frequencyMap.get('Mais de 10') || 0
+                              const percentage = intervalAnalysis.totalIntervals > 0 
+                                ? ((count / intervalAnalysis.totalIntervals) * 100).toFixed(1)
+                                : '0.0'
+                              
+                              if (count === 0) return null
+                              
+                              return (
+                                <div 
+                                  className="flex items-center justify-between p-2 bg-red-900/30 border border-red-600/30 rounded text-xs"
+                                >
+                                  <span className="text-red-300 font-semibold">
+                                    Mais de 10 casas
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-24 bg-gray-700 rounded-full h-2">
+                                      <div 
+                                        className="bg-red-500 h-2 rounded-full transition-all"
+                                        style={{ width: `${percentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-red-400 font-bold w-16 text-right">
+                                      {count}x ({percentage}%)
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Lista Completa de Intervalos */}
+                        <div>
+                          <div className="text-xs font-semibold text-purple-400 mb-2">
+                            📋 Lista Completa de Intervalos
+                          </div>
+                          <div className="bg-gray-800 rounded p-2 max-h-32 overflow-y-auto">
+                            <div className="flex flex-wrap gap-1">
+                              {intervalAnalysis.intervals.map((interval, index) => (
+                                <span 
+                                  key={index}
+                                  className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
+                                    interval === 0 
+                                      ? 'bg-green-600 text-white'
+                                      : interval <= 3
+                                      ? 'bg-blue-600 text-white'
+                                      : interval <= 6
+                                      ? 'bg-yellow-600 text-white'
+                                      : interval <= 10
+                                      ? 'bg-orange-600 text-white'
+                                      : 'bg-red-600 text-white'
+                                  }`}
+                                >
+                                  {interval}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1.5 italic">
+                            💡 Intervalos mostrados em ordem cronológica (mais antigo → mais recente)
+                          </p>
+                        </div>
+
+                        {/* Estatísticas Resumidas */}
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="text-center p-2 bg-gray-800 rounded">
+                            <div className="text-lg font-bold text-green-400">
+                              {Math.min(...intervalAnalysis.intervals)}
+                            </div>
+                            <div className="text-xs text-gray-400">Menor</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-800 rounded">
+                            <div className="text-lg font-bold text-blue-400">
+                              {(intervalAnalysis.intervals.reduce((a, b) => a + b, 0) / intervalAnalysis.intervals.length).toFixed(1)}
+                            </div>
+                            <div className="text-xs text-gray-400">Média</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-800 rounded">
+                            <div className="text-lg font-bold text-red-400">
+                              {Math.max(...intervalAnalysis.intervals)}
+                            </div>
+                            <div className="text-xs text-gray-400">Maior</div>
+                          </div>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 )}

@@ -355,9 +355,9 @@ const strategiesMoreThan9: StrategyFolder[] = [
   {
     name: "3 Pasta - Terminal iniciante",
     strategies: [
-      { id: 250, name: "Terminal iniciante 1", numbers: [1,10,11,12,13,14,15,16,17,18,19] },
-      { id: 251, name: "Terminal iniciante 2", numbers: [2,20,21,22,23,24,25,26,27,28,29] },
-      { id: 252, name: "Terminal iniciante 3", numbers: [3,30,31,32,33,34,35,36] }
+      { id: 250, name: "Terminal iniciante 1", numbers: [1,10,11,12,13,14,15,16,17,18,19,33] },
+      { id: 251, name: "Terminal iniciante 2", numbers: [2,20,21,22,23,24,25,26,27,28,29,7,18] },
+      { id: 252, name: "Terminal iniciante 3", numbers: [3,30,31,32,33,34,35,36,11] }
     ]
   },
   {
@@ -447,7 +447,7 @@ const strategiesMoreThan9: StrategyFolder[] = [
   {
     name: "6 Pasta - Números que se puxam",
     strategies: [
-      { id: 302, name: "0+Proteção", numbers: [0,10,20,30,19,28,22,33,11,9] },
+      { id: 302, name: "0+Proteção", numbers: [10,20,30,19,28,22,33,11,9] },
       { id: 303, name: "1+Proteção", numbers: [10,11,26,29,21,31,2] },
       { id: 304, name: "2+Proteção", numbers: [20,22,17,21,4,11,12,32,1,3] },
       { id: 305, name: "3+Proteção", numbers: [30,33,36,6,9,11,22,13,23,2,4] },
@@ -569,10 +569,18 @@ TOTAL GERAL: 18 PASTAS, 361 ESTRATÉGIAS
 
 /**
  * Calcula os números para a estratégia "Terminais Cruzados"
- * Regra: Quando saem 2 números consecutivos de terminais diferentes (4, 5 ou 9),
+ * Regra: Quando saem 2 números CONSECUTIVOS de terminais DIFERENTES (4, 5 ou 9),
  * jogar no terminal que falta.
  * 
- * Exemplo: Se saiu 4 e depois 5, jogar no terminal 9: [9,19,29]
+ * Exemplos:
+ * - Se saiu 4 e depois 5 → jogar [9,19,29]
+ * - Se saiu 5 e depois 9 → jogar [4,14,24,34]
+ * - Se saiu 9 e depois 4 → jogar [5,15,25,35]
+ * 
+ * Combinações válidas (80 no total):
+ * - (4 & 5) ou (5 & 4) → 9,19,29
+ * - (5 & 9) ou (9 & 5) → 4,14,24,34
+ * - (4 & 9) ou (9 & 4) → 5,15,25,35
  */
 export function calculateTerminaisCruzados(lastNumbers: number[]): number[] {
   if (lastNumbers.length < 2) return []
@@ -602,18 +610,24 @@ export function calculateTerminaisCruzados(lastNumbers: number[]): number[] {
   if (terminal1 === terminal2) return []
   
   // Determina qual terminal jogar (o que falta)
-  const terminais = [4, 5, 9]
-  const terminalFaltante = terminais.find(t => t !== terminal1 && t !== terminal2)
+  const terminaisSet = new Set([terminal1, terminal2])
   
-  if (!terminalFaltante) return []
-  
-  // Retorna os 4 números do terminal faltante
-  switch (terminalFaltante) {
-    case 4: return [4, 14, 24, 34]
-    case 5: return [5, 15, 25, 35]
-    case 9: return [9, 19, 29]
-    default: return []
+  // (4 & 5) ou (5 & 4) → 9,19,29
+  if (terminaisSet.has(4) && terminaisSet.has(5)) {
+    return [9, 19, 29]
   }
+  
+  // (5 & 9) ou (9 & 5) → 4,14,24,34
+  if (terminaisSet.has(5) && terminaisSet.has(9)) {
+    return [4, 14, 24, 34]
+  }
+  
+  // (4 & 9) ou (9 & 4) → 5,15,25,35
+  if (terminaisSet.has(4) && terminaisSet.has(9)) {
+    return [5, 15, 25, 35]
+  }
+  
+  return []
 }
 
 // ========================================
