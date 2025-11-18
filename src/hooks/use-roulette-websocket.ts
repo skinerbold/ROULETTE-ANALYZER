@@ -8,8 +8,18 @@ import {
   WEBSOCKET_CONFIG,
   getRouletteColor,
   parseRouletteName,
-  isAllowedProvider
+  isAllowedProvider,
+  isAllowedRoulette
 } from '@/lib/roulette-websocket'
+import { 
+  initializeCache, 
+  loadFromCache, 
+  saveToCache 
+} from '@/lib/roulette-cache'
+import { 
+  validateAndCorrectNumber, 
+  logValidationError 
+} from '@/lib/roulette-validation'
 
 export interface UseRouletteWebSocketReturn {
   isConnected: boolean
@@ -24,6 +34,7 @@ export interface UseRouletteWebSocketReturn {
   disconnect: () => void
   sendMessage: (message: string) => void
   selectRoulette: (rouletteId: string) => void
+  requestHistory: (rouletteId: string, limit?: number) => void // NOVO
 }
 
 export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
@@ -43,6 +54,16 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const discoveredRoulettesRef = useRef<Set<string>>(new Set())
   const rouletteHistoryRef = useRef<Map<string, RouletteNumber[]>>(new Map())
   const selectedRouletteRef = useRef<string>('') // REF para valor sempre atualizado
+  const cacheInitializedRef = useRef(false) // Flag para inicialização única do cache
+
+  // Inicializar cache na montagem do componente
+  useEffect(() => {
+    if (!cacheInitializedRef.current) {
+      console.log('🗄️ Inicializando sistema de cache...')
+      initializeCache()
+      cacheInitializedRef.current = true
+    }
+  }, [])
 
   // Limpar timeouts
   const clearTimeouts = useCallback(() => {
@@ -73,17 +94,28 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       const message: any = JSON.parse(data)
       
       // FORMATO 1: Railway - Lista de roletas disponíveis
+      // 🔧 FIX: API pode enviar como array de strings simples OU array de objetos
       if (message.type === 'roulettes' && Array.isArray(message.data)) {
         console.log('📋 Recebida lista de roletas do Railway:', message.data.length)
         
-        message.data.forEach((rouletteName: string) => {
+        message.data.forEach((rouletteData: string | any) => {
+          // 🔧 FIX: Lidar com strings simples ou objetos
+          const rouletteName = typeof rouletteData === 'string' 
+            ? rouletteData 
+            : (rouletteData.name || rouletteData.id || String(rouletteData))
+          
           if (!discoveredRoulettesRef.current.has(rouletteName)) {
             discoveredRoulettesRef.current.add(rouletteName)
             const newRouletteInfo = parseRouletteName(rouletteName)
             
-            // Filtrar apenas provedores permitidos (Evolution, Playtech, Pragmatic)
+            // 🎯 Filtrar apenas provedores E roletas específicas permitidas
             if (!isAllowedProvider(newRouletteInfo.provider)) {
               console.log(`   🚫 Roleta ignorada (provedor: ${newRouletteInfo.provider || 'N/A'}): ${rouletteName}`)
+              return
+            }
+            
+            if (!isAllowedRoulette(rouletteName, newRouletteInfo.provider)) {
+              console.log(`   🚫 Roleta não está na lista permitida: ${rouletteName}`)
               return
             }
             
@@ -116,16 +148,45 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         console.log(`📜 Histórico recebido para ${rouletteId}:`, numbers.length, 'números')
         console.log(`   Primeiros 10: [${numbers.slice(0, 10).join(', ')}]`)
         
-        // Converter para RouletteNumber[]
+        // Converter e validar cada número
         const now = Date.now()
-        const history: RouletteNumber[] = numbers.map((num: number, index: number) => ({
-          number: num,
-          color: getRouletteColor(num),
-          timestamp: now - (index * 60000) // Estimativa de 1 min entre spins
-        }))
+        const history: RouletteNumber[] = []
+        let validCount = 0
+        let invalidCount = 0
+        
+        numbers.forEach((num: number, index: number) => {
+          const estimatedTimestamp = now - (index * 60000) // Estimativa de 1 min entre spins
+          
+          const validationResult = validateAndCorrectNumber(
+            num,
+            null, // Histórico geralmente não tem cor
+            estimatedTimestamp,
+            history // Passar histórico já processado para detectar duplicatas
+          )
+          
+          if (!validationResult.valid) {
+            invalidCount++
+            logValidationError(
+              rouletteId,
+              num,
+              'N/A',
+              estimatedTimestamp,
+              validationResult.errors
+            )
+          } else {
+            validCount++
+          }
+          
+          history.push(validationResult.corrected)
+        })
+        
+        console.log(`   ✅ Validação: ${validCount} válidos, ${invalidCount} inválidos`)
         
         // Salvar histórico
         rouletteHistoryRef.current.set(rouletteId, history)
+        
+        // Salvar no cache
+        saveToCache(rouletteId, history)
         
         // Se for a roleta selecionada, atualizar tela IMEDIATAMENTE
         if (rouletteId === selectedRouletteRef.current) {
@@ -148,9 +209,13 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         
         const rouletteInfo = parseRouletteName(rouletteId)
         
-        // Filtrar apenas provedores permitidos (Evolution, Playtech, Pragmatic)
+        // 🎯 Filtrar apenas provedores E roletas específicas permitidas
         if (!isAllowedProvider(rouletteInfo.provider)) {
           return // Ignorar silenciosamente
+        }
+        
+        if (!isAllowedRoulette(rouletteId, rouletteInfo.provider)) {
+          return // Ignorar roletas não permitidas
         }
         
         console.log(`\n🎲 [RAILWAY] Resultado recebido:`)
@@ -162,31 +227,54 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         // Adicionar roleta à lista se não existir
         if (!discoveredRoulettesRef.current.has(rouletteId)) {
           discoveredRoulettesRef.current.add(rouletteId)
-          setAvailableRoulettes(prev => {
-            const exists = prev.some(r => r.id === rouletteId)
-            if (!exists) {
-              console.log(`   🆕 Nova roleta adicionada: ${rouletteId}`)
-              return [...prev, rouletteInfo].sort((a, b) => a.name.localeCompare(b.name))
-            }
-            return prev
-          })
+          
+          // 🎯 Filtrar apenas roletas permitidas antes de adicionar à lista
+          if (isAllowedRoulette(rouletteId, rouletteInfo.provider)) {
+            setAvailableRoulettes(prev => {
+              const exists = prev.some(r => r.id === rouletteId)
+              if (!exists) {
+                console.log(`   🆕 Nova roleta adicionada: ${rouletteId}`)
+                return [...prev, rouletteInfo].sort((a, b) => a.name.localeCompare(b.name))
+              }
+              return prev
+            })
+          } else {
+            console.log(`   🚫 Roleta não permitida: ${rouletteId}`)
+          }
         }
         
         // Pegar histórico atual
         const currentHistory = rouletteHistoryRef.current.get(rouletteId) || []
         
-        // Adicionar novo número no início
-        const now = Date.now()
-        const newEntry: RouletteNumber = {
+        // Validar e corrigir número
+        const validationResult = validateAndCorrectNumber(
           number,
-          color: getRouletteColor(number),
-          timestamp: now
+          message.color,
+          message.timestamp,
+          currentHistory
+        )
+        
+        // Log de erro se inválido
+        if (!validationResult.valid) {
+          logValidationError(
+            rouletteId,
+            number,
+            message.color || 'N/A',
+            message.timestamp || Date.now(),
+            validationResult.errors
+          )
+          // Continuar mesmo com erro (número foi corrigido)
         }
+        
+        const newEntry = validationResult.corrected
         
         const updatedHistory = [newEntry, ...currentHistory].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
         rouletteHistoryRef.current.set(rouletteId, updatedHistory)
         
         console.log(`   📊 Histórico atualizado: ${updatedHistory.length} números`)
+        
+        // Salvar no cache
+        saveToCache(rouletteId, updatedHistory)
         
         // Se estiver selecionada, atualizar estado
         if (isSelected) {
@@ -225,9 +313,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           
           if (numbersFromAPI.length > 0) {
             const now = Date.now()
+            // 🔧 FIX: Sempre calcular cor localmente, pois API não envia
             const history: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => ({
               number: num,
-              color: getRouletteColor(num),
+              color: getRouletteColor(num), // Sempre calcular localmente
               timestamp: now - (index * 60000)
             }))
             rouletteHistoryRef.current.set(rouletteId, history)
@@ -237,6 +326,18 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           if (!discoveredRoulettesRef.current.has(rouletteId)) {
             discoveredRoulettesRef.current.add(rouletteId)
             const newRouletteInfo = parseRouletteName(rouletteId)
+            
+            // 🎯 Filtrar apenas provedores E roletas específicas permitidas
+            if (!isAllowedProvider(newRouletteInfo.provider)) {
+              console.log(`   🚫 Roleta ignorada (provedor: ${newRouletteInfo.provider || 'N/A'}): ${rouletteId}`)
+              return
+            }
+            
+            if (!isAllowedRoulette(rouletteId, newRouletteInfo.provider)) {
+              console.log(`   🚫 Roleta não está na lista permitida: ${rouletteId}`)
+              return
+            }
+            
             setAvailableRoulettes(prev => {
               const exists = prev.some(r => r.id === rouletteId)
               if (!exists) {
@@ -276,6 +377,18 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           
           // Atualizar lista de roletas
           const newRouletteInfo = parseRouletteName(rouletteId)
+          
+          // 🎯 Filtrar apenas provedores E roletas específicas permitidas
+          if (!isAllowedProvider(newRouletteInfo.provider)) {
+            console.log(`   🚫 Roleta ignorada (provedor: ${newRouletteInfo.provider || 'N/A'}): ${rouletteId}`)
+            return
+          }
+          
+          if (!isAllowedRoulette(rouletteId, newRouletteInfo.provider)) {
+            console.log(`   🚫 Roleta não está na lista permitida: ${rouletteId}`)
+            return
+          }
+          
           setAvailableRoulettes(prev => {
             const exists = prev.some(r => r.id === rouletteId)
             if (!exists) {
@@ -317,13 +430,42 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         // Se não há histórico, inicializar com TODOS os números da API
         if (currentHistory.length === 0) {
           const now = Date.now()
-          const history: RouletteNumber[] = numbersFromAPI.map((num: number, index: number) => ({
-            number: num,
-            color: getRouletteColor(num),
-            timestamp: now - (index * 60000) // Aproximação de timestamps
-          }))
+          const history: RouletteNumber[] = []
+          let validCount = 0
+          let invalidCount = 0
+          
+          numbersFromAPI.forEach((num: number, index: number) => {
+            const estimatedTimestamp = now - (index * 60000)
+            
+            const validationResult = validateAndCorrectNumber(
+              num,
+              null,
+              estimatedTimestamp,
+              history
+            )
+            
+            if (!validationResult.valid) {
+              invalidCount++
+              logValidationError(
+                rouletteId,
+                num,
+                'N/A',
+                estimatedTimestamp,
+                validationResult.errors
+              )
+            } else {
+              validCount++
+            }
+            
+            history.push(validationResult.corrected)
+          })
+          
+          console.log(`   ✅ Validação: ${validCount} válidos, ${invalidCount} inválidos`)
           
           rouletteHistoryRef.current.set(rouletteId, history)
+          
+          // Salvar no cache
+          saveToCache(rouletteId, history)
           
           // Se esta roleta estiver selecionada, atualizar estado
           if (rouletteId === selectedRoulette) {
@@ -368,7 +510,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
             if (index === 0 && isNewSpin) {
               return {
                 number: num,
-                color: getRouletteColor(num),
+                color: getRouletteColor(num), // 🔧 FIX: Sempre calcular localmente
                 timestamp: now
               }
             }
@@ -379,7 +521,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               // Mesmo número na mesma posição = manter timestamp
               return {
                 number: num,
-                color: getRouletteColor(num),
+                color: getRouletteColor(num), // 🔧 FIX: Sempre calcular localmente
                 timestamp: existingAtSamePosition.timestamp
               }
             }
@@ -387,7 +529,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
             // Número diferente ou posição nova = timestamp estimado
             return {
               number: num,
-              color: getRouletteColor(num),
+              color: getRouletteColor(num), // 🔧 FIX: Sempre calcular localmente
               timestamp: now - (index * 60000) // Aproximação
             }
           })
@@ -557,8 +699,20 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     setSelectedRoulette(rouletteId)
     selectedRouletteRef.current = rouletteId // Atualizar ref IMEDIATAMENTE
     
-    // Carregar histórico desta roleta
-    const history = rouletteHistoryRef.current.get(rouletteId) || []
+    // Tentar carregar do cache primeiro
+    const cachedHistory = loadFromCache(rouletteId)
+    
+    // Carregar histórico desta roleta (cache ou memória)
+    let history = rouletteHistoryRef.current.get(rouletteId) || []
+    
+    // Se cache tem mais números que memória, usar cache
+    if (cachedHistory && cachedHistory.length > history.length) {
+      console.log(`   💾 Cache carregado: ${cachedHistory.length} números (memória tinha ${history.length})`)
+      history = cachedHistory
+      rouletteHistoryRef.current.set(rouletteId, history)
+    } else if (cachedHistory) {
+      console.log(`   ℹ️ Cache ignorado: memória tem ${history.length}, cache tem ${cachedHistory.length}`)
+    }
     
     // FORÇA atualização criando novo array
     setRecentNumbers([...history])
@@ -568,10 +722,37 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       console.log(`   ✅ ${history.length} números carregados: [${history.slice(0, 5).map(n => n.number).join(', ')}...]`)
     } else {
       setLastNumber(null)
-      console.log(`   ⏳ Aguardando dados...`)
+      console.log(`   ⏳ Aguardando dados... Enviando solicitação de histórico`)
+      
+      // Solicitar histórico se não temos dados
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'subscribe', roulette: rouletteId, limit: 500 }))
+        wsRef.current.send(JSON.stringify({ type: 'get_history', roulette: rouletteId, limit: 500 }))
+        wsRef.current.send(JSON.stringify({ type: 'history', roulette: rouletteId }))
+        console.log(`   📤 Solicitações de histórico enviadas (3 formatos)`)
+      }
     }
     
     setUpdateVersion(v => v + 1) // Incrementar versão para forçar re-render
+  }, [])
+
+  // Função para solicitar mais histórico (NOVA - para uso externo)
+  const requestHistory = useCallback((rouletteId: string, limit: number = 500) => {
+    if (!rouletteId) {
+      console.warn('⚠️ requestHistory: rouletteId não fornecido')
+      return
+    }
+    
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log(`📤 [REQUEST HISTORY] Solicitando mais histórico para ${rouletteId} (limite: ${limit})`)
+      // Tentar múltiplos formatos de solicitação
+      wsRef.current.send(JSON.stringify({ type: 'subscribe', roulette: rouletteId, limit }))
+      wsRef.current.send(JSON.stringify({ type: 'get_history', roulette: rouletteId, limit }))
+      wsRef.current.send(JSON.stringify({ type: 'history', roulette: rouletteId }))
+      console.log(`   ✅ 3 solicitações enviadas com limite ${limit}`)
+    } else {
+      console.warn('⚠️ requestHistory: WebSocket não está conectado')
+    }
   }, [])
 
   // Conectar automaticamente ao montar
@@ -602,6 +783,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     connect,
     disconnect,
     sendMessage,
-    selectRoulette
+    selectRoulette,
+    requestHistory // NOVO
   }
 }

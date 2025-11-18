@@ -39,7 +39,8 @@ export default function Home() {
     updateVersion, // NOVO: força re-render
     sendMessage,
     connect,
-    selectRoulette
+    selectRoulette,
+    requestHistory // NOVO: função para solicitar mais histórico
   } = useRouletteWebSocket()
   
   // LOG CRÍTICO: Estado do WebSocket
@@ -419,32 +420,56 @@ export default function Home() {
   }
 
   // Sincronizar números do WebSocket com o estado local
-  // OTIMIZAÇÃO: Usar useMemo para evitar conversões desnecessárias
+  // MATRIZ TEMPORÁRIA: Armazena SEMPRE os últimos 500 números (todos)
+  // O filtro analysisLimit é aplicado apenas na visualização (numbersToAnalyze)
   const numbersFromWebSocket = useMemo(() => {
     if (recentNumbers.length === 0) return []
+    
+    // ⚠️ NÃO aplicar limite aqui! Armazenar TODOS os números disponíveis
+    // O hook já garante máximo de 500 (WEBSOCKET_CONFIG.maxHistorySize)
     const converted = recentNumbers.map(rn => rn.number)
+    
     console.log(`\n🔄 [CONVERSÃO v${updateVersion}] recentNumbers mudou!`)
-    console.log(`   Length: ${recentNumbers.length}`)
-    console.log(`   Números: [${converted.slice(0, 10).join(', ')}...]`)
-    console.log(`   Timestamps: [${recentNumbers.slice(0, 3).map(n => new Date(n.timestamp).toLocaleTimeString()).join(', ')}...]`)
+    console.log(`   📦 Total de números armazenados: ${recentNumbers.length}`)
+    console.log(`   🎯 Limite de visualização atual: ${analysisLimit}`)
+    console.log(`   📊 Números convertidos: ${converted.length}`)
+    console.log(`   🔢 Primeiros 10: [${converted.slice(0, 10).join(', ')}...]`)
+    console.log(`   ⏰ Timestamps: [${recentNumbers.slice(0, 3).map(n => new Date(n.timestamp).toLocaleTimeString()).join(', ')}...]`)
+    
     return converted
-  }, [recentNumbers, updateVersion]) // Adicionar updateVersion como dependência
+  }, [recentNumbers, updateVersion]) // analysisLimit NÃO é dependência aqui!
 
   useEffect(() => {
     console.log(`\n🌐 [SYNC v${updateVersion}] useEffect disparado!`)
     console.log(`   numbersFromWebSocket.length: ${numbersFromWebSocket.length}`)
+    console.log(`   analysisLimit: ${analysisLimit}`)
     console.log(`   selectedRoulette: ${selectedRoulette}`)
     
     if (numbersFromWebSocket.length > 0) {
-      console.log(`   ✅ Atualizando estado 'numbers'`)
+      console.log(`   ✅ Atualizando estado 'numbers' com limite de ${analysisLimit}`)
       console.log(`   ANTES - numbers.length: ${numbers.length}`)
       console.log(`   Primeiros 10: [${numbersFromWebSocket.slice(0, 10).join(', ')}]`)
       setNumbers(numbersFromWebSocket)
-      console.log(`   DEPOIS - setNumbers chamado\n`)
+      console.log(`   DEPOIS - setNumbers chamado com ${numbersFromWebSocket.length} números\n`)
     } else {
       console.log(`   ⚠️ numbersFromWebSocket vazio, não atualizando\n`)
     }
   }, [numbersFromWebSocket, selectedRoulette, updateVersion])
+
+  // 🔥 NOVO: Detectar quando usuário aumenta o limite e solicitar mais números se necessário
+  useEffect(() => {
+    // Só age se:
+    // 1. Tem uma roleta selecionada
+    // 2. O limite solicitado é maior que os números disponíveis EM MEMÓRIA
+    // 3. Está conectado ao WebSocket
+    if (selectedRoulette && numbers.length < analysisLimit && isConnected) {
+      console.log(`\n🔄 [LIMITE AUMENTADO] Usuário quer ${analysisLimit} números mas só tem ${numbers.length}`)
+      console.log(`   🔍 Solicitando mais números do servidor (limite: ${analysisLimit})...`)
+      
+      // Solicitar histórico com o limite específico
+      requestHistory(selectedRoulette, analysisLimit)
+    }
+  }, [analysisLimit, selectedRoulette, numbers.length, isConnected, requestHistory])
 
   // Selecionar automaticamente a primeira roleta disponível
   useEffect(() => {
@@ -546,10 +571,12 @@ export default function Home() {
         let greenIndex = -1
         
         // Verifica as próximas N posições (configurável: 1, 2, 3, 4, 5 ou 6)
+        let lastCheckIndex = i // Armazena índice da última tentativa
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
           if (checkIndex >= reversedArray.length) break // Fim do array
           
+          lastCheckIndex = checkIndex // Atualiza última posição verificada
           attemptsCount = j
           if (allNumbers.includes(reversedArray[checkIndex])) {
             // GREEN encontrado!
@@ -614,8 +641,9 @@ export default function Home() {
             attempts: Math.min(greenRedAttempts, reversedArray.length - i - 1)
           })
           
-          // Continua após as N tentativas configuradas
-          i = i + greenRedAttempts + 1
+          // 🔧 FIX: Continua após a ÚLTIMA tentativa (não +1 extra)
+          // Se verificou até lastCheckIndex, próximo é lastCheckIndex + 1
+          i = lastCheckIndex + 1
         }
       } else {
         // Não é número da estratégia, continua
@@ -728,11 +756,14 @@ export default function Home() {
         // Procura por GREEN nas próximas N posições (configurável: 1, 2, 3, 4, 5 ou 6)
         let foundGreen = false
         let greenIndex = -1
+        let lastCheckIndex = i // Armazena índice da última tentativa
         
         // Verifica as próximas N posições
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
           if (checkIndex >= reversedArray.length) break // Fim do array
+          
+          lastCheckIndex = checkIndex // Atualiza última posição verificada
           
           if (allNumbers.includes(reversedArray[checkIndex])) {
             // GREEN encontrado!
@@ -749,10 +780,13 @@ export default function Home() {
           // Continua após o GREEN
           i = greenIndex + 1
         } else {
-          // RED: NÃO marca nenhum número como RED na pintura
-          // (A análise conta o RED, mas visualmente não marcamos nenhum número específico)
-          // Apenas pula as próximas N tentativas configuradas
-          i = i + greenRedAttempts + 1
+          // 🔧 FIX: RED marca a ÚLTIMA tentativa (não a próxima)
+          // lastCheckIndex é a última posição verificada
+          const originalRedIndex = reversedArray.length - 1 - lastCheckIndex
+          statuses[originalRedIndex] = { number: reversedArray[lastCheckIndex], status: 'RED' }
+          
+          // Continua após a ÚLTIMA tentativa (não +1 extra)
+          i = lastCheckIndex + 1
         }
       } else {
         // Não é número da estratégia, continua
@@ -1801,13 +1835,13 @@ export default function Home() {
       <main className="hidden lg:flex h-[calc(100vh-64px)] gap-6 p-6 overflow-hidden">
         {/* Menu Lateral Esquerdo - Estratégias */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
-          <div className={`border-b border-gray-700 space-y-4 flex-shrink-0 transition-all ${
-            isStrategiesScrolled ? 'p-3 space-y-3' : 'p-6 space-y-4'
+          <div className={`border-b border-gray-700 space-y-2 flex-shrink-0 transition-all ${
+            isStrategiesScrolled ? 'p-2 space-y-2' : 'p-3 space-y-2'
           }`}>
             {/* Seletor de Roleta */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all flex items-center gap-2 ${
-                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 🎰 Roleta ao Vivo
                 {isConnected ? (
@@ -1864,9 +1898,9 @@ export default function Home() {
             </div>
 
             {/* Seletor de Limite de Análise - Desktop */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
-                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 📊 Analisar últimos
               </label>
@@ -1896,19 +1930,17 @@ export default function Home() {
                   <SelectItem value="500" className="text-white hover:bg-gray-600 focus:bg-gray-600">
                     500 números
                   </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className={`text-gray-500 transition-all ${
-                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
-              }`}>
-                {numbersToAnalyze.length} de {numbers.length} números
-              </p>
-            </div>
-
-            {/* Seletor de Casas GREEN/RED - Desktop */}
-            <div className="space-y-2">
+              </SelectContent>
+            </Select>
+            <p className={`text-gray-500 transition-all ${
+              isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
+            }`}>
+              {numbersToAnalyze.length} de {numbers.length} números
+            </p>
+          </div>            {/* Seletor de Casas GREEN/RED - Desktop */}
+            <div className="space-y-1">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
-                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 🎯 Casas para GREEN/RED
               </label>
@@ -1941,7 +1973,7 @@ export default function Home() {
                 </SelectContent>
               </Select>
               <p className={`text-gray-500 transition-all ${
-                isStrategiesScrolled ? 'text-[10px]' : 'text-xs'
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 Analisando {greenRedAttempts} casas após ativação
               </p>
@@ -1950,16 +1982,16 @@ export default function Home() {
             {/* Grupo de botões de categoria */}
             <div className="transition-all duration-300">
               <div className={`overflow-hidden transition-all duration-300 ${
-                isStrategiesScrolled ? 'max-h-0 opacity-0 mb-0' : 'max-h-10 opacity-100 mb-2'
+                isStrategiesScrolled ? 'max-h-0 opacity-0 mb-0' : 'max-h-8 opacity-100 mb-1'
               }`}>
-                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">
                   📊 Categorias de Fichas
                 </label>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-3 gap-1">
               <Button
                 onClick={() => setChipCategory('up-to-9')}
-                className={`flex items-center justify-center py-1.5 text-[11px] font-semibold transition-all ${
+                className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'up-to-9' 
                     ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1970,7 +2002,7 @@ export default function Home() {
               
               <Button
                 onClick={() => setChipCategory('more-than-9')}
-                className={`flex items-center justify-center py-1.5 text-[11px] font-semibold transition-all ${
+                className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'more-than-9' 
                     ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1981,7 +2013,7 @@ export default function Home() {
               
               <Button
                 onClick={() => setChipCategory('all')}
-                className={`flex items-center justify-center py-1.5 text-[11px] font-semibold transition-all ${
+                className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'all' 
                     ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -1996,7 +2028,7 @@ export default function Home() {
             <div>
               <Button
                 onClick={toggleSelectAllFolders}
-                className={`w-full py-1.5 text-[11px] font-semibold transition-all ${
+                className={`w-full py-1 text-[10px] font-semibold transition-all ${
                   selectAllFolders
                     ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 ring-2 ring-green-400 text-white'
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -2006,7 +2038,7 @@ export default function Home() {
               </Button>
               {/* Texto descritivo - desaparece ao rolar */}
               {!isStrategiesScrolled && (
-                <p className="text-gray-500 text-center text-xs mt-2 animate-in fade-in duration-300">
+                <p className="text-gray-500 text-center text-[10px] mt-1 animate-in fade-in duration-300">
                   {selectAllFolders 
                     ? `${selectedStrategies.length} estratégias selecionadas` 
                     : `Clique para selecionar todas (${STRATEGIES.length} estratégias)`
@@ -2017,7 +2049,7 @@ export default function Home() {
             
             {/* Título "Estratégias" - desaparece ao rolar */}
             {!isStrategiesScrolled && (
-              <h2 className="text-xl font-semibold text-white mb-2 animate-in fade-in duration-300">
+              <h2 className="text-base font-semibold text-white mb-1 animate-in fade-in duration-300">
                 Estratégias
               </h2>
             )}
@@ -2025,7 +2057,7 @@ export default function Home() {
           
           <div 
             ref={strategiesScrollRef}
-            className="flex-1 overflow-y-auto p-4 space-y-2"
+            className="flex-1 overflow-y-auto p-3 space-y-1.5"
           >
             {/* Listar TODAS as estratégias individuais, ordenadas por desempenho */}
             {FOLDERS
@@ -2048,25 +2080,25 @@ export default function Home() {
                   <button
                     key={strategy.id}
                     onClick={() => toggleStrategy(strategy.id)}
-                    className={`w-full p-3 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
+                    className={`w-full p-2 rounded-lg text-left transition-all duration-300 flex items-start gap-2 ${
                       isSelected
                         ? 'bg-blue-600 text-white shadow-enhanced-lg border border-blue-500'
                         : 'bg-gray-700 hover:bg-gray-600 text-gray-300 border border-gray-600 hover:border-gray-500'
                     }`}
                   >
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
                       isSelected ? 'bg-white border-white' : 'border-gray-400'
                     }`}>
-                      {isSelected && <span className="text-blue-600 font-bold text-sm">✓</span>}
+                      {isSelected && <span className="text-blue-600 font-bold text-xs">✓</span>}
                     </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-sm mb-1">{strategy.name}</div>
-                      <div className="text-[10px] text-gray-400 mb-1">📁 {folderName}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs mb-0.5 truncate">{strategy.name}</div>
+                      <div className="text-[9px] text-gray-400 mb-0.5 truncate">📁 {folderName}</div>
                       {stats && (
-                        <div className="flex justify-between items-center text-xs">
-                          <div className="flex gap-3">
-                            <span className="text-green-400 font-medium">G: {stats.totalGreen}</span>
-                            <span className="text-red-400 font-medium">R: {stats.totalRed}</span>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <div className="flex gap-2">
+                            <span className="text-green-400 font-medium">G:{stats.totalGreen}</span>
+                            <span className="text-red-400 font-medium">R:{stats.totalRed}</span>
                           </div>
                           <div className={`font-bold ${stats.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {stats.profit >= 0 ? '+' : ''}{stats.profit}

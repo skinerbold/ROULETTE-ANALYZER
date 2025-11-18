@@ -1,6 +1,13 @@
 // ========================================
-// TIPOS DO SISTEMA DE ESTRAT�GIAS
+// TIPOS DO SISTEMA DE ESTRATÉGIAS
 // ========================================
+
+// Re-exportar RouletteNumber para uso no cache
+export interface RouletteNumber {
+  number: number
+  color: 'red' | 'black' | 'green'
+  timestamp: number
+}
 
 export interface StrategyStats {
   id: number

@@ -59,6 +59,45 @@ export function formatRouletteNumber(number: number): string {
 // Provedores permitidos (filtro)
 const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 
+// 🎯 LISTA DE ROLETAS PERMITIDAS (ESPECÍFICAS)
+const ALLOWED_ROULETTES: Record<string, string[]> = {
+  'Playtech': [
+    // Playtech não está na sua lista solicitada
+  ],
+  'Evolution Gaming': [
+    'lightning roulette', // ✅ 1. Lightning Roulette
+    'xxxtreme lightning roulette', // ✅ 2. XXXtreme  
+    'immersive roulette', // ✅ 3. Immersive
+    'auto roulette', // ✅ 4. Auto Roulette (Evolution, sem hífen)
+    'auto-roulette vip', // ✅ 5. Auto Roulette VIP
+    'speed auto roulette' // ✅ 7. Speed Auto Roulette
+    // ❌ 6. Red Door/Porta Vermelha - NÃO EXISTE na API
+    // ❌ 8. Auto Lightning Roulette - NÃO EXISTE na API
+  ],
+  'Pragmatic Play': [
+    'mega roulette', // ✅ 1. Mega Roulette
+    'roleta brasileira pragmatic', // ✅ 3. Roleta Brasileira Pragmatic (= Mega Roulette Brasil)
+    'roleta brasileira', // ✅ 6. Brasileira Roulette (genérico, cuidado com Playtech)
+    'pragmatic-speed-auto-roulette' // ✅ 7. Speed Auto Roulette (com hífen)
+    // ❌ 2. Auto Mega Roulette - NÃO EXISTE na API
+    // ❌ 4. VIP Auto Roulette - NÃO EXISTE separado
+    // ❌ 5. Auto Roulette - conflita com Evolution (não usar)
+  ]
+}
+
+// Verificar se a roleta específica está na lista permitida
+export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
+  if (!provider || !ALLOWED_PROVIDERS.includes(provider)) {
+    return false
+  }
+  
+  const lowerName = rouletteName.toLowerCase()
+  const allowedNames = ALLOWED_ROULETTES[provider] || []
+  
+  // Verificar se alguma das palavras-chave permitidas está no nome
+  return allowedNames.some(keyword => lowerName.includes(keyword))
+}
+
 // Verificar se o provedor está na lista permitida
 export function isAllowedProvider(provider?: string): boolean {
   if (!provider) return false

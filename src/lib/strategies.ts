@@ -317,6 +317,23 @@ const strategiesUpTo9: StrategyFolder[] = [
       { id: 342, name: "Espelhos de baixo", numbers: [3,26,0,32,2,12,19,21,29] },
       { id: 343, name: "Espelho preto", numbers: [26,0,2,29,6,10,20,31,33] }
     ]
+  },
+  {
+    name: "Até 9",
+    strategies: [
+      { id: 354, name: "17-18+20s", numbers: [17,18,19,21,23,25,27,22] },
+      { id: 355, name: "16,19,8com1V", numbers: [33,16,24,23,8,30,4,19,15] },
+      { id: 356, name: "13,12,31,21 — sem vizinhos", numbers: [13,12,31,21] },
+      { id: 357, name: "31,35,33 — sem vizinhos", numbers: [31,35,33] },
+      { id: 358, name: "22,24,26 — sem vizinhos", numbers: [22,24,26] },
+      { id: 359, name: "Vizinhos12,21,13,31", numbers: [2,4,27,36,14,9,7,28,35] },
+      { id: 360, name: "Pretos setor vermelho", numbers: [26,15,4,2,17,6,13] },
+      { id: 361, name: "Vermelhos setor vermelho", numbers: [33,19,21,25,34,27] },
+      { id: 362, name: "Pretos setor verde", numbers: [15,26,28,29,22,35,31] },
+      { id: 363, name: "Vermelhos setor verde", numbers: [32,3,12,7,18,9,14,1] },
+      { id: 364, name: "Pretos setor amarelo", numbers: [20,33,24,10,8,11,13] },
+      { id: 365, name: "Vermelhos setor amarelo", numbers: [14,1,16,5,23,30,36,27] }
+    ]
   }
 ]
 
@@ -507,6 +524,14 @@ const strategiesMoreThan9: StrategyFolder[] = [
       { id: 349, name: "Espelhos de cima", numbers: [1,6,9,10,13,16,20,23,31,33,36] },
       { id: 350, name: "Espelho vermelho", numbers: [1,9,16,23,36,3,0,32,12,19,21] },
       { id: 351, name: "OC5 completo (13 fichas)", numbers: [32,23,27,14,16,5,24,10,28,19,15,25,35] }
+    ]
+  },
+  {
+    name: "Mais de 9",
+    strategies: [
+      { id: 366, name: "Irmãos de cor vermelho", numbers: [9,12,16,19,18,21,27,30,4,22] },
+      { id: 367, name: "Irmãos de cor preto", numbers: [8,11,10,13,17,20,26,29,28,31,7,30,14] },
+      { id: 368, name: "Chamam 2-4-6-8", numbers: [20,35,24,22,31,13,26,15,17,28,33] }
     ]
   }
 ]
