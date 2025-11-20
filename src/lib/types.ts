@@ -23,12 +23,18 @@ export interface StrategyStats {
   mostActivatingCount: number
   activations: number
   profit: number
-  // Novas m�tricas de padr�o de entrada
-  maxConsecutiveGreens: number // Maior sequ�ncia de GREEN seguidos
-  maxConsecutiveReds: number   // Maior sequ�ncia de RED seguidos
-  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: ap�s GREEN ou RED
-  postGreenWins: number        // Vit�rias ap�s GREEN
-  postRedWins: number          // Vit�rias ap�s RED
+  // Novas métricas de padrão de entrada
+  maxConsecutiveGreens: number // Maior sequência de GREEN seguidos
+  maxConsecutiveReds: number   // Maior sequência de RED seguidos
+  bestEntryPattern: 'post-green' | 'post-red' | 'neutral' // Melhor entrada: após GREEN ou RED
+  postGreenWins: number        // Vitórias após GREEN
+  postRedWins: number          // Vitórias após RED
+  // Novas métricas para filtros de ordenação
+  fourthAttemptHits: number    // Acertos na 4ª casa
+  fifthAttemptHits: number     // Acertos na 5ª casa
+  sixthAttemptHits: number     // Acertos na 6ª casa
+  frequencyCount: number       // Quantidade de vezes que os números da estratégia apareceram
+  winRate: number              // Percentual de acerto (GREEN / (GREEN + RED))
 }
 
 export interface NumberStatus {

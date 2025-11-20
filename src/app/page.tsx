@@ -30,6 +30,10 @@ export default function Home() {
   const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
   
+  // Estado para filtro de ordenação das estratégias
+  type SortFilter = 'performance' | 'position-1' | 'position-2' | 'position-3' | 'position-4' | 'position-5' | 'position-6' | 'frequency'
+  const [sortFilter, setSortFilter] = useState<SortFilter>('performance')
+  
   // Hook do WebSocket - Conecta automaticamente e obtém roletas disponíveis
   const { 
     isConnected, 
@@ -352,10 +356,15 @@ export default function Home() {
       firstAttemptHits: 0,
       secondAttemptHits: 0,
       thirdAttemptHits: 0,
+      fourthAttemptHits: 0,
+      fifthAttemptHits: 0,
+      sixthAttemptHits: 0,
       mostActivatingNumber: 0,
       mostActivatingCount: 0,
       activations: 0,
       profit: 0,
+      frequencyCount: 0,
+      winRate: 0,
       // Novas métricas
       maxConsecutiveGreens: 0,
       maxConsecutiveReds: 0,
@@ -540,6 +549,9 @@ export default function Home() {
     let firstAttemptHits = 0
     let secondAttemptHits = 0
     let thirdAttemptHits = 0
+    let fourthAttemptHits = 0
+    let fifthAttemptHits = 0
+    let sixthAttemptHits = 0
     
     // Novas métricas
     let maxConsecutiveGreens = 0
@@ -549,6 +561,7 @@ export default function Home() {
     let postGreenWins = 0
     let postRedWins = 0
     let lastResult: 'GREEN' | 'RED' | null = null
+    let frequencyCount = 0
     
     const activationCounts: {[key: number]: number} = {}
     
@@ -610,6 +623,9 @@ export default function Home() {
           if (attemptsCount === 1) firstAttemptHits++
           else if (attemptsCount === 2) secondAttemptHits++
           else if (attemptsCount === 3) thirdAttemptHits++
+          else if (attemptsCount === 4) fourthAttemptHits++
+          else if (attemptsCount === 5) fifthAttemptHits++
+          else if (attemptsCount === 6) sixthAttemptHits++
           
           activations.push({
             position: i,
@@ -651,6 +667,9 @@ export default function Home() {
       }
     }
     
+    // Calcular frequência: quantas vezes os números da estratégia aparecem no histórico
+    frequencyCount = reversedArray.filter(num => allNumbers.includes(num)).length
+    
     const mostActivatingNumber = Object.keys(activationCounts).reduce((a, b) => 
       activationCounts[parseInt(a)] > activationCounts[parseInt(b)] ? a : b, '0')
     
@@ -662,6 +681,10 @@ export default function Home() {
       bestEntryPattern = 'post-red'
     }
     
+    // Calcular win rate (percentual de acerto)
+    const totalAttempts = totalGreen + totalRed
+    const winRate = totalAttempts > 0 ? (totalGreen / totalAttempts) * 100 : 0
+    
     return {
       totalGreen,
       totalRed,
@@ -670,6 +693,9 @@ export default function Home() {
       firstAttemptHits,
       secondAttemptHits,
       thirdAttemptHits,
+      fourthAttemptHits,
+      fifthAttemptHits,
+      sixthAttemptHits,
       mostActivatingNumber: parseInt(mostActivatingNumber) || 0,
       mostActivatingCount: activationCounts[parseInt(mostActivatingNumber)] || 0,
       activations: activations.length,
@@ -677,7 +703,9 @@ export default function Home() {
       maxConsecutiveReds,
       bestEntryPattern,
       postGreenWins,
-      postRedWins
+      postRedWins,
+      frequencyCount,
+      winRate
     }
   }
 
@@ -695,6 +723,9 @@ export default function Home() {
         firstAttemptHits: analysis?.firstAttemptHits || 0,
         secondAttemptHits: analysis?.secondAttemptHits || 0,
         thirdAttemptHits: analysis?.thirdAttemptHits || 0,
+        fourthAttemptHits: analysis?.fourthAttemptHits || 0,
+        fifthAttemptHits: analysis?.fifthAttemptHits || 0,
+        sixthAttemptHits: analysis?.sixthAttemptHits || 0,
         mostActivatingNumber: analysis?.mostActivatingNumber || 0,
         mostActivatingCount: analysis?.mostActivatingCount || 0,
         activations: analysis?.activations || 0,
@@ -704,7 +735,9 @@ export default function Home() {
         maxConsecutiveReds: analysis?.maxConsecutiveReds || 0,
         bestEntryPattern: analysis?.bestEntryPattern || 'neutral',
         postGreenWins: analysis?.postGreenWins || 0,
-        postRedWins: analysis?.postRedWins || 0
+        postRedWins: analysis?.postRedWins || 0,
+        frequencyCount: analysis?.frequencyCount || 0,
+        winRate: analysis?.winRate || 0
       }
     }).sort((a, b) => b.profit - a.profit)
 
@@ -1295,10 +1328,48 @@ export default function Home() {
                   }
                 </p>
               </div>
+
+              {/* Filtro de Ordenação - Mobile */}
+              <div className="p-3 border-b border-gray-700">
+                <label className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2 block">
+                  ⚡ Ordenar por
+                </label>
+                <Select value={sortFilter} onValueChange={(value) => setSortFilter(value as SortFilter)}>
+                  <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 text-sm h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    <SelectItem value="performance" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ % de Acerto
+                    </SelectItem>
+                    <SelectItem value="position-1" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 1ª Casa
+                    </SelectItem>
+                    <SelectItem value="position-2" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 2ª Casa
+                    </SelectItem>
+                    <SelectItem value="position-3" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 3ª Casa
+                    </SelectItem>
+                    <SelectItem value="position-4" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 4ª Casa
+                    </SelectItem>
+                    <SelectItem value="position-5" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 5ª Casa
+                    </SelectItem>
+                    <SelectItem value="position-6" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ 6ª Casa
+                    </SelectItem>
+                    <SelectItem value="frequency" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-sm">
+                      ▸ Frequência
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
-              <ScrollArea className="h-[calc(100vh-220px)] pb-20">
+              <ScrollArea className="h-[calc(100vh-290px)] pb-20">
                 <div className="p-4 space-y-2 pb-8">
-                  {/* Listar TODAS as estratégias individuais, ordenadas por desempenho - MOBILE */}
+                  {/* Listar TODAS as estratégias individuais, ordenadas por filtro selecionado - MOBILE */}
                   {FOLDERS
                     .flatMap(folder => 
                       folder.strategies.map(strategy => ({
@@ -1308,10 +1379,30 @@ export default function Home() {
                       }))
                     )
                     .sort((a, b) => {
-                      // Ordenar por profit (melhor desempenho primeiro)
-                      const profitA = a.stats?.profit ?? 0
-                      const profitB = b.stats?.profit ?? 0
-                      return profitB - profitA
+                      // Ordenar de acordo com o filtro selecionado
+                      const statsA = a.stats
+                      const statsB = b.stats
+                      
+                      switch (sortFilter) {
+                        case 'performance':
+                          return (statsB?.winRate ?? 0) - (statsA?.winRate ?? 0)
+                        case 'position-1':
+                          return (statsB?.firstAttemptHits ?? 0) - (statsA?.firstAttemptHits ?? 0)
+                        case 'position-2':
+                          return (statsB?.secondAttemptHits ?? 0) - (statsA?.secondAttemptHits ?? 0)
+                        case 'position-3':
+                          return (statsB?.thirdAttemptHits ?? 0) - (statsA?.thirdAttemptHits ?? 0)
+                        case 'position-4':
+                          return (statsB?.fourthAttemptHits ?? 0) - (statsA?.fourthAttemptHits ?? 0)
+                        case 'position-5':
+                          return (statsB?.fifthAttemptHits ?? 0) - (statsA?.fifthAttemptHits ?? 0)
+                        case 'position-6':
+                          return (statsB?.sixthAttemptHits ?? 0) - (statsA?.sixthAttemptHits ?? 0)
+                        case 'frequency':
+                          return (statsB?.frequencyCount ?? 0) - (statsA?.frequencyCount ?? 0)
+                        default:
+                          return (statsB?.profit ?? 0) - (statsA?.profit ?? 0)
+                      }
                     })
                     .map(({ strategy, folderName, stats }) => {
                       const isSelected = isStrategySelected(strategy.id)
@@ -1835,148 +1926,223 @@ export default function Home() {
       <main className="hidden lg:flex h-[calc(100vh-64px)] gap-6 p-6 overflow-hidden">
         {/* Menu Lateral Esquerdo - Estratégias */}
         <div className="w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-enhanced-lg flex flex-col overflow-hidden">
-          <div className={`border-b border-gray-700 space-y-2 flex-shrink-0 transition-all ${
-            isStrategiesScrolled ? 'p-2 space-y-2' : 'p-3 space-y-2'
-          }`}>
+          <div 
+            ref={strategiesScrollRef}
+            className={`flex-1 overflow-y-auto border-b border-gray-700 space-y-2 flex-shrink-0 transition-all scrollbar-hide ${
+              isStrategiesScrolled ? 'p-2 space-y-2' : 'p-3 space-y-2'
+            }`}
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
             {/* Seletor de Roleta */}
-            <div className="space-y-1">
+            <div className={`space-y-1 transition-all duration-300 ${
+              isStrategiesScrolled ? '' : ''
+            }`}>
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all flex items-center gap-2 ${
                 isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 🎰 Roleta ao Vivo
                 {isConnected ? (
-                  <span className="text-green-500 text-xs">● Conectado</span>
+                  <span className={`text-green-500 transition-all ${isStrategiesScrolled ? 'text-[9px]' : 'text-xs'}`}>● Conectado</span>
                 ) : (
-                  <span className="text-red-500 text-xs">● Desconectado</span>
+                  <span className={`text-red-500 transition-all ${isStrategiesScrolled ? 'text-[9px]' : 'text-xs'}`}>● Desconectado</span>
                 )}
               </label>
-              <Select 
-                key={`roulette-select-desktop-${isConnected}-${availableRoulettes.length}`}
-                value={selectedRoulette} 
-                onValueChange={handleRouletteChange}
-                disabled={!isConnected || availableRoulettes.length === 0}
-              >
-                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
-                  <SelectValue>
-                    {selectedRouletteInfo ? (
-                      <div className="flex items-center gap-2">
-                        <span>🎰 {selectedRouletteInfo.name}</span>
-                        {selectedRouletteInfo.provider && (
-                          <span className="text-xs text-gray-400">
-                            ({selectedRouletteInfo.provider})
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      !isConnected 
-                        ? "Aguardando conexão..." 
-                        : availableRoulettes.length === 0 
-                          ? "Nenhuma roleta disponível" 
-                          : "Selecione uma roleta"
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700 border-gray-600">
-                  {availableRoulettes.map((rouletteInfo) => (
-                    <SelectItem 
-                      key={rouletteInfo.id} 
-                      value={rouletteInfo.id} 
-                      className="text-white hover:bg-gray-600 focus:bg-gray-600"
-                    >
-                      <div className="flex items-center gap-2">
-                        🎰 <span className="font-medium">{rouletteInfo.name}</span>
-                        {rouletteInfo.provider && (
-                          <span className="text-xs text-gray-400 ml-2">
-                            ({rouletteInfo.provider})
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
+              }`}>
+                <Select 
+                  key={`roulette-select-desktop-${isConnected}-${availableRoulettes.length}`}
+                  value={selectedRoulette} 
+                  onValueChange={handleRouletteChange}
+                  disabled={!isConnected || availableRoulettes.length === 0}
+                >
+                  <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                    <SelectValue>
+                      {selectedRouletteInfo ? (
+                        <div className="flex items-center gap-2">
+                          <span>🎰 {selectedRouletteInfo.name}</span>
+                          {selectedRouletteInfo.provider && (
+                            <span className="text-xs text-gray-400">
+                              ({selectedRouletteInfo.provider})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        !isConnected 
+                          ? "Aguardando conexão..." 
+                          : availableRoulettes.length === 0 
+                            ? "Nenhuma roleta disponível" 
+                            : "Selecione uma roleta"
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    {availableRoulettes.map((rouletteInfo) => (
+                      <SelectItem 
+                        key={rouletteInfo.id} 
+                        value={rouletteInfo.id} 
+                        className="text-white hover:bg-gray-600 focus:bg-gray-600"
+                      >
+                        <div className="flex items-center gap-2">
+                          🎰 <span className="font-medium">{rouletteInfo.name}</span>
+                          {rouletteInfo.provider && (
+                            <span className="text-xs text-gray-400 ml-2">
+                              ({rouletteInfo.provider})
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Versão compacta quando scrolled */}
+              {isStrategiesScrolled && selectedRouletteInfo && (
+                <div className="text-[9px] text-gray-300 leading-tight animate-in fade-in duration-300">
+                  🎰 {selectedRouletteInfo.name}
+                  {selectedRouletteInfo.provider && (
+                    <span className="text-gray-500 ml-1">({selectedRouletteInfo.provider})</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Seletor de Limite de Análise - Desktop */}
-            <div className="space-y-1">
+            <div className={`space-y-1 transition-all duration-300 ${
+              isStrategiesScrolled ? '' : ''
+            }`}>
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
                 isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 📊 Analisar últimos
               </label>
-              <Select 
-                value={analysisLimit.toString()} 
-                onValueChange={(value) => setAnalysisLimit(Number(value))}
-              >
-                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700 border-gray-600">
-                  <SelectItem value="50" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    50 números
-                  </SelectItem>
-                  <SelectItem value="100" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    100 números
-                  </SelectItem>
-                  <SelectItem value="200" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    200 números
-                  </SelectItem>
-                  <SelectItem value="300" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    300 números
-                  </SelectItem>
-                  <SelectItem value="400" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    400 números
-                  </SelectItem>
-                  <SelectItem value="500" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    500 números
-                  </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className={`text-gray-500 transition-all ${
-              isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
+              }`}>
+                <Select 
+                  value={analysisLimit.toString()} 
+                  onValueChange={(value) => setAnalysisLimit(Number(value))}
+                >
+                  <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    <SelectItem value="50" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      50 números
+                    </SelectItem>
+                    <SelectItem value="100" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      100 números
+                    </SelectItem>
+                    <SelectItem value="200" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      200 números
+                    </SelectItem>
+                    <SelectItem value="300" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      300 números
+                    </SelectItem>
+                    <SelectItem value="400" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      400 números
+                    </SelectItem>
+                    <SelectItem value="500" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      500 números
+                    </SelectItem>
+                </SelectContent>
+              </Select>
+              </div>
+              {/* Versão compacta quando scrolled */}
+              <p className={`text-gray-400 transition-all ${
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px] text-gray-500'
+              }`}>
+                {isStrategiesScrolled ? `${analysisLimit} números` : `${numbersToAnalyze.length} de ${numbers.length} números`}
+              </p>
+            </div>
+
+            {/* Seletor de Casas GREEN/RED - Desktop */}
+            <div className={`space-y-1 transition-all duration-300 ${
+              isStrategiesScrolled ? '' : ''
             }`}>
-              {numbersToAnalyze.length} de {numbers.length} números
-            </p>
-          </div>            {/* Seletor de Casas GREEN/RED - Desktop */}
-            <div className="space-y-1">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
                 isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
               }`}>
                 🎯 Casas para GREEN/RED
               </label>
-              <Select 
-                value={greenRedAttempts.toString()} 
-                onValueChange={(value) => setGreenRedAttempts(Number(value))}
-              >
-                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
+              }`}>
+                <Select 
+                  value={greenRedAttempts.toString()} 
+                  onValueChange={(value) => setGreenRedAttempts(Number(value))}
+                >
+                  <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    <SelectItem value="1" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      1 casa
+                    </SelectItem>
+                    <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      2 casas
+                    </SelectItem>
+                    <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      3 casas
+                    </SelectItem>
+                    <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      4 casas
+                    </SelectItem>
+                    <SelectItem value="5" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      5 casas
+                    </SelectItem>
+                    <SelectItem value="6" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      6 casas
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Versão compacta quando scrolled */}
+              <p className={`text-gray-400 transition-all ${
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px] text-gray-500'
+              }`}>
+                {isStrategiesScrolled ? `${greenRedAttempts} casas` : `Analisando ${greenRedAttempts} casas após ativação`}
+              </p>
+            </div>
+
+            {/* Filtro de Ordenação */}
+            <div className="space-y-1">
+              <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
+              }`}>
+                ⚡ Ordenar por
+              </label>
+              <Select value={sortFilter} onValueChange={(value) => setSortFilter(value as SortFilter)}>
+                <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 text-xs h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-700 border-gray-600">
-                  <SelectItem value="1" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    1 casa
+                  <SelectItem value="performance" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ % de Acerto
                   </SelectItem>
-                  <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    2 casas
+                  <SelectItem value="position-1" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 1ª Casa
                   </SelectItem>
-                  <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    3 casas
+                  <SelectItem value="position-2" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 2ª Casa
                   </SelectItem>
-                  <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    4 casas
+                  <SelectItem value="position-3" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 3ª Casa
                   </SelectItem>
-                  <SelectItem value="5" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    5 casas
+                  <SelectItem value="position-4" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 4ª Casa
                   </SelectItem>
-                  <SelectItem value="6" className="text-white hover:bg-gray-600 focus:bg-gray-600">
-                    6 casas
+                  <SelectItem value="position-5" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 5ª Casa
+                  </SelectItem>
+                  <SelectItem value="position-6" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ 6ª Casa
+                  </SelectItem>
+                  <SelectItem value="frequency" className="text-white hover:bg-gray-600 focus:bg-gray-600 text-xs">
+                    ▸ Frequência
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <p className={`text-gray-500 transition-all ${
-                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
-              }`}>
-                Analisando {greenRedAttempts} casas após ativação
-              </p>
             </div>
 
             {/* Grupo de botões de categoria */}
@@ -2053,13 +2219,11 @@ export default function Home() {
                 Estratégias
               </h2>
             )}
-          </div>
-          
-          <div 
-            ref={strategiesScrollRef}
-            className="flex-1 overflow-y-auto p-3 space-y-1.5"
-          >
-            {/* Listar TODAS as estratégias individuais, ordenadas por desempenho */}
+            
+            {/* Separador visual antes da lista de estratégias */}
+            <div className="border-t border-gray-600 pt-2"></div>
+            
+            {/* Listar TODAS as estratégias individuais, ordenadas conforme filtro selecionado */}
             {FOLDERS
               .flatMap(folder => 
                 folder.strategies.map(strategy => ({
@@ -2069,10 +2233,47 @@ export default function Home() {
                 }))
               )
               .sort((a, b) => {
-                // Ordenar por profit (melhor desempenho primeiro)
-                const profitA = a.stats?.profit ?? 0
-                const profitB = b.stats?.profit ?? 0
-                return profitB - profitA
+                const statsA = a.stats
+                const statsB = b.stats
+                
+                // Ordenar conforme filtro selecionado
+                switch (sortFilter) {
+                  case 'performance':
+                    // Ordenar por percentual de acerto (win rate)
+                    return (statsB?.winRate ?? 0) - (statsA?.winRate ?? 0)
+                  
+                  case 'position-1':
+                    // Ordenar por acertos na 1ª casa
+                    return (statsB?.firstAttemptHits ?? 0) - (statsA?.firstAttemptHits ?? 0)
+                  
+                  case 'position-2':
+                    // Ordenar por acertos na 2ª casa
+                    return (statsB?.secondAttemptHits ?? 0) - (statsA?.secondAttemptHits ?? 0)
+                  
+                  case 'position-3':
+                    // Ordenar por acertos na 3ª casa
+                    return (statsB?.thirdAttemptHits ?? 0) - (statsA?.thirdAttemptHits ?? 0)
+                  
+                  case 'position-4':
+                    // Ordenar por acertos na 4ª casa
+                    return (statsB?.fourthAttemptHits ?? 0) - (statsA?.fourthAttemptHits ?? 0)
+                  
+                  case 'position-5':
+                    // Ordenar por acertos na 5ª casa
+                    return (statsB?.fifthAttemptHits ?? 0) - (statsA?.fifthAttemptHits ?? 0)
+                  
+                  case 'position-6':
+                    // Ordenar por acertos na 6ª casa
+                    return (statsB?.sixthAttemptHits ?? 0) - (statsA?.sixthAttemptHits ?? 0)
+                  
+                  case 'frequency':
+                    // Ordenar por frequência de aparição (independente de green/red)
+                    return (statsB?.frequencyCount ?? 0) - (statsA?.frequencyCount ?? 0)
+                  
+                  default:
+                    // Fallback: ordenar por profit
+                    return (statsB?.profit ?? 0) - (statsA?.profit ?? 0)
+                }
               })
               .map(({ strategy, folderName, stats }) => {
                 const isSelected = isStrategySelected(strategy.id)

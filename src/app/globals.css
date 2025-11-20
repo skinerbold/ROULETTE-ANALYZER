@@ -169,3 +169,13 @@ a,
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* Esconder scrollbar mantendo funcionalidade */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}

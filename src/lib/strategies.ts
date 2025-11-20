@@ -328,7 +328,7 @@ const strategiesUpTo9: StrategyFolder[] = [
       { id: 358, name: "22,24,26 — sem vizinhos", numbers: [22,24,26] },
       { id: 359, name: "Vizinhos12,21,13,31", numbers: [2,4,27,36,14,9,7,28,35] },
       { id: 360, name: "Pretos setor vermelho", numbers: [26,15,4,2,17,6,13] },
-      { id: 361, name: "Vermelhos setor vermelho", numbers: [33,19,21,25,34,27] },
+      { id: 361, name: "Vermelhos setor vermelho", numbers: [36,19,21,25,34,27] },
       { id: 362, name: "Pretos setor verde", numbers: [15,26,28,29,22,35,31] },
       { id: 363, name: "Vermelhos setor verde", numbers: [32,3,12,7,18,9,14,1] },
       { id: 364, name: "Pretos setor amarelo", numbers: [20,33,24,10,8,11,13] },
