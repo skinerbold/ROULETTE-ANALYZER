@@ -68,7 +68,9 @@ class WebSocketClient extends EventEmitter {
       
       const message = JSON.parse(data.toString())
       
-      logger.debug('📨 Mensagem recebida', {
+      // LOG TEMPORÁRIO: Ver formato EXATO das mensagens
+      logger.info('🔍 DEBUG: Mensagem bruta recebida', {
+        fullMessage: message,
         type: message.type,
         hasData: !!message.data
       })
