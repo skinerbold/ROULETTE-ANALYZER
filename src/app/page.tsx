@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers } from 'lucide-react'
+import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers, Database, RefreshCw } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
 import { StrategyStats, UserSession } from '@/lib/types'
 import { supabase, getCurrentUser } from '@/lib/supabase'
@@ -14,6 +14,8 @@ import AuthForm from '@/components/AuthForm'
 import Header from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
+import { useRouletteHistory } from '@/hooks/use-roulette-history'
+import { useAllRouletteMetadata } from '@/hooks/use-all-roulette-metadata'
 
 interface NumberStatus {
   number: number
@@ -47,6 +49,32 @@ export default function Home() {
     requestHistory // NOVO: função para solicitar mais histórico
   } = useRouletteWebSocket()
   
+  // Hook para histórico da roleta selecionada (últimos 500 números salvos)
+  const {
+    data: historyData,
+    numbers: savedNumbers,
+    metadata: historyMetadata,
+    loading: historyLoading,
+    error: historyError,
+    refetch: refetchHistory
+  } = useRouletteHistory(selectedRoulette, {
+    limit: 500,
+    refetchInterval: 30000, // Atualizar a cada 30 segundos
+    enabled: !!selectedRoulette
+  })
+  
+  // Hook para metadados de todas as roletas
+  const {
+    data: allMetadata,
+    roulettes: allRoulettes,
+    loading: metadataLoading,
+    error: metadataError,
+    refetch: refetchMetadata
+  } = useAllRouletteMetadata({
+    refetchInterval: 60000, // Atualizar a cada 60 segundos
+    enabled: true
+  })
+  
   // LOG CRÍTICO: Estado do WebSocket
   useEffect(() => {
     console.log('\n🔍🔍🔍 DIAGNÓSTICO DO ESTADO WEBSOCKET:')
@@ -55,8 +83,10 @@ export default function Home() {
     console.log('   📋 availableRoulettes:', availableRoulettes.map(r => r.id))
     console.log('   🎯 selectedRoulette:', selectedRoulette)
     console.log('   🔢 recentNumbers.length:', recentNumbers.length)
+    console.log('   💾 savedNumbers.length:', savedNumbers.length)
+    console.log('   📈 allRoulettes.length:', allRoulettes.length)
     console.log('   🚫 Select desabilitado?', !isConnected || availableRoulettes.length === 0)
-  }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
+  }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers, savedNumbers, allRoulettes])
   
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
   const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (1, 2, 3, 4, 5 ou 6)
@@ -1004,6 +1034,79 @@ export default function Home() {
         onLogout={handleLogout} 
         onEditProfile={() => setShowProfileEdit(true)} 
       />
+      
+      {/* Card de Status - Dados Históricos da API */}
+      {selectedRoulette && (
+        <div className="border-b border-gray-700 bg-gray-800/50">
+          <div className="max-w-7xl mx-auto px-4 py-2">
+            <div className="flex items-center justify-between gap-3 text-xs">
+              {/* Status da Roleta Selecionada */}
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-400" />
+                  <span className="text-gray-400 font-medium">Histórico:</span>
+                </div>
+                
+                {historyLoading ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    Carregando...
+                  </Badge>
+                ) : historyError ? (
+                  <Badge variant="destructive" className="gap-1">
+                    ⚠️ Erro
+                  </Badge>
+                ) : savedNumbers.length > 0 ? (
+                  <div className="flex items-center gap-3">
+                    <Badge variant="default" className="bg-green-600 gap-1">
+                      ✓ {savedNumbers.length} números salvos
+                    </Badge>
+                    {historyMetadata && (
+                      <>
+                        <span className="text-gray-500">|</span>
+                        <span className="text-gray-400">
+                          Total: <span className="text-white font-medium">{historyMetadata.totalSpins}</span> spins
+                        </span>
+                        <span className="text-gray-500">|</span>
+                        <span className="text-gray-400">
+                          Último: <span className="text-white font-medium">{historyMetadata.lastNumber}</span>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <Badge variant="secondary">Sem dados salvos</Badge>
+                )}
+              </div>
+              
+              {/* Botão de Refresh */}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => refetchHistory()}
+                disabled={historyLoading}
+                className="h-7 px-2 gap-1"
+              >
+                <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
+            </div>
+            
+            {/* Status Global de Todas as Roletas */}
+            {allRoulettes.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
+                <span className="text-gray-500 text-xs">
+                  📊 {allRoulettes.length} roleta{allRoulettes.length !== 1 ? 's' : ''} monitorada{allRoulettes.length !== 1 ? 's' : ''}
+                </span>
+                <span className="text-gray-700">•</span>
+                <span className="text-gray-500 text-xs">
+                  Total: {allRoulettes.reduce((sum, r) => sum + r.totalSpins, 0).toLocaleString()} spins coletados
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Layout Mobile/Tablet - Tela cheia para números */}
       <div className="lg:hidden">

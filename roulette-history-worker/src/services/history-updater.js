@@ -74,6 +74,7 @@ class HistoryUpdater extends EventEmitter {
       })
       
       // Chamar a função PL/pgSQL update_roulette_history
+      // Timestamp já vem em milissegundos do WebSocket
       const { data, error } = await supabase.rpc('update_roulette_history', {
         p_roulette_id: rouletteId,
         p_number: number,

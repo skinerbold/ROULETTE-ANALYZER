@@ -36,7 +36,26 @@ export const config = {
     'pragmatic-speed-auto-roulette',
     'pragmatic-mega-roulette',
     'pragmatic-powerup-roulette'
-  ]
+  ],
+  
+  // Mapeamento de nomes do servidor para IDs internos
+  rouletteNameToId: {
+    // Evolution Gaming
+    'First Person Roulette': 'first-person-roulette',
+    'Instant Roulette': 'instant-roulette',
+    'Lightning Roulette': 'lightning-roulette',
+    'Speed Roulette': 'speed-roulette',
+    
+    // Pragmatic Play
+    'Auto Roulette': 'pragmatic-auto-roulette',
+    'Auto-Roulette': 'pragmatic-auto-roulette',
+    'Roulette': 'pragmatic-roulette',
+    'Speed Auto Roulette': 'pragmatic-speed-auto-roulette',
+    'pragmatic-speed-auto-roulette': 'pragmatic-speed-auto-roulette', // Já vem como ID
+    'Mega Roulette': 'pragmatic-mega-roulette',
+    'Auto Mega Roulette': 'pragmatic-mega-roulette',
+    'Power Up Roulette': 'pragmatic-powerup-roulette'
+  }
 }
 
 export default config

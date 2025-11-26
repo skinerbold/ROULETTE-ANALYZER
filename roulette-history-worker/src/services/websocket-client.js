@@ -68,16 +68,14 @@ class WebSocketClient extends EventEmitter {
       
       const message = JSON.parse(data.toString())
       
-      // LOG TEMPORÁRIO: Ver formato EXATO das mensagens
-      logger.info('🔍 DEBUG: Mensagem bruta recebida', {
-        fullMessage: message,
-        type: message.type,
-        hasData: !!message.data
-      })
-      
-      // Processar apenas mensagens de tipo 'roulette-update'
-      if (message.type === 'roulette-update') {
-        this._processRouletteUpdate(message.data)
+      // Processar mensagens de tipo 'result' (formato real do servidor)
+      if (message.type === 'result') {
+        // Estrutura plana: {type, roulette, number, timestamp}
+        this._processRouletteUpdate({
+          rouletteId: message.roulette,
+          number: message.number,
+          timestamp: message.timestamp
+        })
       } else if (message.type === 'pong') {
         // Resposta ao ping (se o servidor enviar)
         logger.debug('🏓 Pong recebido do servidor')
@@ -98,7 +96,7 @@ class WebSocketClient extends EventEmitter {
 
   _processRouletteUpdate(data) {
     try {
-      const { rouletteId, number, timestamp } = data
+      let { rouletteId, number, timestamp } = data
       
       // Validação básica
       if (!rouletteId || number === undefined || number === null) {
@@ -110,10 +108,17 @@ class WebSocketClient extends EventEmitter {
         return
       }
       
+      // Converter nome da roleta para ID (se necessário)
+      const mappedId = config.rouletteNameToId[rouletteId]
+      if (mappedId) {
+        rouletteId = mappedId
+      }
+      
       // Validar se é uma roleta permitida
       if (!config.allowedRoulettes.includes(rouletteId)) {
         logger.debug('🚫 Roleta não está na lista permitida', {
           rouletteId,
+          originalName: data.rouletteId,
           allowedRoulettes: config.allowedRoulettes
         })
         return
