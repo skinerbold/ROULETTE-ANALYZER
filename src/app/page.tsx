@@ -279,38 +279,65 @@ export default function Home() {
     if (!user) return
 
     try {
+      // Primeiro, verificar se já existe uma sessão para este usuário
+      const { data: existingSessions } = await supabase
+        .from('user_sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
       const sessionData: UserSession = {
         user_id: user.id,
         numbers: numbers,
         chip_category: chipCategory,
-        selected_strategies: selectedStrategies, // MUDANÇA: Array de IDs
-        green_red_attempts: greenRedAttempts, // NOVO: Casas para GREEN/RED
+        selected_strategies: selectedStrategies,
+        green_red_attempts: greenRedAttempts,
         updated_at: new Date().toISOString()
       }
 
-      if (sessionId) {
+      let targetSessionId = sessionId || (existingSessions && existingSessions.length > 0 ? existingSessions[0].id : null)
+
+      if (targetSessionId) {
         // Atualizar sessão existente
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('user_sessions')
           .update(sessionData)
-          .eq('id', sessionId)
-        
+          .eq('id', targetSessionId)
+          .select()
+          .maybeSingle()
+
         if (error) {
-          // Se erro for de coluna inexistente, tentar sem chip_category e selected_strategies
-          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts') || !error.message) {
-            console.warn('Colunas chip_category/selected_strategies/green_red_attempts não existem no banco. Execute a migração SQL.')
+          // Fallback: tentar sem as colunas novas
+          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts')) {
+            console.warn('Colunas novas não existem. Execute a migração SQL.')
             const { chip_category, selected_strategies, green_red_attempts, ...dataWithoutNewColumns } = sessionData
-            await supabase
+            
+            const result = await supabase
               .from('user_sessions')
               .update(dataWithoutNewColumns)
-              .eq('id', sessionId)
+              .eq('id', targetSessionId)
+              .select()
+              .maybeSingle()
+            
+            if (result.data) {
+              setSessionId(result.data.id)
+              console.log('Sessão atualizada (sem novas colunas):', result.data.id, numbers.length, 'números')
+            }
           } else {
             console.error('Erro ao atualizar sessão:', error)
+            // Se o registro não existe mais, criar novo
+            if (error.code === 'PGRST116') {
+              targetSessionId = null // Força criação de nova sessão
+            }
           }
-        } else {
-          console.log('Sessão atualizada:', numbers.length, 'números')
+        } else if (data) {
+          setSessionId(data.id)
+          console.log('Sessão atualizada:', data.id, numbers.length, 'números')
         }
-      } else {
+      }
+      
+      if (!targetSessionId) {
         // Criar nova sessão
         const { data, error } = await supabase
           .from('user_sessions')
@@ -319,10 +346,11 @@ export default function Home() {
           .single()
 
         if (error) {
-          // Se erro for de coluna inexistente, tentar sem chip_category e selected_strategies
-          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts') || !error.message) {
-            console.warn('Colunas chip_category/selected_strategies/green_red_attempts não existem no banco. Execute a migração SQL.')
+          // Fallback: tentar sem as colunas novas
+          if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts')) {
+            console.warn('Colunas novas não existem. Execute a migração SQL.')
             const { chip_category, selected_strategies, green_red_attempts, ...dataWithoutNewColumns } = sessionData
+            
             const result = await supabase
               .from('user_sessions')
               .insert(dataWithoutNewColumns)
@@ -331,7 +359,7 @@ export default function Home() {
             
             if (result.data) {
               setSessionId(result.data.id)
-              console.log('Nova sessão criada (somente com numbers):', result.data.id)
+              console.log('Nova sessão criada (sem novas colunas):', result.data.id, numbers.length, 'números')
             } else if (result.error) {
               console.error('Erro ao criar sessão (fallback):', result.error)
             }
@@ -340,12 +368,11 @@ export default function Home() {
           }
         } else if (data) {
           setSessionId(data.id)
-          console.log('Nova sessão criada:', data.id)
+          console.log('Nova sessão criada:', data.id, numbers.length, 'números')
         }
       }
     } catch (error) {
       console.error('Erro ao salvar sessão:', error)
-      // Não fazer nada que cause logout
     }
   }
 
