@@ -14,8 +14,6 @@ import AuthForm from '@/components/AuthForm'
 import Header from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
-import { useRouletteHistory } from '@/hooks/use-roulette-history'
-import { useAllRouletteMetadata } from '@/hooks/use-all-roulette-metadata'
 
 interface NumberStatus {
   number: number
@@ -49,31 +47,8 @@ export default function Home() {
     requestHistory // NOVO: função para solicitar mais histórico
   } = useRouletteWebSocket()
   
-  // Hook para histórico da roleta selecionada (últimos 500 números salvos)
-  const {
-    data: historyData,
-    numbers: savedNumbers,
-    metadata: historyMetadata,
-    loading: historyLoading,
-    error: historyError,
-    refetch: refetchHistory
-  } = useRouletteHistory(selectedRoulette, {
-    limit: 500,
-    refetchInterval: 30000, // Atualizar a cada 30 segundos
-    enabled: !!selectedRoulette
-  })
-  
-  // Hook para metadados de todas as roletas
-  const {
-    data: allMetadata,
-    roulettes: allRoulettes,
-    loading: metadataLoading,
-    error: metadataError,
-    refetch: refetchMetadata
-  } = useAllRouletteMetadata({
-    refetchInterval: 60000, // Atualizar a cada 60 segundos
-    enabled: true
-  })
+  // WebSocket já fornece todo o histórico necessário via recentNumbers
+  // Não precisamos de hooks HTTP adicionais que causam erros de CORS
   
   // LOG CRÍTICO: Estado do WebSocket
   useEffect(() => {
@@ -83,10 +58,8 @@ export default function Home() {
     console.log('   📋 availableRoulettes:', availableRoulettes.map(r => r.id))
     console.log('   🎯 selectedRoulette:', selectedRoulette)
     console.log('   🔢 recentNumbers.length:', recentNumbers.length)
-    console.log('   💾 savedNumbers.length:', savedNumbers.length)
-    console.log('   📈 allRoulettes.length:', allRoulettes.length)
     console.log('   🚫 Select desabilitado?', !isConnected || availableRoulettes.length === 0)
-  }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers, savedNumbers, allRoulettes])
+  }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
   
   const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
   const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (1, 2, 3, 4, 5 ou 6)
@@ -1079,35 +1052,27 @@ export default function Home() {
                   <span className="text-gray-400 font-medium">Histórico:</span>
                 </div>
                 
-                {historyLoading ? (
+                {!isConnected ? (
                   <Badge variant="secondary" className="gap-1">
                     <RefreshCw className="w-3 h-3 animate-spin" />
-                    Carregando...
+                    Conectando...
                   </Badge>
-                ) : historyError ? (
-                  <Badge variant="destructive" className="gap-1">
-                    ⚠️ Erro
-                  </Badge>
-                ) : savedNumbers.length > 0 ? (
+                ) : recentNumbers.length > 0 ? (
                   <div className="flex items-center gap-3">
                     <Badge variant="default" className="bg-green-600 gap-1">
-                      ✓ {savedNumbers.length} números salvos
+                      ✓ {recentNumbers.length} números carregados
                     </Badge>
-                    {historyMetadata && (
+                    {selectedRoulette && recentNumbers[0] && (
                       <>
                         <span className="text-gray-500">|</span>
                         <span className="text-gray-400">
-                          Total: <span className="text-white font-medium">{historyMetadata.totalSpins}</span> spins
-                        </span>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-400">
-                          Último: <span className="text-white font-medium">{historyMetadata.lastNumber}</span>
+                          Último: <span className="text-white font-medium">{recentNumbers[0].number}</span>
                         </span>
                       </>
                     )}
                   </div>
                 ) : (
-                  <Badge variant="secondary">Sem dados salvos</Badge>
+                  <Badge variant="secondary">Aguardando dados...</Badge>
                 )}
               </div>
               
@@ -1115,24 +1080,20 @@ export default function Home() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => refetchHistory()}
-                disabled={historyLoading}
+                onClick={() => selectedRoulette && requestHistory(selectedRoulette, analysisLimit)}
+                disabled={!isConnected || !selectedRoulette}
                 className="h-7 px-2 gap-1"
               >
-                <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className="w-3 h-3" />
                 <span className="hidden sm:inline">Atualizar</span>
               </Button>
             </div>
             
             {/* Status Global de Todas as Roletas */}
-            {allRoulettes.length > 0 && (
+            {availableRoulettes.length > 0 && (
               <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
                 <span className="text-gray-500 text-xs">
-                  📊 {allRoulettes.length} roleta{allRoulettes.length !== 1 ? 's' : ''} monitorada{allRoulettes.length !== 1 ? 's' : ''}
-                </span>
-                <span className="text-gray-700">•</span>
-                <span className="text-gray-500 text-xs">
-                  Total: {allRoulettes.reduce((sum, r) => sum + r.totalSpins, 0).toLocaleString()} spins coletados
+                  📊 {availableRoulettes.length} roleta{availableRoulettes.length !== 1 ? 's' : ''} disponíve{availableRoulettes.length !== 1 ? 'is' : 'l'}
                 </span>
               </div>
             )}
