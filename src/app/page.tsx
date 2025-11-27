@@ -1347,15 +1347,15 @@ export default function Home() {
         </div>
 
         {/* Grid de números - tela cheia mobile */}
-        <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto">
+        <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide">
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
-              <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-3 justify-items-center w-full max-w-4xl">
+              <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
                 {numbersToAnalyze.map((number, index) => {
                   return (
                     <div
                       key={index}
-                      className={`relative group w-9 h-9 sm:w-11 sm:h-11 md:w-13 md:h-13 text-base sm:text-lg md:text-xl flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                     >
                       {number}
                       <button
@@ -2468,21 +2468,21 @@ export default function Home() {
           </div>
 
           {/* Grid de Números */}
-          <div className="flex-1 p-4 overflow-auto">
+          <div className="flex-1 p-4 overflow-auto scrollbar-hide">
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
-                <div className="grid grid-cols-12 gap-2 sm:gap-2 md:gap-2 lg:gap-2.5 xl:gap-3 2xl:gap-3 justify-items-center">
+                <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
                   {numbersToAnalyze.map((number, index) => {
                     return (
                       <div
                         key={index}
                         className={`relative group 
-                          w-5 h-5 text-[10px]
-                          sm:w-6 sm:h-6 sm:text-xs
-                          md:w-7 md:h-7 md:text-xs
-                          lg:w-9 lg:h-9 lg:text-sm
-                          xl:w-11 xl:h-11 xl:text-base
-                          2xl:w-14 2xl:h-14 2xl:text-xl
+                          w-4 h-4 text-[9px]
+                          sm:w-5 sm:h-5 sm:text-[10px]
+                          md:w-6 md:h-6 md:text-xs
+                          lg:w-8 lg:h-8 lg:text-sm
+                          xl:w-10 xl:h-10 xl:text-sm
+                          2xl:w-12 2xl:h-12 2xl:text-base
                           flex items-center justify-center rounded font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                       >
                         {number}
