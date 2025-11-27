@@ -1347,7 +1347,7 @@ export default function Home() {
         </div>
 
         {/* Grid de números - tela cheia mobile */}
-        <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide">
+        <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
@@ -2468,7 +2468,7 @@ export default function Home() {
           </div>
 
           {/* Grid de Números */}
-          <div className="flex-1 p-4 overflow-auto scrollbar-hide">
+          <div className="flex-1 p-4 overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
