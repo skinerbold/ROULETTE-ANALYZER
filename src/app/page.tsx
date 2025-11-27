@@ -232,11 +232,9 @@ export default function Home() {
         const session = sessions[0]
         setSessionId(session.id)
         setNumbers(session.numbers || [])
-        // MUDANÇA: Carregar array de estratégias selecionadas
-        const strategies = session.selected_strategies || session.selected_strategy 
-          ? [session.selected_strategy] 
-          : []
-        setSelectedStrategies(Array.isArray(strategies) ? strategies : [strategies].filter(Boolean))
+        // Carregar array de estratégias selecionadas (ignorar campo antigo selected_strategy)
+        const strategies = session.selected_strategies || []
+        setSelectedStrategies(Array.isArray(strategies) ? strategies : [])
         setChipCategory(session.chip_category || 'up-to-9')
         setGreenRedAttempts(session.green_red_attempts || 3) // NOVO: Carregar casas GREEN/RED (padrão: 3)
         console.log('Sessão carregada:', session.numbers?.length || 0, 'números')
@@ -1088,15 +1086,6 @@ export default function Home() {
                 <span className="hidden sm:inline">Atualizar</span>
               </Button>
             </div>
-            
-            {/* Status Global de Todas as Roletas */}
-            {availableRoulettes.length > 0 && (
-              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
-                <span className="text-gray-500 text-xs">
-                  📊 {availableRoulettes.length} roleta{availableRoulettes.length !== 1 ? 's' : ''} disponíve{availableRoulettes.length !== 1 ? 'is' : 'l'}
-                </span>
-              </div>
-            )}
           </div>
         </div>
       )}
