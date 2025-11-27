@@ -9,8 +9,18 @@ export const corsMiddleware = cors({
       return callback(null, true)
     }
     
-    // Verificar se origin está na lista permitida
-    if (config.allowedOrigins.includes(origin)) {
+    // Verificar se origin está na lista permitida ou é domínio Vercel
+    const isAllowed = config.allowedOrigins.some(allowed => {
+      // Suporte para wildcard: https://*.vercel.app
+      if (allowed.includes('*')) {
+        const pattern = allowed.replace(/\*/g, '.*').replace(/\./g, '\\.')
+        const regex = new RegExp(`^${pattern}$`)
+        return regex.test(origin)
+      }
+      return allowed === origin
+    })
+    
+    if (isAllowed) {
       callback(null, true)
     } else {
       logger.warn('⚠️ CORS bloqueado', {

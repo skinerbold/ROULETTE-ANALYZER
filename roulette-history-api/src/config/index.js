@@ -13,8 +13,13 @@ export const config = {
   
   // CORS
   allowedOrigins: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000'],
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : [
+        'http://localhost:3000',
+        'https://*.vercel.app', // Todos os domínios Vercel
+        'https://roulette-analyzer.vercel.app',
+        'https://roulette-analyzer-git-master-skinerbold.vercel.app'
+      ],
   
   // Rate Limiting
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
