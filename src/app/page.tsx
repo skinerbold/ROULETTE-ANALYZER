@@ -20,10 +20,15 @@ interface NumberStatus {
   status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
 }
 
+interface NumberColorCache {
+  [timestamp: number]: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
   const [numbers, setNumbers] = useState<number[]>([])
+  const [numberColorCache, setNumberColorCache] = useState<NumberColorCache>({})
   
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
@@ -145,6 +150,9 @@ export default function Home() {
     // Recalcular estratégias disponíveis
     initializeStrategies()
     
+    // 🔧 NOVO: Limpar cache de cores quando categoria mudar
+    setNumberColorCache({})
+    
     // Salvar categoria quando mudar E usuário estiver logado
     if (user && !isLoadingSession && chipCategory) {
       saveUserSession()
@@ -186,6 +194,11 @@ export default function Home() {
       saveUserSession()
     }
   }, [numbers, selectedStrategies, analysisLimit, greenRedAttempts])
+
+  // 🔧 NOVO: Limpar cache de cores quando estratégias mudarem
+  useEffect(() => {
+    setNumberColorCache({})
+  }, [selectedStrategies])
 
   const checkUser = async () => {
     try {
@@ -799,40 +812,46 @@ export default function Home() {
     const { getStrategyNumbers } = require('@/lib/strategies')
     const allNumbers = getStrategyNumbers(lastSelectedId, numbersToAnalyze)
 
-    // Inicializa todos os status como NEUTRAL
-    const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
+    // 🔧 NOVO: Cache imutável de cores baseado em timestamp
+    // Apenas calcula cores para números NOVOS (não presentes no cache)
+    const newColorCache = { ...numberColorCache }
     
-    // CORREÇÃO: Inverter array para processar do mais antigo para o mais recente
-    // Array original: [RECENTE → ANTIGO], precisamos: [ANTIGO → RECENTE]
-    const reversedArray = [...numbersToAnalyze].reverse()
+    // Pegar timestamps dos números recentes
+    const recentWithTimestamp = recentNumbers.slice(0, numbersToAnalyze.length)
     
-    // Processa do índice 0 até o final (agora do mais antigo para o mais recente)
+    // Inverter array para processar do mais antigo para o mais recente
+    const reversedNumbers = [...recentWithTimestamp].reverse()
+    
+    // Processa apenas números que NÃO estão no cache
     let i = 0
-    while (i < reversedArray.length) {
-      const currentNum = reversedArray[i]
+    while (i < reversedNumbers.length) {
+      const currentEntry = reversedNumbers[i]
+      const currentNum = currentEntry.number
+      const currentTimestamp = currentEntry.timestamp
+      
+      // Se já está no cache, pula
+      if (newColorCache[currentTimestamp]) {
+        i++
+        continue
+      }
       
       // Verifica se é um número da estratégia (ativação)
       if (allNumbers.includes(currentNum)) {
-        // CORREÇÃO: Calcular índice original (não invertido) para marcar status correto
-        const originalIndex = reversedArray.length - 1 - i
+        // Marca como ACTIVATION (amarelo) no cache
+        newColorCache[currentTimestamp] = 'ACTIVATION'
         
-        // Marca como ACTIVATION (amarelo)
-        statuses[originalIndex] = { number: currentNum, status: 'ACTIVATION' }
-        
-        // Procura por GREEN nas próximas N posições (configurável: 1, 2, 3, 4, 5 ou 6)
+        // Procura por GREEN nas próximas N posições
         let foundGreen = false
         let greenIndex = -1
-        let lastCheckIndex = i // Armazena índice da última tentativa
+        let lastCheckIndex = i
         
-        // Verifica as próximas N posições
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
-          if (checkIndex >= reversedArray.length) break // Fim do array
+          if (checkIndex >= reversedNumbers.length) break
           
-          lastCheckIndex = checkIndex // Atualiza última posição verificada
+          lastCheckIndex = checkIndex
           
-          if (allNumbers.includes(reversedArray[checkIndex])) {
-            // GREEN encontrado!
+          if (allNumbers.includes(reversedNumbers[checkIndex].number)) {
             foundGreen = true
             greenIndex = checkIndex
             break
@@ -840,25 +859,31 @@ export default function Home() {
         }
         
         if (foundGreen) {
-          // GREEN: marca o número GREEN
-          const originalGreenIndex = reversedArray.length - 1 - greenIndex
-          statuses[originalGreenIndex] = { number: reversedArray[greenIndex], status: 'GREEN' }
-          // Continua após o GREEN
+          // GREEN: marca no cache
+          const greenTimestamp = reversedNumbers[greenIndex].timestamp
+          newColorCache[greenTimestamp] = 'GREEN'
           i = greenIndex + 1
         } else {
-          // 🔧 FIX: RED marca a ÚLTIMA tentativa (não a próxima)
-          // lastCheckIndex é a última posição verificada
-          const originalRedIndex = reversedArray.length - 1 - lastCheckIndex
-          statuses[originalRedIndex] = { number: reversedArray[lastCheckIndex], status: 'RED' }
-          
-          // Continua após a ÚLTIMA tentativa (não +1 extra)
+          // RED: marca última tentativa no cache
+          const redTimestamp = reversedNumbers[lastCheckIndex].timestamp
+          newColorCache[redTimestamp] = 'RED'
           i = lastCheckIndex + 1
         }
       } else {
-        // Não é número da estratégia, continua
+        // Não é número da estratégia, marca como NEUTRAL
+        newColorCache[currentTimestamp] = 'NEUTRAL'
         i++
       }
     }
+    
+    // Atualizar cache de cores
+    setNumberColorCache(newColorCache)
+    
+    // Gerar statuses a partir do cache (IMUTÁVEL)
+    const statuses: NumberStatus[] = recentWithTimestamp.map(entry => ({
+      number: entry.number,
+      status: newColorCache[entry.timestamp] || 'NEUTRAL'
+    }))
     
     setNumberStatuses(statuses)
   }

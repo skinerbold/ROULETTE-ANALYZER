@@ -62,26 +62,28 @@ const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 // 🎯 LISTA DE ROLETAS PERMITIDAS (ESPECÍFICAS)
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
-    // Playtech não está na sua lista solicitada
+    'mega fire blaze', // Mega Fire Blaze
+    'mega fire blaze espanha', // Mega Fire Blaze Espanha
+    'roleta brasileira' // Roleta Brasileira Playtech
   ],
   'Evolution Gaming': [
-    'lightning roulette', // ✅ 1. Lightning Roulette
-    'xxxtreme lightning roulette', // ✅ 2. XXXtreme  
-    'immersive roulette', // ✅ 3. Immersive
-    'auto roulette', // ✅ 4. Auto Roulette (Evolution, sem hífen)
-    'auto-roulette vip', // ✅ 5. Auto Roulette VIP
-    'speed auto roulette' // ✅ 7. Speed Auto Roulette
-    // ❌ 6. Red Door/Porta Vermelha - NÃO EXISTE na API
-    // ❌ 8. Auto Lightning Roulette - NÃO EXISTE na API
+    'lightning roulette', // Lightning Roulette
+    'xxxtreme lightning roulette', // XXXtreme Lightning Roulette
+    'immersive roulette', // Immersive Roulette
+    'auto roulette vip', // Auto Roulette VIP
+    'red door', // Red Door / Porta Vermelha
+    'porta vermelha', // Red Door / Porta Vermelha (nome em PT)
+    'auto lightning roulette', // Auto Lightning Roulette
+    'speed auto roulette' // Speed Auto Roulette
   ],
   'Pragmatic Play': [
-    'mega roulette', // ✅ 1. Mega Roulette
-    'roleta brasileira pragmatic', // ✅ 3. Roleta Brasileira Pragmatic (= Mega Roulette Brasil)
-    'roleta brasileira', // ✅ 6. Brasileira Roulette (genérico, cuidado com Playtech)
-    'pragmatic-speed-auto-roulette' // ✅ 7. Speed Auto Roulette (com hífen)
-    // ❌ 2. Auto Mega Roulette - NÃO EXISTE na API
-    // ❌ 4. VIP Auto Roulette - NÃO EXISTE separado
-    // ❌ 5. Auto Roulette - conflita com Evolution (não usar)
+    'mega roulette', // Mega Roulette
+    'auto mega roulette', // Auto Mega Roulette
+    'mega roulette brasil', // Mega Roulette Brasil
+    'roleta brasileira pragmatic', // Roleta Brasileira Pragmatic
+    'vip auto roulette', // VIP Auto Roulette
+    'auto roulette', // Auto Roulette
+    'pragmatic-speed-auto-roulette' // Speed Auto Roulette Pragmatic
   ]
 }
 
