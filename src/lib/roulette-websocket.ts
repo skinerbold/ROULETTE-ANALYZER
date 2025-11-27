@@ -90,6 +90,7 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
 // Verificar se a roleta específica está na lista permitida
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
   if (!provider || !ALLOWED_PROVIDERS.includes(provider)) {
+    console.log(`🔍 DEBUG: Roleta rejeitada (sem provedor ou provedor não permitido) - "${rouletteName}" | Provedor: ${provider}`)
     return false
   }
   
@@ -97,7 +98,15 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   const allowedNames = ALLOWED_ROULETTES[provider] || []
   
   // Verificar se alguma das palavras-chave permitidas está no nome
-  return allowedNames.some(keyword => lowerName.includes(keyword))
+  const isAllowed = allowedNames.some(keyword => lowerName.includes(keyword))
+  
+  if (!isAllowed) {
+    console.log(`🔍 DEBUG: Roleta rejeitada (não está na lista) - "${rouletteName}" | Provedor: ${provider} | Lower: "${lowerName}"`)
+  } else {
+    console.log(`✅ DEBUG: Roleta ACEITA - "${rouletteName}" | Provedor: ${provider}`)
+  }
+  
+  return isAllowed
 }
 
 // Verificar se o provedor está na lista permitida
@@ -127,6 +136,11 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'tvbet': 'TVBet',
     'xpg': 'XPG',
     
+    // Playtech - DEVE VIR ANTES para não conflitar
+    'mega fire blaze': 'Playtech', // Mega Fire Blaze (Playtech)
+    'grand roulette': 'Playtech',
+    'age of the gods': 'Playtech',
+    
     // Evolution Gaming
     'lightning': 'Evolution Gaming', // Lightning Roulette, XXXtreme Lightning, etc
     'speed auto': 'Evolution Gaming', // Speed Auto Roulette
@@ -134,13 +148,14 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'bac bo': 'Evolution Gaming',
     'en vivo': 'Evolution Gaming', // Ruleta en Vivo
     'immersive': 'Evolution Gaming', // Immersive Roulette
-    'mega fire blaze': 'Evolution Gaming', // Mega Fire Blaze Roulette
     'quantum': 'Evolution Gaming', // Quantum Roulette, Quantum Auto Roulette
-    'mega roulette': 'Evolution Gaming', // Mega Roulette
-    'auto mega roulette': 'Evolution Gaming',
     'american roulette': 'Evolution Gaming', // American Roulette
+    'red door': 'Evolution Gaming', // Red Door Roulette
+    'porta vermelha': 'Evolution Gaming', // Porta Vermelha
     
     // Pragmatic Play
+    'mega roulette': 'Pragmatic Play', // Mega Roulette (Pragmatic, não Evolution!)
+    'auto mega roulette': 'Pragmatic Play',
     'brasileira': 'Pragmatic Play', // Roleta Brasileira
     'auto-roulette': 'Pragmatic Play', // Auto-Roulette
     
@@ -150,12 +165,11 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'ruby roulette': 'Ezugi',
     'rapida': 'Ezugi', // Roleta Rapida
     
-    // Playtech
-    'grand roulette': 'Playtech',
+    // Playtech (continuação)
     'latinoamérica': 'Playtech', // Ruleta Latinoamérica
-    'age of the gods': 'Playtech',
     'bet365 roulette': 'Playtech', // bet365 Roulette
     'bet365 dutch': 'Playtech', // bet365 Dutch Roulette
+    'spread bet': 'Playtech', // Spread Bet Roulette
     
     // Gaming Corps
     'slingshot': 'Gaming Corps', // Slingshot, Prime Slingshot
@@ -176,7 +190,6 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'azure': 'Ezugi', // Roleta Azure
     'italiana': 'Evolution Gaming', // Roulette Italiana
     'bucharest': 'Evolution Gaming', // Bucharest Roulette
-    'spread bet': 'Playtech', // Spread Bet Roulette
     'espanol': 'Evolution Gaming', // Ruleta en Espanol
   }
   
