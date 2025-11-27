@@ -115,7 +115,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
             }
             
             if (!isAllowedRoulette(rouletteName, newRouletteInfo.provider)) {
-              console.log(`   🚫 Roleta não está na lista permitida: ${rouletteName}`)
+              console.log(`   🚫 Roleta não está na lista permitida: ${rouletteName} (${newRouletteInfo.provider})`)
               return
             }
             

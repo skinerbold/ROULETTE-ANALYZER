@@ -64,13 +64,15 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
     'mega fire blaze', // Mega Fire Blaze
     'mega fire blaze espanha', // Mega Fire Blaze Espanha
-    'roleta brasileira' // Roleta Brasileira Playtech
+    'mega fire blaze roulette' // Mega Fire Blaze Roulette Live
   ],
   'Evolution Gaming': [
     'lightning roulette', // Lightning Roulette
     'xxxtreme lightning roulette', // XXXtreme Lightning Roulette
-    'immersive roulette', // Immersive Roulette
+    'immersive roulette', // Immersive Roulette (inclui deluxe)
     'auto roulette vip', // Auto Roulette VIP
+    'auto-roulette vip', // Auto-Roulette VIP (com hífen)
+    'auto roulette', // Auto Roulette (Evolution)
     'red door', // Red Door / Porta Vermelha
     'porta vermelha', // Red Door / Porta Vermelha (nome em PT)
     'auto lightning roulette', // Auto Lightning Roulette
@@ -81,16 +83,16 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'auto mega roulette', // Auto Mega Roulette
     'mega roulette brasil', // Mega Roulette Brasil
     'roleta brasileira pragmatic', // Roleta Brasileira Pragmatic
+    'roleta brasileira', // Roleta Brasileira (genérico Pragmatic)
     'vip auto roulette', // VIP Auto Roulette
-    'auto roulette', // Auto Roulette
-    'pragmatic-speed-auto-roulette' // Speed Auto Roulette Pragmatic
+    'pragmatic-speed-auto-roulette', // Speed Auto Roulette Pragmatic
+    'auto-roulette' // Auto-Roulette Pragmatic
   ]
 }
 
 // Verificar se a roleta específica está na lista permitida
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
   if (!provider || !ALLOWED_PROVIDERS.includes(provider)) {
-    console.log(`🔍 DEBUG: Roleta rejeitada (sem provedor ou provedor não permitido) - "${rouletteName}" | Provedor: ${provider}`)
     return false
   }
   
@@ -98,15 +100,7 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   const allowedNames = ALLOWED_ROULETTES[provider] || []
   
   // Verificar se alguma das palavras-chave permitidas está no nome
-  const isAllowed = allowedNames.some(keyword => lowerName.includes(keyword))
-  
-  if (!isAllowed) {
-    console.log(`🔍 DEBUG: Roleta rejeitada (não está na lista) - "${rouletteName}" | Provedor: ${provider} | Lower: "${lowerName}"`)
-  } else {
-    console.log(`✅ DEBUG: Roleta ACEITA - "${rouletteName}" | Provedor: ${provider}`)
-  }
-  
-  return isAllowed
+  return allowedNames.some(keyword => lowerName.includes(keyword))
 }
 
 // Verificar se o provedor está na lista permitida
@@ -144,6 +138,7 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     // Evolution Gaming
     'lightning': 'Evolution Gaming', // Lightning Roulette, XXXtreme Lightning, etc
     'speed auto': 'Evolution Gaming', // Speed Auto Roulette
+    'auto roulette': 'Evolution Gaming', // Auto Roulette (sem hífen)
     'relampago': 'Evolution Gaming', // Roleta Relampago
     'bac bo': 'Evolution Gaming',
     'en vivo': 'Evolution Gaming', // Ruleta en Vivo
@@ -153,10 +148,11 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'red door': 'Evolution Gaming', // Red Door Roulette
     'porta vermelha': 'Evolution Gaming', // Porta Vermelha
     
-    // Pragmatic Play
+    // Pragmatic Play - DEVE VIR ANTES para pegar brasileira
+    'roleta brasileira': 'Pragmatic Play', // Roleta Brasileira (exato)
     'mega roulette': 'Pragmatic Play', // Mega Roulette (Pragmatic, não Evolution!)
     'auto mega roulette': 'Pragmatic Play',
-    'brasileira': 'Pragmatic Play', // Roleta Brasileira
+    'brasileira': 'Pragmatic Play', // Roleta Brasileira (keyword)
     'auto-roulette': 'Pragmatic Play', // Auto-Roulette
     
     // Ezugi
