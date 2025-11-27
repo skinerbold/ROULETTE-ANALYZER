@@ -308,6 +308,8 @@ export default function Home() {
           .maybeSingle()
 
         if (error) {
+          console.error('Erro ao atualizar sessão:', error, 'Code:', error.code)
+          
           // Fallback: tentar sem as colunas novas
           if (error.message?.includes('chip_category') || error.message?.includes('selected_strategies') || error.message?.includes('green_red_attempts')) {
             console.warn('Colunas novas não existem. Execute a migração SQL.')
@@ -323,13 +325,16 @@ export default function Home() {
             if (result.data) {
               setSessionId(result.data.id)
               console.log('Sessão atualizada (sem novas colunas):', result.data.id, numbers.length, 'números')
+            } else if (result.error) {
+              console.warn('Sessão inválida, resetando ID:', targetSessionId)
+              setSessionId(null)
+              targetSessionId = null
             }
           } else {
-            console.error('Erro ao atualizar sessão:', error)
-            // Se o registro não existe mais, criar novo
-            if (error.code === 'PGRST116') {
-              targetSessionId = null // Força criação de nova sessão
-            }
+            // Erro genérico - resetar sessionId e criar nova sessão
+            console.warn('Sessão inválida, resetando ID:', targetSessionId)
+            setSessionId(null)
+            targetSessionId = null
           }
         } else if (data) {
           setSessionId(data.id)
