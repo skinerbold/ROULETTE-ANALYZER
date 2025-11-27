@@ -1350,12 +1350,12 @@ export default function Home() {
         <div className="flex-1 p-3 min-h-[calc(100vh-240px)] overflow-y-auto">
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
-              <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-2 justify-items-center w-full max-w-4xl">
+              <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-3 justify-items-center w-full max-w-4xl">
                 {numbersToAnalyze.map((number, index) => {
                   return (
                     <div
                       key={index}
-                      className={`relative group w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 text-base sm:text-lg md:text-xl flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                      className={`relative group w-9 h-9 sm:w-11 sm:h-11 md:w-13 md:h-13 text-base sm:text-lg md:text-xl flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                     >
                       {number}
                       <button
@@ -2471,18 +2471,18 @@ export default function Home() {
           <div className="flex-1 p-4 overflow-auto">
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
-                <div className="grid grid-cols-12 gap-1 sm:gap-1.5 md:gap-1.5 lg:gap-2 xl:gap-2.5 2xl:gap-3 justify-items-center">
+                <div className="grid grid-cols-12 gap-2 sm:gap-2 md:gap-2 lg:gap-2.5 xl:gap-3 2xl:gap-3 justify-items-center">
                   {numbersToAnalyze.map((number, index) => {
                     return (
                       <div
                         key={index}
                         className={`relative group 
-                          w-6 h-6 text-xs
-                          sm:w-7 sm:h-7 sm:text-xs
-                          md:w-8 md:h-8 md:text-sm
-                          lg:w-10 lg:h-10 lg:text-base
-                          xl:w-12 xl:h-12 xl:text-lg
-                          2xl:w-16 2xl:h-16 2xl:text-2xl
+                          w-5 h-5 text-[10px]
+                          sm:w-6 sm:h-6 sm:text-xs
+                          md:w-7 md:h-7 md:text-xs
+                          lg:w-9 lg:h-9 lg:text-sm
+                          xl:w-11 xl:h-11 xl:text-base
+                          2xl:w-14 2xl:h-14 2xl:text-xl
                           flex items-center justify-center rounded font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
                       >
                         {number}
