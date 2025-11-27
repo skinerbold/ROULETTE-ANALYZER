@@ -62,33 +62,41 @@ const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 // 🎯 LISTA DE ROLETAS PERMITIDAS (ESPECÍFICAS)
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
-    'mega fire blaze', // Mega Fire Blaze
+    'mega fire blaze', // Mega Fire Blaze (EXCETO deluxe, quantum, bet365)
     'mega fire blaze espanha', // Mega Fire Blaze Espanha
-    'mega fire blaze roulette' // Mega Fire Blaze Roulette Live
+    'roleta brasileira' // Roleta Brasileira Playtech (NÃO bet365)
   ],
   'Evolution Gaming': [
     'lightning roulette', // Lightning Roulette
     'xxxtreme lightning roulette', // XXXtreme Lightning Roulette
-    'immersive roulette', // Immersive Roulette (inclui deluxe)
+    'immersive roulette', // Immersive Roulette (SEM deluxe)
     'auto roulette vip', // Auto Roulette VIP
     'auto-roulette vip', // Auto-Roulette VIP (com hífen)
-    'auto roulette', // Auto Roulette (Evolution)
     'red door', // Red Door / Porta Vermelha
     'porta vermelha', // Red Door / Porta Vermelha (nome em PT)
     'auto lightning roulette', // Auto Lightning Roulette
-    'speed auto roulette' // Speed Auto Roulette
+    'speed auto roulette' // Speed Auto Roulette Evolution
   ],
   'Pragmatic Play': [
     'mega roulette', // Mega Roulette
     'auto mega roulette', // Auto Mega Roulette
     'mega roulette brasil', // Mega Roulette Brasil
     'roleta brasileira pragmatic', // Roleta Brasileira Pragmatic
-    'roleta brasileira', // Roleta Brasileira (genérico Pragmatic)
     'vip auto roulette', // VIP Auto Roulette
     'pragmatic-speed-auto-roulette', // Speed Auto Roulette Pragmatic
-    'auto-roulette' // Auto-Roulette Pragmatic
+    'auto-roulette' // Auto-Roulette Pragmatic (com hífen)
   ]
 }
+
+// 🚫 LISTA DE ROLETAS EXPLICITAMENTE BLOQUEADAS
+const BLOCKED_ROULETTES = [
+  'immersive deluxe', // ❌ Immersive Deluxe
+  'immersive roulette deluxe', // ❌ Immersive Roulette Deluxe
+  'quantum', // ❌ Quantum (todas variações)
+  'bet365', // ❌ Bet365 (todas variações)
+  'brasileira bet365', // ❌ Brasileira Bet365
+  'roleta brasileira bet365' // ❌ Roleta Brasileira Bet365
+]
 
 // Verificar se a roleta específica está na lista permitida
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
@@ -97,6 +105,12 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   }
   
   const lowerName = rouletteName.toLowerCase()
+  
+  // 🚫 PRIMEIRO: Verificar se está na lista de bloqueadas
+  if (BLOCKED_ROULETTES.some(blocked => lowerName.includes(blocked))) {
+    return false
+  }
+  
   const allowedNames = ALLOWED_ROULETTES[provider] || []
   
   // Verificar se alguma das palavras-chave permitidas está no nome
@@ -175,7 +189,6 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'prestige': 'Evolution Gaming', // Prestige Roulette
     'super spin': 'NetEnt', // Super Spin Roulette
     'speed roulette': 'Evolution Gaming', // Speed Roulette
-    'auto roulette': 'Evolution Gaming', // Auto Roulette
     'power up': 'Pragmatic Play', // Power Up Roulette
     'roulette macao': 'Evolution Gaming', // Roulette Macao
     'arabic': 'Evolution Gaming', // Arabic Roulette
