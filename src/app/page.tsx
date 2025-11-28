@@ -1267,6 +1267,118 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Filtro de Categoria de Fichas - Mobile */}
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              📊 Categorias de Fichas
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                onClick={() => {
+                  setChipCategory('up-to-9')
+                  setShowCustomChipInput(false)
+                }}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'up-to-9' 
+                    ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                Até 9
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  setChipCategory('more-than-9')
+                  setShowCustomChipInput(false)
+                }}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'more-than-9' 
+                    ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                +9
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  setChipCategory('all')
+                  setShowCustomChipInput(false)
+                }}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'all' 
+                    ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                Todas
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  setShowCustomChipInput(!showCustomChipInput)
+                  if (!showCustomChipInput) {
+                    setChipCategory('custom')
+                  }
+                }}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'custom' 
+                    ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {chipCategory === 'custom' ? `1-${customChipLimit}` : 'Custom'}
+              </Button>
+            </div>
+            
+            {/* Input customizado - Mobile */}
+            {showCustomChipInput && (
+              <div className="space-y-2 pt-2">
+                <label className="text-[10px] text-gray-400 block">
+                  Número máximo de fichas por estratégia:
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={customChipLimit}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '')
+                      setCustomChipLimit(value)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && customChipLimit !== '' && customChipLimit !== '0') {
+                        setChipCategory('custom')
+                      }
+                    }}
+                    className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="Ex: 10"
+                  />
+                  <Button
+                    onClick={() => {
+                      if (customChipLimit !== '' && customChipLimit !== '0') {
+                        setChipCategory('custom')
+                      }
+                    }}
+                    disabled={customChipLimit === '' || customChipLimit === '0'}
+                    className="bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+                <p className="text-[10px] text-gray-500">
+                  {customChipLimit && customChipLimit !== '0' 
+                    ? `Mostrará estratégias de 1 até ${customChipLimit} fichas`
+                    : 'Digite um número para filtrar estratégias'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Botões de controle mobile */}
         <div className="bg-gray-800 border-b border-gray-700">
           {/* Linha de botões */}
@@ -1277,27 +1389,6 @@ export default function Home() {
             >
               <Menu className="w-4 h-4 flex-shrink-0" />
               <span className="text-sm font-medium">Estratégias</span>
-            </Button>
-            
-            <Button
-              onClick={() => {
-                // Ciclar entre as 3 categorias: até 9 → +9 → todas → até 9
-                const nextCategory = 
-                  chipCategory === 'up-to-9' ? 'more-than-9' :
-                  chipCategory === 'more-than-9' ? 'all' :
-                  'up-to-9'
-                setChipCategory(nextCategory)
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 h-auto min-h-[44px] ${
-                chipCategory === 'up-to-9' 
-                  ? 'bg-purple-600 hover:bg-purple-700' 
-                  : chipCategory === 'more-than-9'
-                  ? 'bg-orange-600 hover:bg-orange-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              <Layers className="w-4 h-4 flex-shrink-0" />
-              <span className="text-sm font-medium">{chipCategory === 'up-to-9' ? 'Até 9' : chipCategory === 'more-than-9' ? '+9' : 'Todas'}</span>
             </Button>
             
             <Button
