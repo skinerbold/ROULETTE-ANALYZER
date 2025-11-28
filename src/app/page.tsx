@@ -32,7 +32,7 @@ export default function Home() {
   
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
-  const [customChipLimit, setCustomChipLimit] = useState<number>(5) // Limite customizado de fichas
+  const [customChipLimit, setCustomChipLimit] = useState<string>('5') // Limite customizado de fichas
   const [showCustomChipInput, setShowCustomChipInput] = useState(false) // Mostrar input customizado
   const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
@@ -88,7 +88,8 @@ export default function Home() {
   const strategiesScrollRef = useRef<HTMLDivElement>(null)
   
   // Obter pastas e estratégias da categoria atual
-  const FOLDERS = getAllStrategies(chipCategory, customChipLimit)
+  const customLimitNumber = customChipLimit !== '' && customChipLimit !== '0' ? parseInt(customChipLimit) : undefined
+  const FOLDERS = getAllStrategies(chipCategory, customLimitNumber)
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
 
   // Números filtrados com base no limite de análise
@@ -2348,27 +2349,31 @@ export default function Home() {
                         value={customChipLimit}
                         onChange={(e) => {
                           const value = e.target.value.replace(/[^0-9]/g, '')
-                          if (value === '' || value === '0') {
-                            setCustomChipLimit(1)
-                          } else {
-                            setCustomChipLimit(parseInt(value))
-                          }
+                          setCustomChipLimit(value)
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
+                          if (e.key === 'Enter' && customChipLimit !== '' && customChipLimit !== '0') {
                             setChipCategory('custom')
                           }
                         }}
-                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         placeholder="Ex: 10"
                       />
                       <p className="text-[9px] text-gray-500 mt-1">
-                        Mostrará estratégias de 1 até {customChipLimit} fichas
+                        {customChipLimit && customChipLimit !== '0' 
+                          ? `Mostrará estratégias de 1 até ${customChipLimit} fichas`
+                          : 'Digite um número para filtrar estratégias'
+                        }
                       </p>
                     </div>
                     <Button
-                      onClick={() => setChipCategory('custom')}
-                      className="bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold self-end"
+                      onClick={() => {
+                        if (customChipLimit !== '' && customChipLimit !== '0') {
+                          setChipCategory('custom')
+                        }
+                      }}
+                      disabled={customChipLimit === '' || customChipLimit === '0'}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold self-end disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Aplicar
                     </Button>
