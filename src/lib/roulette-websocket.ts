@@ -63,7 +63,6 @@ const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
     'mega fire blaze roulette live', // ✅ Existe como "mega fire blaze roulette live"
-    'grand roulette', // ✅ Existe como "grand roulette"
     'roleta brasileira' // ✅ Existe como "roleta brasileira" (ambígua Playtech/Pragmatic)
   ],
   'Evolution Gaming': [
@@ -71,14 +70,18 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'xxxtreme lightning roulette', // ✅ Existe como "xxxtreme lightning roulette"
     'immersive roulette', // ✅ Existe como "immersive roulette" (SEM deluxe)
     'auto-roulette vip', // ✅ Existe como "auto-roulette vip" (COM hífen)
-    'speed auto roulette' // ✅ Existe como "speed auto roulette"
+    'auto roulette vip', // ✅ Existe como "auto roulette vip" (SEM hífen)
+    'vip roulette', // ✅ Existe como "vip roulette"
+    'speed auto roulette', // ✅ Existe como "speed auto roulette"
+    'auto roulette' // ✅ Existe como "auto roulette" (sem provedor identificado, mas é Evolution)
   ],
   'Pragmatic Play': [
     'mega roulette', // ✅ Existe como "mega roulette"
     'auto mega roulette', // ✅ Existe como "auto mega roulette"
     'roleta brasileira pragmatic', // ✅ Existe como "roleta brasileira pragmatic"
     'pragmatic-speed-auto-roulette', // ✅ Existe como "pragmatic-speed-auto-roulette"
-    'auto-roulette' // ✅ Existe como "auto-roulette" (COM hífen)
+    'auto-roulette', // ✅ Existe como "auto-roulette" (COM hífen)
+    'power up roulette' // ✅ Existe como "power up roulette"
   ]
 }
 
@@ -94,14 +97,25 @@ const BLOCKED_ROULETTES = [
 
 // Verificar se a roleta específica está na lista permitida
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
-  if (!provider || !ALLOWED_PROVIDERS.includes(provider)) {
-    return false
-  }
-  
   const lowerName = rouletteName.toLowerCase()
   
   // 🚫 PRIMEIRO: Verificar se está na lista de bloqueadas
   if (BLOCKED_ROULETTES.some(blocked => lowerName.includes(blocked))) {
+    return false
+  }
+  
+  // 🆕 ESPECIAL: Roletas sem provedor identificado mas que sabemos que são Evolution
+  const evolutionUnidentified = ['auto roulette']
+  if (!provider || provider === '') {
+    // Se não tem provedor, verificar se é uma das roletas Evolution sem identificação
+    if (evolutionUnidentified.some(keyword => lowerName === keyword)) {
+      return true // Auto Roulette sem provedor é permitida (é Evolution)
+    }
+    return false // Outras sem provedor não são permitidas
+  }
+  
+  // Verificar se o provedor está na lista permitida
+  if (!ALLOWED_PROVIDERS.includes(provider)) {
     return false
   }
   
