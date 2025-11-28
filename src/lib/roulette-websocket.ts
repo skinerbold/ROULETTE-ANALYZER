@@ -64,6 +64,9 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
     'mega fire blaze', // Mega Fire Blaze (EXCETO deluxe, quantum, bet365)
     'mega fire blaze espanha', // Mega Fire Blaze Espanha
+    'mega fire blaze spain', // Mega Fire Blaze Spain (inglês)
+    'fire blaze espanha', // Fire Blaze Espanha (variação)
+    'roleta brasileira playtech', // Roleta Brasileira Playtech (específico)
     'roleta brasileira' // Roleta Brasileira Playtech (NÃO bet365)
   ],
   'Evolution Gaming': [
@@ -148,6 +151,7 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'mega fire blaze': 'Playtech', // Mega Fire Blaze (Playtech)
     'grand roulette': 'Playtech',
     'age of the gods': 'Playtech',
+    'roleta brasileira playtech': 'Playtech', // Roleta Brasileira Playtech (específico)
     
     // Evolution Gaming
     'lightning': 'Evolution Gaming', // Lightning Roulette, XXXtreme Lightning, etc

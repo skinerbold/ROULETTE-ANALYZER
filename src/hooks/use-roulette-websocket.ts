@@ -114,8 +114,24 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               return
             }
             
-            if (!isAllowedRoulette(rouletteName, newRouletteInfo.provider)) {
-              console.log(`   🚫 Roleta não está na lista permitida: ${rouletteName} (${newRouletteInfo.provider})`)
+            // 🎯 SPECIAL: Tentar múltiplos provedores para "roleta brasileira" ambígua
+            let isAllowed = isAllowedRoulette(rouletteName, newRouletteInfo.provider)
+            
+            if (!isAllowed && rouletteName.toLowerCase().includes('brasileira')) {
+              // Tentar Playtech se não foi aceito no provedor detectado
+              isAllowed = isAllowedRoulette(rouletteName, 'Playtech')
+              if (isAllowed) {
+                newRouletteInfo.provider = 'Playtech' // Corrigir provedor
+              }
+            }
+            
+            if (!isAllowed) {
+              // 🔍 DEBUG TEMPORÁRIO: Mostrar Playtech especificamente
+              if (newRouletteInfo.provider === 'Playtech') {
+                console.log(`   🔍 PLAYTECH REJEITADA: "${rouletteName}" | Lower: "${rouletteName.toLowerCase()}"`)
+              } else {
+                console.log(`   🚫 Roleta não está na lista permitida: ${rouletteName} (${newRouletteInfo.provider})`)
+              }
               return
             }
             
