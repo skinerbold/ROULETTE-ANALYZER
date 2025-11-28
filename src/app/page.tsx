@@ -32,6 +32,8 @@ export default function Home() {
   
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
+  const [customChipLimit, setCustomChipLimit] = useState<number>(5) // Limite customizado de fichas
+  const [showCustomChipInput, setShowCustomChipInput] = useState(false) // Mostrar input customizado
   const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
   
@@ -86,7 +88,7 @@ export default function Home() {
   const strategiesScrollRef = useRef<HTMLDivElement>(null)
   
   // Obter pastas e estratégias da categoria atual
-  const FOLDERS = getAllStrategies(chipCategory)
+  const FOLDERS = getAllStrategies(chipCategory, customChipLimit)
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
 
   // Números filtrados com base no limite de análise
@@ -274,7 +276,7 @@ export default function Home() {
       const sessionData: UserSession = {
         user_id: user.id,
         numbers: numbers,
-        chip_category: chipCategory,
+        chip_category: chipCategory === 'custom' ? 'all' : chipCategory, // Salvar 'all' quando custom
         selected_strategies: selectedStrategies,
         green_red_attempts: greenRedAttempts,
         updated_at: new Date().toISOString()
@@ -2272,9 +2274,12 @@ export default function Home() {
                   📊 Categorias de Fichas
                 </label>
               </div>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-4 gap-1">
               <Button
-                onClick={() => setChipCategory('up-to-9')}
+                onClick={() => {
+                  setChipCategory('up-to-9')
+                  setShowCustomChipInput(false)
+                }}
                 className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'up-to-9' 
                     ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-400' 
@@ -2285,7 +2290,10 @@ export default function Home() {
               </Button>
               
               <Button
-                onClick={() => setChipCategory('more-than-9')}
+                onClick={() => {
+                  setChipCategory('more-than-9')
+                  setShowCustomChipInput(false)
+                }}
                 className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'more-than-9' 
                     ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
@@ -2296,7 +2304,10 @@ export default function Home() {
               </Button>
               
               <Button
-                onClick={() => setChipCategory('all')}
+                onClick={() => {
+                  setChipCategory('all')
+                  setShowCustomChipInput(false)
+                }}
                 className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
                   chipCategory === 'all' 
                     ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-400' 
@@ -2305,7 +2316,47 @@ export default function Home() {
               >
                 Todas
               </Button>
+              
+              <Button
+                onClick={() => {
+                  setShowCustomChipInput(!showCustomChipInput)
+                  if (!showCustomChipInput) {
+                    setChipCategory('custom')
+                  }
+                }}
+                className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
+                  chipCategory === 'custom' 
+                    ? 'bg-green-600 hover:bg-green-700 ring-2 ring-green-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {chipCategory === 'custom' ? `1-${customChipLimit}` : 'Custom'}
+              </Button>
               </div>
+              
+              {/* Input customizado */}
+              {showCustomChipInput && (
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="36"
+                    value={customChipLimit}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 1
+                      setCustomChipLimit(Math.min(Math.max(value, 1), 36))
+                    }}
+                    className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Nº de fichas"
+                  />
+                  <Button
+                    onClick={() => setChipCategory('custom')}
+                    className="bg-green-600 hover:bg-green-700 px-3 py-1 text-[10px] font-semibold"
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Botão "Selecionar Todas" */}

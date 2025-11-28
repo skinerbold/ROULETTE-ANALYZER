@@ -16,7 +16,7 @@ export interface StrategyFolder {
   strategies: Strategy[] 
 }
 
-export type ChipCategory = 'up-to-9' | 'more-than-9' | 'all'
+export type ChipCategory = 'up-to-9' | 'more-than-9' | 'all' | 'custom'
 
 // ========================================
 // ESTRATÉGIAS ATÉ 9 FICHAS - 226 ESTRATÉGIAS
@@ -540,11 +540,21 @@ const strategiesMoreThan9: StrategyFolder[] = [
 // FUNÇÕES AUXILIARES E EXPORTAÇÕES
 // ========================================
 
-export function getAllStrategies(category: ChipCategory): StrategyFolder[] {
+export function getAllStrategies(category: ChipCategory, customLimit?: number): StrategyFolder[] {
   if (category === 'all') {
     // Combinar todas as estratégias (até 9 + mais de 9)
     return [...strategiesUpTo9, ...strategiesMoreThan9]
   }
+  
+  if (category === 'custom' && customLimit) {
+    // Filtrar estratégias de 1 até customLimit fichas
+    const allFolders = [...strategiesUpTo9, ...strategiesMoreThan9]
+    return allFolders.map(folder => ({
+      ...folder,
+      strategies: folder.strategies.filter(strategy => strategy.numbers.length <= customLimit)
+    })).filter(folder => folder.strategies.length > 0) // Remover pastas vazias
+  }
+  
   return category === 'up-to-9' ? strategiesUpTo9 : strategiesMoreThan9
 }
 
