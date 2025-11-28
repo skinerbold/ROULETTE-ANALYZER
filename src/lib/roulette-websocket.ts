@@ -62,12 +62,9 @@ const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 // 🎯 LISTA DE ROLETAS PERMITIDAS (ESPECÍFICAS)
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
-    'mega fire blaze', // Mega Fire Blaze (EXCETO deluxe, quantum, bet365)
-    'mega fire blaze espanha', // Mega Fire Blaze Espanha
-    'mega fire blaze spain', // Mega Fire Blaze Spain (inglês)
-    'fire blaze espanha', // Fire Blaze Espanha (variação)
-    'roleta brasileira playtech', // Roleta Brasileira Playtech (específico)
-    'roleta brasileira' // Roleta Brasileira Playtech (NÃO bet365)
+    'mega fire blaze roulette live', // Mega Fire Blaze Roulette Live (nome EXATO da API)
+    'grand roulette', // Grand Roulette
+    'roleta brasileira' // Roleta Brasileira (pode ser Playtech, conflita com Pragmatic)
   ],
   'Evolution Gaming': [
     'lightning roulette', // Lightning Roulette
@@ -148,10 +145,10 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'xpg': 'XPG',
     
     // Playtech - DEVE VIR ANTES para não conflitar
-    'mega fire blaze': 'Playtech', // Mega Fire Blaze (Playtech)
+    'mega fire blaze roulette live': 'Playtech', // Mega Fire Blaze Roulette Live (exato)
+    'mega fire blaze': 'Playtech', // Mega Fire Blaze (genérico)
     'grand roulette': 'Playtech',
     'age of the gods': 'Playtech',
-    'roleta brasileira playtech': 'Playtech', // Roleta Brasileira Playtech (específico)
     
     // Evolution Gaming
     'lightning': 'Evolution Gaming', // Lightning Roulette, XXXtreme Lightning, etc
