@@ -847,10 +847,17 @@ export default function Home() {
         let foundGreen = false
         let greenIndex = -1
         let lastCheckIndex = i
+        let hasEnoughFutureNumbers = true
         
         for (let j = 1; j <= greenRedAttempts; j++) {
           const checkIndex = i + j
-          if (checkIndex >= reversedNumbers.length) break
+          
+          // 🔧 FIX CRÍTICO: Se não há números suficientes no futuro, NÃO marca como RED
+          // Deixa como ACTIVATION (amarelo) até que mais números cheguem
+          if (checkIndex >= reversedNumbers.length) {
+            hasEnoughFutureNumbers = false
+            break
+          }
           
           lastCheckIndex = checkIndex
           
@@ -873,12 +880,17 @@ export default function Home() {
           newColorCache[greenTimestamp] = 'GREEN'
           // 🔧 FIX: Continuar a partir do GREEN (não +1, pois GREEN pode gerar nova ACTIVATION)
           i = greenIndex
-        } else {
-          // RED: marca APENAS a última tentativa no cache (sobrescreve NEUTRAL)
+        } else if (hasEnoughFutureNumbers) {
+          // RED: marca APENAS se verificou todas as tentativas possíveis
+          // Se não há números suficientes, mantém ACTIVATION (amarelo)
           const redTimestamp = reversedNumbers[lastCheckIndex].timestamp
           newColorCache[redTimestamp] = 'RED'
           // 🔧 FIX: Continuar a partir da última tentativa verificada
           i = lastCheckIndex
+        } else {
+          // 🔧 NOVO: Se não há números futuros suficientes, mantém ACTIVATION
+          // e avança apenas 1 posição (não tenta marcar RED prematuramente)
+          i++
         }
       } else {
         // Não é número da estratégia, marca como NEUTRAL
