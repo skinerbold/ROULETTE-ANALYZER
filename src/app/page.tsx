@@ -851,6 +851,12 @@ export default function Home() {
           
           lastCheckIndex = checkIndex
           
+          // 🔧 FIX: Marcar números intermediários como NEUTRAL para evitar reprocessamento
+          const intermediateTimestamp = reversedNumbers[checkIndex].timestamp
+          if (!newColorCache[intermediateTimestamp]) {
+            newColorCache[intermediateTimestamp] = 'NEUTRAL'
+          }
+          
           if (allNumbers.includes(reversedNumbers[checkIndex].number)) {
             foundGreen = true
             greenIndex = checkIndex
@@ -859,15 +865,17 @@ export default function Home() {
         }
         
         if (foundGreen) {
-          // GREEN: marca no cache
+          // GREEN: marca no cache (sobrescreve NEUTRAL)
           const greenTimestamp = reversedNumbers[greenIndex].timestamp
           newColorCache[greenTimestamp] = 'GREEN'
-          i = greenIndex + 1
+          // 🔧 FIX: Continuar a partir do GREEN (não +1, pois GREEN pode gerar nova ACTIVATION)
+          i = greenIndex
         } else {
-          // RED: marca última tentativa no cache
+          // RED: marca APENAS a última tentativa no cache (sobrescreve NEUTRAL)
           const redTimestamp = reversedNumbers[lastCheckIndex].timestamp
           newColorCache[redTimestamp] = 'RED'
-          i = lastCheckIndex + 1
+          // 🔧 FIX: Continuar a partir da última tentativa verificada
+          i = lastCheckIndex
         }
       } else {
         // Não é número da estratégia, marca como NEUTRAL
