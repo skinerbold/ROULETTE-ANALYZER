@@ -59,32 +59,26 @@ export function formatRouletteNumber(number: number): string {
 // Provedores permitidos (filtro)
 const ALLOWED_PROVIDERS = ['Evolution Gaming', 'Playtech', 'Pragmatic Play']
 
-// 🎯 LISTA DE ROLETAS PERMITIDAS (ESPECÍFICAS)
+// 🎯 LISTA DE ROLETAS PERMITIDAS (baseada em dados REAIS da API)
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
-    'mega fire blaze roulette live', // Mega Fire Blaze Roulette Live (nome EXATO da API)
-    'grand roulette', // Grand Roulette
-    'roleta brasileira' // Roleta Brasileira (pode ser Playtech, conflita com Pragmatic)
+    'mega fire blaze roulette live', // ✅ Existe como "mega fire blaze roulette live"
+    'grand roulette', // ✅ Existe como "grand roulette"
+    'roleta brasileira' // ✅ Existe como "roleta brasileira" (ambígua Playtech/Pragmatic)
   ],
   'Evolution Gaming': [
-    'lightning roulette', // Lightning Roulette
-    'xxxtreme lightning roulette', // XXXtreme Lightning Roulette
-    'immersive roulette', // Immersive Roulette (SEM deluxe)
-    'auto roulette vip', // Auto Roulette VIP
-    'auto-roulette vip', // Auto-Roulette VIP (com hífen)
-    'red door', // Red Door / Porta Vermelha
-    'porta vermelha', // Red Door / Porta Vermelha (nome em PT)
-    'auto lightning roulette', // Auto Lightning Roulette
-    'speed auto roulette' // Speed Auto Roulette Evolution
+    'lightning roulette', // ✅ Existe como "lightning roulette"
+    'xxxtreme lightning roulette', // ✅ Existe como "xxxtreme lightning roulette"
+    'immersive roulette', // ✅ Existe como "immersive roulette" (SEM deluxe)
+    'auto-roulette vip', // ✅ Existe como "auto-roulette vip" (COM hífen)
+    'speed auto roulette' // ✅ Existe como "speed auto roulette"
   ],
   'Pragmatic Play': [
-    'mega roulette', // Mega Roulette
-    'auto mega roulette', // Auto Mega Roulette
-    'mega roulette brasil', // Mega Roulette Brasil
-    'roleta brasileira pragmatic', // Roleta Brasileira Pragmatic
-    'vip auto roulette', // VIP Auto Roulette
-    'pragmatic-speed-auto-roulette', // Speed Auto Roulette Pragmatic
-    'auto-roulette' // Auto-Roulette Pragmatic (com hífen)
+    'mega roulette', // ✅ Existe como "mega roulette"
+    'auto mega roulette', // ✅ Existe como "auto mega roulette"
+    'roleta brasileira pragmatic', // ✅ Existe como "roleta brasileira pragmatic"
+    'pragmatic-speed-auto-roulette', // ✅ Existe como "pragmatic-speed-auto-roulette"
+    'auto-roulette' // ✅ Existe como "auto-roulette" (COM hífen)
   ]
 }
 
