@@ -2336,25 +2336,43 @@ export default function Home() {
               
               {/* Input customizado */}
               {showCustomChipInput && (
-                <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="36"
-                    value={customChipLimit}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 1
-                      setCustomChipLimit(Math.min(Math.max(value, 1), 36))
-                    }}
-                    className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Nº de fichas"
-                  />
-                  <Button
-                    onClick={() => setChipCategory('custom')}
-                    className="bg-green-600 hover:bg-green-700 px-3 py-1 text-[10px] font-semibold"
-                  >
-                    Aplicar
-                  </Button>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="text-[9px] text-gray-400 mb-1 block">
+                        Número máximo de fichas por estratégia:
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={customChipLimit}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9]/g, '')
+                          if (value === '' || value === '0') {
+                            setCustomChipLimit(1)
+                          } else {
+                            setCustomChipLimit(parseInt(value))
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            setChipCategory('custom')
+                          }
+                        }}
+                        className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        placeholder="Ex: 10"
+                      />
+                      <p className="text-[9px] text-gray-500 mt-1">
+                        Mostrará estratégias de 1 até {customChipLimit} fichas
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => setChipCategory('custom')}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 text-xs font-semibold self-end"
+                    >
+                      Aplicar
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
