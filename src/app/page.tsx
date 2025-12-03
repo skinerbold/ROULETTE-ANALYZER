@@ -800,6 +800,11 @@ export default function Home() {
     // Obter números da estratégia
     const { getStrategyNumbers } = require('@/lib/strategies')
     const strategyNumbers = getStrategyNumbers(lastSelectedId, numbersToAnalyze)
+    
+    console.log('\n🎯 DEBUG updateNumberStatuses:')
+    console.log('   Estratégia:', strategy.name, '- Números:', strategyNumbers)
+    console.log('   numbersToAnalyze (primeiros 10):', numbersToAnalyze.slice(0, 10))
+    console.log('   recentNumbers (primeiros 10):', recentNumbers.slice(0, 10).map(n => n.number))
 
     // Pegar números com timestamp
     const recentWithTimestamp = recentNumbers.slice(0, numbersToAnalyze.length)
@@ -871,11 +876,24 @@ export default function Home() {
       }
     }
     
+    console.log('   📊 Status calculados (primeiros 10):')
+    statuses.slice(0, 10).forEach((s, i) => {
+      if (s.status !== 'NEUTRAL') {
+        console.log(`      [${i}] Número ${s.number} → ${s.status}`)
+      }
+    })
+    
     setNumberStatuses(statuses)
   }
 
   const getNumberColor = (number: number, index: number) => {
     const status = numberStatuses[index]?.status || 'NEUTRAL'
+    const statusNumber = numberStatuses[index]?.number
+    
+    // DEBUG: Verificar se há dessincronização
+    if (statusNumber !== number && status !== 'NEUTRAL') {
+      console.warn(`⚠️ DESSINCRONIZAÇÃO: Esperava número ${number} no índice ${index}, mas encontrou ${statusNumber} com status ${status}`)
+    }
     
     switch (status) {
       case 'ACTIVATION':
