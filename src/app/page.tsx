@@ -792,91 +792,77 @@ export default function Home() {
     const lastSelectedId = selectedStrategies[selectedStrategies.length - 1]
     const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
     if (!strategy) {
-      // Se não encontrou a estratégia, deixa tudo neutro
       const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
       return
     }
 
-    // Import getStrategyNumbers para suportar estratégias dinâmicas
+    // Obter números da estratégia
     const { getStrategyNumbers } = require('@/lib/strategies')
     const strategyNumbers = getStrategyNumbers(lastSelectedId, numbersToAnalyze)
 
-    // 🔧 CORREÇÃO TOTAL: Recalcular TODAS as cores do zero (sem cache)
-    // O cache causava cores "fantasmas" de estratégias anteriores
-    
-    // Pegar timestamps dos números recentes
+    // Pegar números com timestamp
     const recentWithTimestamp = recentNumbers.slice(0, numbersToAnalyze.length)
     
-    // Array de status - inicializa tudo como NEUTRAL
+    // Array de status - inicializa TUDO como NEUTRAL
     const statuses: NumberStatus[] = recentWithTimestamp.map(entry => ({
       number: entry.number,
       status: 'NEUTRAL' as const
     }))
     
-    // 🔧 LÓGICA CORRIGIDA:
-    // - O array recentWithTimestamp está do MAIS RECENTE para o MAIS ANTIGO (índice 0 = mais recente)
-    // - Precisamos processar do MAIS ANTIGO para o MAIS RECENTE para determinar GREEN/RED corretamente
-    // - Índice alto = mais antigo, índice baixo = mais recente
+    // ========================================
+    // LÓGICA DE CORES - EXPLICAÇÃO:
+    // ========================================
+    // Array: [índice 0 = mais recente, ..., índice N = mais antigo]
+    // 
+    // Estratégia funciona assim: Se saiu número da estratégia (ATIVAÇÃO),
+    // apostamos que um dos próximos N números também será da estratégia.
+    // 
+    // Processamento: Do MAIS ANTIGO para o MAIS RECENTE
+    // - Quando encontra número da estratégia → marca ACTIVATION
+    // - Olha os próximos números (mais recentes) dentro de greenRedAttempts
+    // - Se encontrar número da estratégia → GREEN (acerto)
+    // - Se não encontrar em nenhum → RED (erro na última tentativa)
+    // - Se não tem números suficientes ainda → mantém apenas ACTIVATION
+    // ========================================
     
-    // Processar do mais antigo (final do array) para o mais recente (início)
-    let i = recentWithTimestamp.length - 1
-    
-    while (i >= 0) {
+    // Processar do mais antigo (índice maior) para o mais recente (índice menor)
+    for (let i = recentWithTimestamp.length - 1; i >= 0; i--) {
       const currentNum = recentWithTimestamp[i].number
       
-      // Verifica se o número atual pertence à estratégia (ATIVAÇÃO)
-      if (strategyNumbers.includes(currentNum)) {
-        // Marca como ACTIVATION (amarelo)
-        statuses[i].status = 'ACTIVATION'
+      // Pula se não for número da estratégia
+      if (!strategyNumbers.includes(currentNum)) {
+        continue
+      }
+      
+      // É número da estratégia - marca como ACTIVATION
+      statuses[i].status = 'ACTIVATION'
+      
+      // Procurar GREEN/RED nos próximos números (índices menores = mais recentes)
+      let foundGreen = false
+      
+      for (let j = 1; j <= greenRedAttempts; j++) {
+        const checkIndex = i - j
         
-        // Procura por GREEN nas próximas posições (números mais recentes = índices menores)
-        let foundGreen = false
-        let greenIndex = -1
-        let lastCheckIndex = i
-        let hasEnoughFutureNumbers = true
-        
-        for (let j = 1; j <= greenRedAttempts; j++) {
-          const checkIndex = i - j // Índices menores = números mais recentes (próximos no tempo)
-          
-          // Se não há números suficientes no futuro, não marca como RED ainda
-          if (checkIndex < 0) {
-            hasEnoughFutureNumbers = false
-            break
-          }
-          
-          lastCheckIndex = checkIndex
-          
-          // Verifica se o número nessa posição pertence à estratégia
-          const checkNum = recentWithTimestamp[checkIndex].number
-          if (strategyNumbers.includes(checkNum)) {
-            foundGreen = true
-            greenIndex = checkIndex
-            break
-          }
+        // Não há números suficientes no futuro - para por aqui
+        if (checkIndex < 0) {
+          break
         }
         
-        if (foundGreen) {
-          // GREEN: Marca o número que PERTENCE à estratégia como GREEN
-          statuses[greenIndex].status = 'GREEN'
-          // Continua a partir do GREEN (ele pode ser uma nova ACTIVATION também)
-          i = greenIndex
-        } else if (hasEnoughFutureNumbers) {
-          // RED: Verificou todas as tentativas e NÃO achou número da estratégia
-          // Marca a ÚLTIMA posição verificada como RED (para indicar que a sequência falhou)
-          // Mas APENAS se esse número NÃO pertence à estratégia (senão seria ACTIVATION)
-          if (!strategyNumbers.includes(recentWithTimestamp[lastCheckIndex].number)) {
-            statuses[lastCheckIndex].status = 'RED'
-          }
-          // Continua a partir da última posição verificada
-          i = lastCheckIndex
-        } else {
-          // Não há números futuros suficientes, mantém ACTIVATION e avança
-          i--
+        const checkNum = recentWithTimestamp[checkIndex].number
+        
+        // Verifica se este número pertence à estratégia
+        if (strategyNumbers.includes(checkNum)) {
+          // ACERTO! Marca este número como GREEN
+          statuses[checkIndex].status = 'GREEN'
+          foundGreen = true
+          break // Para de procurar, encontrou GREEN
         }
-      } else {
-        // Número NÃO pertence à estratégia, permanece NEUTRAL
-        i--
+        
+        // Se é a última tentativa e não encontrou GREEN, marca RED
+        if (j === greenRedAttempts && !foundGreen) {
+          statuses[checkIndex].status = 'RED'
+        }
       }
     }
     
