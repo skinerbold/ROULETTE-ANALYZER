@@ -834,69 +834,69 @@ export default function Home() {
     // Array currentNumbers: [índice 0 = mais recente, ..., índice N = mais antigo]
     // 
     // REGRAS CORRETAS:
-    // 1. ACTIVATION: Marca número da estratégia que aparece
-    // 2. GREEN: Marca número da estratégia que aparece DENTRO das N casas após ACTIVATION
-    //    - NÃO pode ser um número que já foi marcado como ACTIVATION
-    //    - Só marca dentro da janela específica de cada ACTIVATION
-    // 3. RED: Marca APENAS na casa N (última) se:
-    //    - Todas as N casas foram verificadas
-    //    - Nenhuma das N casas é da estratégia
-    //    - A posição verificada é EXATAMENTE i - greenRedAttempts (casa N, não casa 1)
+    // 1. ACTIVATION: Número da estratégia que NÃO está dentro de uma janela de verificação
+    // 2. GREEN: Número da estratégia DENTRO das N casas após uma ACTIVATION
+    // 3. RED: APENAS na casa N (última) se não houve GREEN na janela
+    // 
+    // IMPORTANTE: Processar do mais antigo para o mais recente para garantir que
+    // janelas de ACTIVATIONS mais recentes tenham prioridade
     // ========================================
     
     // Inicializar todos como NEUTRAL
     const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = 
       new Array(currentNumbers.length).fill('NEUTRAL')
     
-    // Primeiro passo: Marcar todos os ACTIVATIONS
     // Processar do mais antigo (índice maior) para o mais recente (índice menor)
-    const activationIndices: number[] = []
     for (let i = currentNumbers.length - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
-      if (strategyNumbers.includes(num)) {
-        statusArray[i] = 'ACTIVATION'
-        activationIndices.push(i)
+      
+      // Se não é número da estratégia, pula
+      if (!strategyNumbers.includes(num)) {
+        continue
       }
-    }
-    
-    // Segundo passo: Para cada ACTIVATION, verificar a janela de N casas
-    for (const activationIndex of activationIndices) {
-      let foundGreenInWindow = false
-      let windowEnd = -1 // Última casa da janela (casa N)
+      
+      // Se já foi marcado (GREEN por uma ACTIVATION anterior), não sobrescrever
+      if (statusArray[i] !== 'NEUTRAL') {
+        continue
+      }
+      
+      // É número da estratégia e ainda está NEUTRAL → marca como ACTIVATION
+      statusArray[i] = 'ACTIVATION'
       
       // Verificar as próximas greenRedAttempts casas (índices menores = mais recentes)
+      let foundGreenInWindow = false
+      let windowEnd = -1
+      
       for (let j = 1; j <= greenRedAttempts; j++) {
-        const checkIndex = activationIndex - j
+        const checkIndex = i - j
         
         // Se não tem mais números à frente, para
         if (checkIndex < 0) {
           break
         }
         
-        // Se chegou na casa N (última), guardar o índice
+        // Marcar a última casa da janela
         if (j === greenRedAttempts) {
           windowEnd = checkIndex
         }
         
         const checkNum = currentNumbers[checkIndex].number
         
-        // REGRA CRÍTICA: Só marca GREEN se:
-        // 1. É número da estratégia
-        // 2. NÃO é uma ACTIVATION (não pode sobrescrever ACTIVATION com GREEN)
-        if (strategyNumbers.includes(checkNum) && statusArray[checkIndex] !== 'ACTIVATION') {
-          statusArray[checkIndex] = 'GREEN'
+        // Se encontrou número da estratégia na janela → GREEN
+        if (strategyNumbers.includes(checkNum)) {
+          // Só marca GREEN se ainda estiver NEUTRAL
+          if (statusArray[checkIndex] === 'NEUTRAL') {
+            statusArray[checkIndex] = 'GREEN'
+          }
           foundGreenInWindow = true
-          break // Encontrou GREEN, para de verificar esta janela
+          break
         }
       }
       
-      // REGRA CRÍTICA: RED só na casa N (última) se:
-      // 1. Verificou todas as N casas (windowEnd foi definido)
-      // 2. Não encontrou GREEN na janela
-      // 3. A posição da casa N NÃO é uma ACTIVATION
+      // Se não encontrou GREEN e verificou todas as casas → RED na casa N
       if (!foundGreenInWindow && windowEnd >= 0) {
-        // Só marca RED se não for uma ACTIVATION
-        if (statusArray[windowEnd] !== 'ACTIVATION' && statusArray[windowEnd] !== 'GREEN') {
+        // Só marca RED se a posição ainda estiver NEUTRAL
+        if (statusArray[windowEnd] === 'NEUTRAL') {
           statusArray[windowEnd] = 'RED'
         }
       }
