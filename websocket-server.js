@@ -334,6 +334,7 @@ async function processApiHistory(rawRouletteId, numbers) {
         return;
     }
 
+    // Primeiro: hidratar do banco de dados (fonte da verdade)
     await hydrateFromStore(rouletteId);
 
     const normalizedNumbers = numbers.map(n => {
@@ -342,102 +343,47 @@ async function processApiHistory(rawRouletteId, numbers) {
         return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(parsed, 37));
     });
 
+    if (normalizedNumbers.length === 0) {
+        return;
+    }
+
     const existing = inMemoryHistory.get(rouletteId) || [];
-    const existingValues = existing.map(entry => entry.value);
     const now = Date.now();
+    const latestIncoming = normalizedNumbers[0]; // Número mais recente da API
 
     // ============================================
-    // LÓGICA CORRIGIDA: Detectar apenas números NOVOS
+    // LÓGICA CORRIGIDA: Detectar APENAS o número mais recente
+    // A API sempre envia ~60 números, mas só nos interessa o primeiro (mais recente)
     // ============================================
     
-    // Se já temos dados no cache, verificar apenas o número mais recente
-    if (existing.length > 0) {
-        const latestIncoming = normalizedNumbers[0];
-        const latestExisting = existing[0]?.value;
-        
-        // Se o número mais recente é igual ao que já temos, não há novidade
-        if (latestIncoming === latestExisting) {
-            return; // Nada novo
-        }
-        
-        // Encontrar quantos números novos chegaram
-        // Procurar onde o número mais recente do cache aparece no incoming
-        let newCount = 0;
-        for (let i = 0; i < normalizedNumbers.length; i++) {
-            if (normalizedNumbers[i] === latestExisting) {
-                newCount = i;
-                break;
-            }
-            // Se não encontrou até o fim, assumir que é apenas 1 novo
-            if (i === normalizedNumbers.length - 1) {
-                newCount = 1;
-            }
-        }
-        
-        // Limitar a 10 novos por vez (proteção contra carga inicial duplicada)
-        newCount = Math.min(newCount, 10);
-        
-        if (newCount === 0) {
-            newCount = 1; // Pelo menos 1 novo
-        }
-        
-        // Criar entradas apenas para os novos números
-        const newEntries = [];
-        for (let i = 0; i < newCount; i++) {
-            const timestamp = now - i * 100; // Pequena diferença para ordem
-            newEntries.push({ value: normalizedNumbers[i], timestamp });
-        }
-        
-        // Atualizar cache em memória
-        const updatedHistory = [...newEntries, ...existing].slice(0, MAX_CACHE_LENGTH);
-        inMemoryHistory.set(rouletteId, updatedHistory);
-        rouletteMeta.set(rouletteId, { lastTimestamp: updatedHistory[0].timestamp });
-        
-        // PERSISTIR APENAS O NÚMERO MAIS RECENTE (1 por vez)
-        const latest = newEntries[0];
-        await persistSingleNumber(rouletteId, latest.value, latest.timestamp);
-        
-        // Broadcast para clientes
-        broadcastToSubscribers(rouletteId, {
-            type: 'result',
-            roulette: rouletteId,
-            number: latest.value,
-            timestamp: latest.timestamp
-        });
-        
-        console.log(`📊 ${rouletteId}: ${newCount} novo(s) número(s), último: ${latest.value}`);
+    // Verificar se já processamos este número
+    const latestExisting = existing[0]?.value;
+    
+    if (latestIncoming === latestExisting) {
+        // Número mais recente é igual ao que já temos - não há novidade
         return;
     }
     
-    // ============================================
-    // PRIMEIRO CARREGAMENTO (cache vazio)
-    // Carregar em memória mas NÃO persistir todo o histórico
-    // ============================================
+    // Se chegou aqui, temos um número NOVO
+    const newEntry = { value: latestIncoming, timestamp: now };
     
-    const newEntries = [];
-    for (let i = 0; i < normalizedNumbers.length; i += 1) {
-        const timestamp = now - i * 1000;
-        newEntries.push({ value: normalizedNumbers[i], timestamp });
-    }
+    // Atualizar cache em memória (adicionar no início)
+    const updatedHistory = [newEntry, ...existing].slice(0, MAX_CACHE_LENGTH);
+    inMemoryHistory.set(rouletteId, updatedHistory);
+    rouletteMeta.set(rouletteId, { lastTimestamp: now });
     
-    // Salvar em memória
-    inMemoryHistory.set(rouletteId, newEntries.slice(0, MAX_CACHE_LENGTH));
-    rouletteMeta.set(rouletteId, { lastTimestamp: newEntries[0]?.timestamp || now });
+    // PERSISTIR o número no banco de dados
+    await persistSingleNumber(rouletteId, latestIncoming, now);
     
-    // PERSISTIR APENAS O NÚMERO MAIS RECENTE (não todo o histórico!)
-    if (newEntries.length > 0) {
-        const latest = newEntries[0];
-        await persistSingleNumber(rouletteId, latest.value, latest.timestamp);
-        
-        broadcastToSubscribers(rouletteId, {
-            type: 'result',
-            roulette: rouletteId,
-            number: latest.value,
-            timestamp: latest.timestamp
-        });
-    }
+    // Broadcast para clientes inscritos
+    broadcastToSubscribers(rouletteId, {
+        type: 'result',
+        roulette: rouletteId,
+        number: latestIncoming,
+        timestamp: now
+    });
     
-    console.log(`🆕 ${rouletteId}: Primeiro carregamento - ${newEntries.length} números em memória, 1 persistido`);
+    console.log(`🎲 ${rouletteId}: Novo número ${latestIncoming} (total em memória: ${updatedHistory.length})`);
 }
 
 // ============================================
@@ -656,9 +602,10 @@ async function ensureHistoryLength(rouletteId, limit) {
         return;
     }
 
-    console.log(`📊 Cache tem ${current.length} números, mas precisa de ${limit}. Buscando mais...`);
+    console.log(`📊 Cache tem ${current.length} números, mas precisa de ${limit}. Buscando mais do Supabase...`);
 
-    // Primeiro: tentar buscar do Supabase (armazenamento persistente)
+    // APENAS buscar do Supabase (armazenamento persistente)
+    // NÃO usar API Fly.io - o histórico deve ser construído apenas com números individuais
     const missing = limit - current.length;
     const olderEntries = await fetchOlderFromStore(rouletteId, current.length, missing);
     
@@ -666,68 +613,10 @@ async function ensureHistoryLength(rouletteId, limit) {
         const merged = [...current, ...olderEntries].slice(0, MAX_CACHE_LENGTH);
         inMemoryHistory.set(rouletteId, merged);
         console.log(`💾 ${olderEntries.length} números carregados do Supabase. Total: ${merged.length}`);
+    } else {
+        console.log(`📊 Supabase não tem mais números para ${rouletteId}. Total disponível: ${current.length}`);
+        console.log(`   💡 O histórico será construído automaticamente conforme novos números chegam.`);
     }
-
-    // Segundo: se ainda não tiver o suficiente, buscar da API Fly.io
-    const afterSupabase = inMemoryHistory.get(rouletteId) || [];
-    if (afterSupabase.length < limit) {
-        console.log(`🚀 Buscando ${limit} números da API Fly.io para ${rouletteId}...`);
-        
-        try {
-            // Usar a API Fly.io para preencher histórico
-            const flyApiUrl = process.env.FLY_API_URL || 'https://roulette-history-api.fly.dev';
-            const apiNumbers = await fetchFromFlyApi(flyApiUrl, rouletteId, limit);
-            
-            if (apiNumbers && apiNumbers.length > 0) {
-                // Converter números da API para formato interno
-                const now = Date.now();
-                const entries = apiNumbers.map((num, index) => ({
-                    value: num,
-                    timestamp: now - (index * 1000)
-                }));
-                
-                inMemoryHistory.set(rouletteId, entries.slice(0, MAX_CACHE_LENGTH));
-                console.log(`✅ ${entries.length} números carregados da API Fly.io (apenas memória, sem persistir)`);
-                
-                // NÃO PERSISTIR dados históricos do Fly.io!
-                // O Supabase só deve receber números NOVOS em tempo real
-                // Os dados do Fly.io são apenas para consulta imediata
-            }
-        } catch (error) {
-            console.error(`❌ Erro ao buscar histórico da API Fly.io: ${error.message}`);
-        }
-    }
-}
-
-async function fetchFromFlyApi(baseUrl, rouletteId, limit) {
-    return new Promise((resolve, reject) => {
-        const url = `${baseUrl}/api/history/${encodeURIComponent(rouletteId)}?limit=${limit}`;
-        
-        https.get(url, (res) => {
-            let data = '';
-
-            res.on('data', (chunk) => {
-                data += chunk;
-            });
-
-            res.on('end', () => {
-                try {
-                    const json = JSON.parse(data);
-                    if (json.success && Array.isArray(json.numbers)) {
-                        resolve(json.numbers);
-                    } else {
-                        resolve([]);
-                    }
-                } catch (err) {
-                    console.error(`❌ Erro ao parsear resposta da API Fly.io: ${err.message}`);
-                    resolve([]);
-                }
-            });
-        }).on('error', (error) => {
-            console.error(`❌ Erro de conexão com API Fly.io: ${error.message}`);
-            reject(error);
-        });
-    });
 }
 
 // ============================================
