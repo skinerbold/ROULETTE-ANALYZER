@@ -18,7 +18,11 @@ import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
 interface NumberStatus {
   number: number
   status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
+  timestamp: number
 }
+
+// Map de timestamp -> status para busca rápida
+type StatusMap = Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>
 
 export default function Home() {
   const [user, setUser] = useState<any>(null)
@@ -68,6 +72,7 @@ export default function Home() {
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
+  const [statusMap, setStatusMap] = useState<StatusMap>(new Map())
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [isLoadingSession, setIsLoadingSession] = useState(true)
   
@@ -461,6 +466,7 @@ export default function Home() {
   const clearNumbers = () => {
     setNumbers([])
     setNumberStatuses([])
+    setStatusMap(new Map())
     initializeStrategies()
   }
 
@@ -877,23 +883,32 @@ export default function Home() {
     }
     
     console.log('   📊 Status calculados (primeiros 10):')
-    statuses.slice(0, 10).forEach((s, i) => {
-      if (s.status !== 'NEUTRAL') {
-        console.log(`      [${i}] Número ${s.number} → ${s.status}`)
+    const newStatusMap = new Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>()
+    
+    statuses.forEach((s, i) => {
+      // Usar timestamp do recentWithTimestamp como chave
+      const timestamp = recentWithTimestamp[i]?.timestamp
+      if (timestamp) {
+        newStatusMap.set(timestamp, s.status)
+        
+        if (s.status !== 'NEUTRAL' && i < 10) {
+          console.log(`      [${i}] Timestamp ${timestamp} - Número ${s.number} → ${s.status}`)
+        }
       }
     })
     
     setNumberStatuses(statuses)
+    setStatusMap(newStatusMap)
   }
 
   const getNumberColor = (number: number, index: number) => {
-    const status = numberStatuses[index]?.status || 'NEUTRAL'
-    const statusNumber = numberStatuses[index]?.number
-    
-    // DEBUG: Verificar se há dessincronização
-    if (statusNumber !== number && status !== 'NEUTRAL') {
-      console.warn(`⚠️ DESSINCRONIZAÇÃO: Esperava número ${number} no índice ${index}, mas encontrou ${statusNumber} com status ${status}`)
+    // Buscar o timestamp correspondente ao índice no recentNumbers
+    const entry = recentNumbers[index]
+    if (!entry) {
+      return 'bg-gray-700 text-gray-300' // NEUTRAL
     }
+    
+    const status = statusMap.get(entry.timestamp) || 'NEUTRAL'
     
     switch (status) {
       case 'ACTIVATION':
