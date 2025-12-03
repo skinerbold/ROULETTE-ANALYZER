@@ -1108,11 +1108,11 @@ export default function Home() {
                     <Badge variant="default" className="bg-green-600 gap-1">
                       ✓ {recentNumbers.length} números carregados
                     </Badge>
-                    {selectedRoulette && recentNumbers[0] && (
+                    {selectedRoulette && recentNumbers[recentNumbers.length - 1] && (
                       <>
                         <span className="text-gray-500">|</span>
                         <span className="text-gray-400">
-                          Último: <span className="text-white font-medium">{recentNumbers[0].number}</span>
+                          Último: <span className="text-white font-medium">{recentNumbers[recentNumbers.length - 1].number}</span>
                         </span>
                       </>
                     )}
