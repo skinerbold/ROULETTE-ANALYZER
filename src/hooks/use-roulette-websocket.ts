@@ -14,8 +14,7 @@ import {
 import { 
   initializeCache, 
   loadFromCache, 
-  saveToCache,
-  removeFromCache 
+  saveToCache 
 } from '@/lib/roulette-cache'
 import { 
   validateAndCorrectNumber, 
@@ -154,8 +153,6 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       // Pode vir como {"type":"history","roulette":"...","numbers":[...]}
       // OU como {"type":"history","data":[...]} (sem identificar roleta - usar selecionada)
       if (message.type === 'history') {
-        // 🔧 FIX: Usar entries com timestamps reais se disponíveis
-        const entries = message.entries || []
         const numbers = message.numbers || message.data || []
         const rouletteId = message.roulette || selectedRouletteRef.current || ''
         
@@ -164,13 +161,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
           return
         }
         
-        // Usar entries se disponíveis (contém timestamps reais), caso contrário usar numbers
-        const hasRealTimestamps = entries.length > 0
-        console.log(`📜 Histórico recebido para ${rouletteId}:`, 
-          hasRealTimestamps ? entries.length : numbers.length, 
-          'números',
-          hasRealTimestamps ? '(com timestamps reais)' : '(timestamps estimados)'
-        )
+        console.log(`📜 Histórico recebido para ${rouletteId}:`, numbers.length, 'números')
+        console.log(`   Primeiros 10: [${numbers.slice(0, 10).join(', ')}]`)
         
         // Converter e validar cada número
         const now = Date.now()
@@ -178,51 +170,31 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         let validCount = 0
         let invalidCount = 0
         
-        if (hasRealTimestamps) {
-          // 🎯 USAR TIMESTAMPS REAIS
-          console.log(`   Primeiros 10: [${entries.slice(0, 10).map((e: {number: number, timestamp: number}) => e.number).join(', ')}]`)
+        numbers.forEach((num: number, index: number) => {
+          const estimatedTimestamp = now - (index * 60000) // Estimativa de 1 min entre spins
           
-          entries.forEach((entry: {number: number, timestamp: number}, index: number) => {
-            const validationResult = validateAndCorrectNumber(
-              entry.number,
-              null,
-              entry.timestamp, // Timestamp REAL do servidor
-              history
-            )
-            
-            if (!validationResult.valid) {
-              invalidCount++
-            } else {
-              validCount++
-            }
-            
-            // Usar o timestamp real
-            validationResult.corrected.timestamp = entry.timestamp
-            history.push(validationResult.corrected)
-          })
-        } else {
-          // Fallback: usar números simples com timestamps estimados
-          console.log(`   Primeiros 10: [${numbers.slice(0, 10).join(', ')}]`)
+          const validationResult = validateAndCorrectNumber(
+            num,
+            null, // Histórico geralmente não tem cor
+            estimatedTimestamp,
+            history // Passar histórico já processado para detectar duplicatas
+          )
           
-          numbers.forEach((num: number, index: number) => {
-            const estimatedTimestamp = now - (index * 60000) // Estimativa de 1 min entre spins
-            
-            const validationResult = validateAndCorrectNumber(
+          if (!validationResult.valid) {
+            invalidCount++
+            logValidationError(
+              rouletteId,
               num,
-              null,
+              'N/A',
               estimatedTimestamp,
-              history
+              validationResult.errors
             )
-            
-            if (!validationResult.valid) {
-              invalidCount++
-            } else {
-              validCount++
-            }
-            
-            history.push(validationResult.corrected)
-          })
-        }
+          } else {
+            validCount++
+          }
+          
+          history.push(validationResult.corrected)
+        })
         
         console.log(`   ✅ Validação: ${validCount} válidos, ${invalidCount} inválidos`)
         
@@ -788,17 +760,12 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     }
     
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log(`📤 [REQUEST HISTORY] Solicitando histórico atualizado para ${rouletteId} (limite: ${limit})`)
-      
-      // 🔧 FIX: Limpar cache local e memória para forçar dados frescos do servidor
-      console.log(`   🗑️ Limpando cache local de ${rouletteId}...`)
-      removeFromCache(rouletteId)
-      rouletteHistoryRef.current.delete(rouletteId)
-      
-      // Enviar solicitação para o servidor
+      console.log(`📤 [REQUEST HISTORY] Solicitando mais histórico para ${rouletteId} (limite: ${limit})`)
+      // Tentar múltiplos formatos de solicitação
       wsRef.current.send(JSON.stringify({ type: 'subscribe', roulette: rouletteId, limit }))
       wsRef.current.send(JSON.stringify({ type: 'get_history', roulette: rouletteId, limit }))
-      console.log(`   ✅ Solicitações enviadas (cache limpo, aguardando dados do servidor)`)
+      wsRef.current.send(JSON.stringify({ type: 'history', roulette: rouletteId }))
+      console.log(`   ✅ 3 solicitações enviadas com limite ${limit}`)
     } else {
       console.warn('⚠️ requestHistory: WebSocket não está conectado')
     }

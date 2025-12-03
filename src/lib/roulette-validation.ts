@@ -164,24 +164,15 @@ export function validateColor(
 
 /**
  * Detecta duplicata imediata (mesmo número consecutivo)
+ * 🔧 FIX: Números duplicados consecutivos SÃO VÁLIDOS na roleta!
+ * O mesmo número pode sair várias vezes seguidas
  */
 export function validateDuplicate(
   number: number,
   previousNumbers: RouletteNumber[]
 ): ValidationResult {
-  if (!previousNumbers || previousNumbers.length === 0) {
-    return { valid: true, errors: [] }
-  }
-
-  const lastNumber = previousNumbers[0]?.number
-
-  if (lastNumber === number) {
-    return {
-      valid: false,
-      errors: [`Duplicata imediata detectada: ${number}`]
-    }
-  }
-
+  // 🔧 FIX: Sempre retornar válido - duplicatas consecutivas são permitidas
+  // Na roleta real, o mesmo número pode sair múltiplas vezes seguidas
   return { valid: true, errors: [] }
 }
 
@@ -317,6 +308,7 @@ export function validateNumberArray(
       entry.timestamp,
       { ...options, previousNumbers }
     )
+  
 
     if (validation.valid) {
       validCount++
