@@ -1479,7 +1479,7 @@ export default function Home() {
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
-                {numbersToAnalyze.map((number, index) => {
+                {[...numbersToAnalyze].reverse().map((number, index) => {
                   return (
                     <div
                       key={index}
@@ -2671,7 +2671,7 @@ export default function Home() {
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
-                  {numbersToAnalyze.map((number, index) => {
+                  {[...numbersToAnalyze].reverse().map((number, index) => {
                     return (
                       <div
                         key={index}
