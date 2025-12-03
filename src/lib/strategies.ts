@@ -1,8 +1,8 @@
 ﻿// ========================================
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
-// 13 Pastas (226 estratégias) - ATÉ 9 FICHAS
+// 17 Pastas (292 estratégias) - ATÉ 9 FICHAS
 // 7 Pastas (146 estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 20 PASTAS, 372 ESTRATÉGIAS
+// TOTAL: 24 PASTAS, 438 ESTRATÉGIAS
 // ========================================
 
 export interface Strategy { 
@@ -333,6 +333,95 @@ const strategiesUpTo9: StrategyFolder[] = [
       { id: 363, name: "Vermelhos setor verde", numbers: [32,3,12,7,18,9,14,1] },
       { id: 364, name: "Pretos setor amarelo", numbers: [20,33,24,10,8,11,13] },
       { id: 365, name: "Vermelhos setor amarelo", numbers: [14,1,16,5,23,30,36,27] }
+    ]
+  },
+  {
+    name: "Ruas Unidas - Mesma Dúzia",
+    strategies: [
+      // Dúzia 1 - Ruas dentro da mesma dúzia
+      { id: 370, name: "R1e2D1", numbers: [1,2,3,4,5,6] },
+      { id: 371, name: "R1e3D1", numbers: [1,2,3,7,8,9] },
+      { id: 372, name: "R1e4D1", numbers: [1,2,3,10,11,12] },
+      { id: 373, name: "R2e3D1", numbers: [4,5,6,7,8,9] },
+      { id: 374, name: "R2e4D1", numbers: [4,5,6,10,11,12] },
+      { id: 375, name: "R3e4D1", numbers: [7,8,9,10,11,12] },
+      // Dúzia 2 - Ruas dentro da mesma dúzia
+      { id: 376, name: "R1e2D2", numbers: [13,14,15,16,17,18] },
+      { id: 377, name: "R1e3D2", numbers: [13,14,15,19,20,21] },
+      { id: 378, name: "R1e4D2", numbers: [13,14,15,22,23,24] },
+      { id: 379, name: "R2e3D2", numbers: [16,17,18,19,20,21] },
+      { id: 380, name: "R2e4D2", numbers: [16,17,18,22,23,24] },
+      { id: 381, name: "R3e4D2", numbers: [19,20,21,22,23,24] },
+      // Dúzia 3 - Ruas dentro da mesma dúzia
+      { id: 382, name: "R1e2D3", numbers: [25,26,27,28,29,30] },
+      { id: 383, name: "R1e3D3", numbers: [25,26,27,31,32,33] },
+      { id: 384, name: "R1e4D3", numbers: [25,26,27,34,35,36] },
+      { id: 385, name: "R2e3D3", numbers: [28,29,30,31,32,33] },
+      { id: 386, name: "R2e4D3", numbers: [28,29,30,34,35,36] },
+      { id: 387, name: "R3e4D3", numbers: [31,32,33,34,35,36] }
+    ]
+  },
+  {
+    name: "Ruas Unidas - D1 e D2",
+    strategies: [
+      { id: 388, name: "R1D1eR1D2", numbers: [1,2,3,13,14,15] },
+      { id: 389, name: "R1D1eR2D2", numbers: [1,2,3,16,17,18] },
+      { id: 390, name: "R1D1eR3D2", numbers: [1,2,3,19,20,21] },
+      { id: 391, name: "R1D1eR4D2", numbers: [1,2,3,22,23,24] },
+      { id: 392, name: "R2D1eR1D2", numbers: [4,5,6,13,14,15] },
+      { id: 393, name: "R2D1eR2D2", numbers: [4,5,6,16,17,18] },
+      { id: 394, name: "R2D1eR3D2", numbers: [4,5,6,19,20,21] },
+      { id: 395, name: "R2D1eR4D2", numbers: [4,5,6,22,23,24] },
+      { id: 396, name: "R3D1eR1D2", numbers: [7,8,9,13,14,15] },
+      { id: 397, name: "R3D1eR2D2", numbers: [7,8,9,16,17,18] },
+      { id: 398, name: "R3D1eR3D2", numbers: [7,8,9,19,20,21] },
+      { id: 399, name: "R3D1eR4D2", numbers: [7,8,9,22,23,24] },
+      { id: 400, name: "R4D1eR1D2", numbers: [10,11,12,13,14,15] },
+      { id: 401, name: "R4D1eR2D2", numbers: [10,11,12,16,17,18] },
+      { id: 402, name: "R4D1eR3D2", numbers: [10,11,12,19,20,21] },
+      { id: 403, name: "R4D1eR4D2", numbers: [10,11,12,22,23,24] }
+    ]
+  },
+  {
+    name: "Ruas Unidas - D1 e D3",
+    strategies: [
+      { id: 404, name: "R1D1eR1D3", numbers: [1,2,3,25,26,27] },
+      { id: 405, name: "R1D1eR2D3", numbers: [1,2,3,28,29,30] },
+      { id: 406, name: "R1D1eR3D3", numbers: [1,2,3,31,32,33] },
+      { id: 407, name: "R1D1eR4D3", numbers: [1,2,3,34,35,36] },
+      { id: 408, name: "R2D1eR1D3", numbers: [4,5,6,25,26,27] },
+      { id: 409, name: "R2D1eR2D3", numbers: [4,5,6,28,29,30] },
+      { id: 410, name: "R2D1eR3D3", numbers: [4,5,6,31,32,33] },
+      { id: 411, name: "R2D1eR4D3", numbers: [4,5,6,34,35,36] },
+      { id: 412, name: "R3D1eR1D3", numbers: [7,8,9,25,26,27] },
+      { id: 413, name: "R3D1eR2D3", numbers: [7,8,9,28,29,30] },
+      { id: 414, name: "R3D1eR3D3", numbers: [7,8,9,31,32,33] },
+      { id: 415, name: "R3D1eR4D3", numbers: [7,8,9,34,35,36] },
+      { id: 416, name: "R4D1eR1D3", numbers: [10,11,12,25,26,27] },
+      { id: 417, name: "R4D1eR2D3", numbers: [10,11,12,28,29,30] },
+      { id: 418, name: "R4D1eR3D3", numbers: [10,11,12,31,32,33] },
+      { id: 419, name: "R4D1eR4D3", numbers: [10,11,12,34,35,36] }
+    ]
+  },
+  {
+    name: "Ruas Unidas - D2 e D3",
+    strategies: [
+      { id: 420, name: "R1D2eR1D3", numbers: [13,14,15,25,26,27] },
+      { id: 421, name: "R1D2eR2D3", numbers: [13,14,15,28,29,30] },
+      { id: 422, name: "R1D2eR3D3", numbers: [13,14,15,31,32,33] },
+      { id: 423, name: "R1D2eR4D3", numbers: [13,14,15,34,35,36] },
+      { id: 424, name: "R2D2eR1D3", numbers: [16,17,18,25,26,27] },
+      { id: 425, name: "R2D2eR2D3", numbers: [16,17,18,28,29,30] },
+      { id: 426, name: "R2D2eR3D3", numbers: [16,17,18,31,32,33] },
+      { id: 427, name: "R2D2eR4D3", numbers: [16,17,18,34,35,36] },
+      { id: 428, name: "R3D2eR1D3", numbers: [19,20,21,25,26,27] },
+      { id: 429, name: "R3D2eR2D3", numbers: [19,20,21,28,29,30] },
+      { id: 430, name: "R3D2eR3D3", numbers: [19,20,21,31,32,33] },
+      { id: 431, name: "R3D2eR4D3", numbers: [19,20,21,34,35,36] },
+      { id: 432, name: "R4D2eR1D3", numbers: [22,23,24,25,26,27] },
+      { id: 433, name: "R4D2eR2D3", numbers: [22,23,24,28,29,30] },
+      { id: 434, name: "R4D2eR3D3", numbers: [22,23,24,31,32,33] },
+      { id: 435, name: "R4D2eR4D3", numbers: [22,23,24,34,35,36] }
     ]
   }
 ]
