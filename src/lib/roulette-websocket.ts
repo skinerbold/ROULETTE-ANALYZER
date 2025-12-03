@@ -56,26 +56,19 @@ export function formatRouletteNumber(number: number): string {
   return number.toString()
 }
 
-// Provedores permitidos (filtro) - TODOS os provedores conhecidos
+// Provedores permitidos (filtro)
 const ALLOWED_PROVIDERS = [
   'Evolution Gaming', 
   'Playtech', 
   'Pragmatic Play',
-  'Ezugi',
-  'NetEnt',
-  'Gaming Corps'
+  'Ezugi'
 ]
 
 // 🎯 LISTA DE ROLETAS PERMITIDAS (baseada em dados REAIS da API)
-// 🔓 MODO ABERTO: Aceitar TODAS as roletas com provedores conhecidos
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
     'mega fire blaze roulette live',
-    'roleta brasileira',
-    'bet365', // bet365 roulettes
-    'dutch',
-    'spread bet',
-    'latinoamérica'
+    'roleta brasileira'
   ],
   'Evolution Gaming': [
     'lightning',
@@ -85,22 +78,9 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'auto roulette',
     'vip roulette',
     'speed',
-    'quantum',
-    'american',
     'roulette macao',
-    'arabic',
     'ao vivo',
-    'super roulette',
-    'football',
-    'italiana',
-    'bucharest',
-    'espanol',
-    'en vivo',
-    'relampago',
-    'premier',
-    'prestige',
-    'grand roulette',
-    'greek'
+    'relampago'
   ],
   'Pragmatic Play': [
     'mega roulette',
@@ -110,33 +90,81 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'power up'
   ],
   'Ezugi': [
-    'greek',
-    'turkish',
     'ruby',
     'rapida',
     'azure'
-  ],
-  'NetEnt': [
-    'super spin'
-  ],
-  'Gaming Corps': [
-    'slingshot'
   ]
 }
 
-// 🚫 LISTA DE ROLETAS EXPLICITAMENTE BLOQUEADAS (apenas variações indesejadas)
+// 🚫 LISTA DE ROLETAS EXPLICITAMENTE BLOQUEADAS
 const BLOCKED_ROULETTES = [
-  'immersive deluxe', // ❌ Immersive Deluxe
-  'immersive roulette deluxe' // ❌ Immersive Roulette Deluxe
+  // Variações indesejadas
+  'immersive deluxe',
+  'immersive roulette deluxe',
+  
+  // Roletas removidas por solicitação
+  'american roulette',
+  'arabic roulette',
+  'bet 365 dutch roulette',
+  'bet365 dutch roulette',
+  'bet365 roulette',
+  'bucharest roulette',
+  'football french roulette',
+  'football roulette',
+  'grand roulette',
+  'greek quantum roulette',
+  'greek roulette',
+  'premier roulette',
+  'prestige roulette',
+  'prime slingshot',
+  'quantum auto roulette',
+  'quantum roulette live',
+  'roulette italiana',
+  'ruleta en espanol',
+  'ruleta en vivo',
+  'ruleta latinoamerica bet 365',
+  'ruleta latinoamerica bet365',
+  'spread bet roulette',
+  'super roulette',
+  'super spin roulette',
+  'turkish roulette',
+  'slingshot auto'
 ]
 
+// Função para verificar se nome NÃO é "auto roulette" puro
+// Importante: "auto-roulette" e "auto roulette" devem ser permitidas
+// Mas "auto roulette la partage" ou outras variações com prefixo devem passar pelo filtro normal
+function isBlockedAutoRoulette(name: string): boolean {
+  const lowerName = name.toLowerCase().trim()
+  
+  // Lista de "auto roulette" permitidas (exatas ou com sufixo de número/vip)
+  const allowedAutoPatterns = [
+    /^auto[- ]?roulette$/i,           // auto roulette, auto-roulette
+    /^auto[- ]?roulette \d+$/i,       // auto roulette 1, auto-roulette 2
+    /^auto[- ]?roulette vip$/i,       // auto roulette vip
+    /^speed auto[- ]?roulette$/i,     // speed auto roulette
+  ]
+  
+  // Se é uma das permitidas, não bloquear
+  if (allowedAutoPatterns.some(pattern => pattern.test(lowerName))) {
+    return false
+  }
+  
+  return false // Por padrão não bloqueia
+}
+
 // Verificar se a roleta específica está na lista permitida
-// 🔓 MODO ABERTO: Se tem provedor conhecido, aceitar TODAS
+// 🔓 MODO ABERTO: Se tem provedor conhecido, aceitar TODAS (exceto bloqueadas)
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
-  const lowerName = rouletteName.toLowerCase()
+  const lowerName = rouletteName.toLowerCase().trim()
   
   // 🚫 PRIMEIRO: Verificar se está na lista de bloqueadas
   if (BLOCKED_ROULETTES.some(blocked => lowerName.includes(blocked))) {
+    return false
+  }
+  
+  // 🚫 SEGUNDO: Verificar se é "auto roulette" bloqueada
+  if (isBlockedAutoRoulette(lowerName)) {
     return false
   }
   
@@ -149,6 +177,7 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   // 🆕 ESPECIAL: Roletas sem provedor identificado mas que sabemos que são válidas
   const knownValidRoulettes = [
     'auto roulette',
+    'auto-roulette',
     'roulette',
     'speed roulette',
     'vip roulette'
@@ -185,50 +214,29 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'evolution': 'Evolution Gaming',
     'ezugi': 'Ezugi',
     'playtech': 'Playtech',
-    'netent': 'NetEnt',
-    'authentic': 'Authentic Gaming',
-    'vivo gaming': 'Vivo Gaming',
-    'betgames': 'BetGames.TV',
-    'tvbet': 'TVBet',
-    'xpg': 'XPG',
     
     // Playtech - Específicos
     'mega fire blaze roulette live': 'Playtech',
     'mega fire blaze': 'Playtech',
     'age of the gods': 'Playtech',
-    'latinoamérica': 'Playtech',
-    'bet365': 'Playtech', // bet365 roulettes
-    'spread bet': 'Playtech',
     
     // Evolution Gaming - Específicos
     'lightning': 'Evolution Gaming',
     'speed auto': 'Evolution Gaming',
     'auto roulette': 'Evolution Gaming',
+    'auto-roulette': 'Evolution Gaming',
     'auto-roulette vip': 'Evolution Gaming',
     'relampago': 'Evolution Gaming',
     'bac bo': 'Evolution Gaming',
-    'en vivo': 'Evolution Gaming',
     'immersive': 'Evolution Gaming',
-    'quantum': 'Evolution Gaming',
-    'american roulette': 'Evolution Gaming',
-    'american': 'Evolution Gaming',
+    'xxxtreme': 'Evolution Gaming',
     'red door': 'Evolution Gaming',
     'porta vermelha': 'Evolution Gaming',
     'vip roulette': 'Evolution Gaming',
-    'prestige': 'Evolution Gaming',
     'speed roulette': 'Evolution Gaming',
     'roulette macao': 'Evolution Gaming',
     'macao': 'Evolution Gaming',
-    'arabic': 'Evolution Gaming',
     'ao vivo': 'Evolution Gaming',
-    'super roulette': 'Evolution Gaming',
-    'football': 'Evolution Gaming',
-    'italiana': 'Evolution Gaming',
-    'bucharest': 'Evolution Gaming',
-    'espanol': 'Evolution Gaming',
-    'premier': 'Evolution Gaming',
-    'grand roulette': 'Evolution Gaming',
-    'greek quantum': 'Evolution Gaming',
     
     // Pragmatic Play - Específicos
     'roleta brasileira pragmatic': 'Pragmatic Play',
@@ -238,18 +246,9 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     'power up': 'Pragmatic Play',
     
     // Ezugi - Específicos
-    'greek roulette': 'Ezugi',
-    'greek': 'Ezugi', // Greek Roulette
-    'turkish': 'Ezugi',
     'ruby': 'Ezugi',
     'rapida': 'Ezugi',
     'azure': 'Ezugi',
-    
-    // NetEnt
-    'super spin': 'NetEnt',
-    
-    // Gaming Corps
-    'slingshot': 'Gaming Corps',
     
     // 🆕 FALLBACK: Roletas comuns sem identificação clara → Evolution (maioria)
     'roulette': 'Evolution Gaming' // Fallback genérico
