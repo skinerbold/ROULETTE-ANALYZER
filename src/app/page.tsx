@@ -508,6 +508,16 @@ export default function Home() {
     }
   }, [numbersFromWebSocket, selectedRoulette, updateVersion])
 
+  // 🔥 CRÍTICO: Recalcular cores quando recentNumbers mudar (novos números chegam do WebSocket)
+  useEffect(() => {
+    if (recentNumbers.length > 0 && selectedStrategies.length > 0) {
+      console.log(`\n🎨 [CORES] recentNumbers mudou! Recalculando status...`)
+      console.log(`   recentNumbers.length: ${recentNumbers.length}`)
+      console.log(`   Primeiro número: ${recentNumbers[0]?.number}`)
+      updateNumberStatuses()
+    }
+  }, [recentNumbers, selectedStrategies, greenRedAttempts, analysisLimit])
+
   // 🔥 NOVO: Detectar quando usuário aumenta o limite e solicitar mais números se necessário
   useEffect(() => {
     // Só age se:
@@ -788,10 +798,15 @@ export default function Home() {
   }
 
   const updateNumberStatuses = () => {
+    // CORREÇÃO: Usar recentNumbers diretamente com analysisLimit
+    // Não depender de numbersToAnalyze (useMemo) que pode estar desatualizado
+    const currentNumbers = recentNumbers.slice(0, analysisLimit)
+    
     // Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
     if (selectedStrategies.length === 0) {
-      const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
+      const statuses: NumberStatus[] = currentNumbers.map(entry => ({ number: entry.number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
+      setStatusMap(new Map())
       return
     }
     
@@ -799,25 +814,23 @@ export default function Home() {
     const lastSelectedId = selectedStrategies[selectedStrategies.length - 1]
     const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
     if (!strategy) {
-      const statuses: NumberStatus[] = numbersToAnalyze.map(number => ({ number, status: 'NEUTRAL' as const }))
+      const statuses: NumberStatus[] = currentNumbers.map(entry => ({ number: entry.number, status: 'NEUTRAL' as const }))
       setNumberStatuses(statuses)
+      setStatusMap(new Map())
       return
     }
 
     // Obter números da estratégia
     const { getStrategyNumbers } = require('@/lib/strategies')
-    const strategyNumbers = getStrategyNumbers(lastSelectedId, numbersToAnalyze)
+    const numbersOnly = currentNumbers.map(n => n.number)
+    const strategyNumbers = getStrategyNumbers(lastSelectedId, numbersOnly)
     
     console.log('\n🎯 DEBUG updateNumberStatuses:')
     console.log('   Estratégia:', strategy.name, '- Números:', strategyNumbers)
-    console.log('   numbersToAnalyze (primeiros 10):', numbersToAnalyze.slice(0, 10))
-    console.log('   recentNumbers (primeiros 10):', recentNumbers.slice(0, 10).map(n => n.number))
+    console.log('   currentNumbers (primeiros 10):', currentNumbers.slice(0, 10).map(n => n.number))
 
-    // Pegar números com timestamp
-    const recentWithTimestamp = recentNumbers.slice(0, numbersToAnalyze.length)
-    
     // Array de status - inicializa TUDO como NEUTRAL
-    const statuses: NumberStatus[] = recentWithTimestamp.map(entry => ({
+    const statuses: NumberStatus[] = currentNumbers.map(entry => ({
       number: entry.number,
       status: 'NEUTRAL' as const
     }))
@@ -839,8 +852,8 @@ export default function Home() {
     // ========================================
     
     // Processar do mais antigo (índice maior) para o mais recente (índice menor)
-    for (let i = recentWithTimestamp.length - 1; i >= 0; i--) {
-      const currentNum = recentWithTimestamp[i].number
+    for (let i = currentNumbers.length - 1; i >= 0; i--) {
+      const currentNum = currentNumbers[i].number
       
       // Pula se não for número da estratégia OU se já foi processado (GREEN)
       if (!strategyNumbers.includes(currentNum)) {
@@ -866,7 +879,7 @@ export default function Home() {
           break
         }
         
-        const checkNum = recentWithTimestamp[checkIndex].number
+        const checkNum = currentNumbers[checkIndex].number
         
         // Verifica se este número pertence à estratégia
         if (strategyNumbers.includes(checkNum)) {
@@ -887,8 +900,8 @@ export default function Home() {
     const newStatusMap = new Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>()
     
     statuses.forEach((s, i) => {
-      // Usar timestamp do recentWithTimestamp como chave
-      const timestamp = recentWithTimestamp[i]?.timestamp
+      // Usar timestamp do currentNumbers como chave
+      const timestamp = currentNumbers[i]?.timestamp
       if (timestamp) {
         newStatusMap.set(timestamp, s.status)
         
