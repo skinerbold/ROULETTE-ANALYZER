@@ -911,8 +911,14 @@ export default function Home() {
     setNumberStatuses(statuses)
   }
 
-  const getNumberColor = (number: number, index: number) => {
-    const status = numberStatuses[index]?.status || 'NEUTRAL'
+  const getNumberColor = (number: number, index: number, isReversed: boolean = false) => {
+    // 🔧 FIX: Se o array foi revertido para exibição, precisamos inverter o índice
+    // para acessar o status correto em numberStatuses (que está na ordem original)
+    const actualIndex = isReversed 
+      ? (numberStatuses.length - 1 - index)
+      : index
+    
+    const status = numberStatuses[actualIndex]?.status || 'NEUTRAL'
     
     switch (status) {
       case 'ACTIVATION':
@@ -1479,11 +1485,11 @@ export default function Home() {
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
-                {[...numbersToAnalyze].reverse().map((number, index) => {
+                {numbersToAnalyze.map((number, index) => {
                   return (
                     <div
                       key={index}
-                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index, false)} transition-all duration-200 hover:scale-110`}
                     >
                       {number}
                       <button
@@ -2671,7 +2677,7 @@ export default function Home() {
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
-                  {[...numbersToAnalyze].reverse().map((number, index) => {
+                  {numbersToAnalyze.map((number, index) => {
                     return (
                       <div
                         key={index}
@@ -2682,7 +2688,7 @@ export default function Home() {
                           lg:w-8 lg:h-8 lg:text-sm
                           xl:w-10 xl:h-10 xl:text-sm
                           2xl:w-12 2xl:h-12 2xl:text-base
-                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index, false)} transition-all duration-200 hover:scale-110`}
                       >
                         {number}
                         <button
