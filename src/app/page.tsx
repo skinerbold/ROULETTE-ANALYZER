@@ -93,12 +93,13 @@ export default function Home() {
   const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
 
   // Números filtrados com base no limite de análise
+  // CORREÇÃO: Usar recentNumbers diretamente para garantir sincronização
   const numbersToAnalyze = useMemo(() => {
-    if (numbers.length === 0) return []
+    if (recentNumbers.length === 0) return []
     // Pegar apenas os PRIMEIROS N números (mais recentes)
     // O array já vem ordenado do mais recente para o mais antigo
-    return numbers.slice(0, analysisLimit)
-  }, [numbers, analysisLimit])
+    return recentNumbers.slice(0, analysisLimit).map(rn => rn.number)
+  }, [recentNumbers, analysisLimit])
 
   useEffect(() => {
     checkUser()
@@ -906,8 +907,10 @@ export default function Home() {
     // Precisamos converter para o índice do recentNumbers (0 = mais recente)
     const originalIndex = totalNumbers - 1 - displayIndex
     
-    // Buscar o timestamp correspondente ao índice no recentNumbers
-    const entry = recentNumbers[originalIndex]
+    // Buscar o timestamp correspondente ao índice
+    // CORREÇÃO: Limitar ao tamanho de analysisLimit (mesmo usado em numbersToAnalyze)
+    const limitedRecent = recentNumbers.slice(0, totalNumbers)
+    const entry = limitedRecent[originalIndex]
     if (!entry) {
       return 'bg-gray-700 text-gray-300' // NEUTRAL
     }
