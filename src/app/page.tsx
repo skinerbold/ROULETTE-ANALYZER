@@ -799,117 +799,120 @@ export default function Home() {
 
   const updateNumberStatuses = () => {
     // CORREÇÃO: Usar recentNumbers diretamente com analysisLimit
-    // Não depender de numbersToAnalyze (useMemo) que pode estar desatualizado
     const currentNumbers = recentNumbers.slice(0, analysisLimit)
     
-    // Se nenhuma estratégia selecionada, todos os números ficam NEUTROS (cinza)
-    if (selectedStrategies.length === 0) {
-      const statuses: NumberStatus[] = currentNumbers.map(entry => ({ number: entry.number, status: 'NEUTRAL' as const }))
-      setNumberStatuses(statuses)
+    // Se nenhuma estratégia selecionada ou sem números, todos ficam NEUTROS
+    if (selectedStrategies.length === 0 || currentNumbers.length === 0) {
+      setNumberStatuses([])
       setStatusMap(new Map())
       return
     }
     
-    // Pegar a ÚLTIMA estratégia selecionada (última do array)
+    // Pegar a ÚLTIMA estratégia selecionada
     const lastSelectedId = selectedStrategies[selectedStrategies.length - 1]
     const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
     if (!strategy) {
-      const statuses: NumberStatus[] = currentNumbers.map(entry => ({ number: entry.number, status: 'NEUTRAL' as const }))
-      setNumberStatuses(statuses)
+      setNumberStatuses([])
       setStatusMap(new Map())
       return
     }
 
-    // Obter números da estratégia
+    // Obter números da estratégia (array fixo de números que pertencem à estratégia)
     const { getStrategyNumbers } = require('@/lib/strategies')
     const numbersOnly = currentNumbers.map(n => n.number)
-    const strategyNumbers = getStrategyNumbers(lastSelectedId, numbersOnly)
+    const strategyNumbers: number[] = getStrategyNumbers(lastSelectedId, numbersOnly)
     
     console.log('\n🎯 DEBUG updateNumberStatuses:')
-    console.log('   Estratégia:', strategy.name, '- Números:', strategyNumbers)
-    console.log('   currentNumbers (primeiros 10):', currentNumbers.slice(0, 10).map(n => n.number))
+    console.log('   Estratégia:', strategy.name)
+    console.log('   Números da estratégia:', strategyNumbers)
+    console.log('   greenRedAttempts:', greenRedAttempts)
+    console.log('   Total números:', currentNumbers.length)
 
-    // Array de status - inicializa TUDO como NEUTRAL
-    const statuses: NumberStatus[] = currentNumbers.map(entry => ({
-      number: entry.number,
-      status: 'NEUTRAL' as const
-    }))
+    // ========================================
+    // NOVA LÓGICA SIMPLIFICADA E CORRETA
+    // ========================================
+    // Array currentNumbers: [índice 0 = mais recente, ..., índice N = mais antigo]
+    // 
+    // Para cada número da estratégia que aparece:
+    // 1. Marca como ACTIVATION
+    // 2. Verifica os próximos N números (mais recentes, índices menores)
+    // 3. Se algum dos próximos N é da estratégia → GREEN nesse número
+    // 4. Se nenhum dos próximos N é da estratégia → RED no último verificado
+    // 5. Se não tem N números à frente → apenas ACTIVATION (aguardando)
+    // ========================================
     
-    // ========================================
-    // LÓGICA DE CORES - EXPLICAÇÃO:
-    // ========================================
-    // Array: [índice 0 = mais recente, ..., índice N = mais antigo]
-    // 
-    // Estratégia funciona assim: Se saiu número da estratégia (ATIVAÇÃO),
-    // apostamos que um dos próximos N números também será da estratégia.
-    // 
-    // Processamento: Do MAIS ANTIGO para o MAIS RECENTE
-    // - Quando encontra número da estratégia → marca ACTIVATION
-    // - Olha os próximos números (mais recentes) dentro de greenRedAttempts
-    // - Se encontrar número da estratégia → GREEN (acerto)
-    // - Se não encontrar em nenhum → RED (erro na última tentativa)
-    // - Se não tem números suficientes ainda → mantém apenas ACTIVATION
-    // ========================================
+    // Inicializar todos como NEUTRAL
+    const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = 
+      new Array(currentNumbers.length).fill('NEUTRAL')
     
     // Processar do mais antigo (índice maior) para o mais recente (índice menor)
     for (let i = currentNumbers.length - 1; i >= 0; i--) {
-      const currentNum = currentNumbers[i].number
+      const num = currentNumbers[i].number
       
-      // Pula se não for número da estratégia OU se já foi processado (GREEN)
-      if (!strategyNumbers.includes(currentNum)) {
+      // Se não é número da estratégia, pula
+      if (!strategyNumbers.includes(num)) {
         continue
       }
       
-      // Se já foi marcado como GREEN, não sobrescrever
-      if (statuses[i].status === 'GREEN') {
+      // Se já foi marcado como GREEN (por uma ACTIVATION anterior), não sobrescrever
+      if (statusArray[i] === 'GREEN') {
         continue
       }
       
-      // É número da estratégia - marca como ACTIVATION
-      statuses[i].status = 'ACTIVATION'
+      // É número da estratégia → marca como ACTIVATION
+      statusArray[i] = 'ACTIVATION'
       
-      // Procurar GREEN/RED nos próximos números (índices menores = mais recentes)
-      let foundGreen = false
+      // Verificar os próximos greenRedAttempts números (índices menores = mais recentes)
+      let foundGreenInWindow = false
+      let lastCheckedIndex = -1
       
       for (let j = 1; j <= greenRedAttempts; j++) {
         const checkIndex = i - j
         
-        // Não há números suficientes no futuro - para por aqui
+        // Se não tem mais números à frente, para (ainda aguardando resultado)
         if (checkIndex < 0) {
           break
         }
         
+        lastCheckedIndex = checkIndex
         const checkNum = currentNumbers[checkIndex].number
         
-        // Verifica se este número pertence à estratégia
+        // Se este número pertence à estratégia → GREEN!
         if (strategyNumbers.includes(checkNum)) {
-          // ACERTO! Marca este número como GREEN
-          statuses[checkIndex].status = 'GREEN'
-          foundGreen = true
-          break // Para de procurar, encontrou GREEN
+          statusArray[checkIndex] = 'GREEN'
+          foundGreenInWindow = true
+          break // Encontrou GREEN, para de verificar
         }
-        
-        // Se é a última tentativa e não encontrou GREEN, marca RED
-        if (j === greenRedAttempts && !foundGreen) {
-          statuses[checkIndex].status = 'RED'
-        }
+      }
+      
+      // Se verificou todas as N casas e não encontrou GREEN → RED na última casa verificada
+      if (!foundGreenInWindow && lastCheckedIndex >= 0 && lastCheckedIndex === i - greenRedAttempts) {
+        // Só marca RED se realmente verificou todas as casas
+        statusArray[lastCheckedIndex] = 'RED'
       }
     }
     
-    console.log('   📊 Status calculados (primeiros 10):')
-    const newStatusMap = new Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>()
+    // Criar array de status e statusMap
+    const statuses: NumberStatus[] = currentNumbers.map((entry, i) => ({
+      number: entry.number,
+      status: statusArray[i]
+    }))
     
-    statuses.forEach((s, i) => {
-      // Usar timestamp do currentNumbers como chave
-      const timestamp = currentNumbers[i]?.timestamp
-      if (timestamp) {
-        newStatusMap.set(timestamp, s.status)
-        
-        if (s.status !== 'NEUTRAL' && i < 10) {
-          console.log(`      [${i}] Timestamp ${timestamp} - Número ${s.number} → ${s.status}`)
-        }
-      }
+    const newStatusMap = new Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>()
+    currentNumbers.forEach((entry, i) => {
+      newStatusMap.set(entry.timestamp, statusArray[i])
     })
+    
+    // Log para debug
+    console.log('   📊 Resultados (primeiros 15):')
+    for (let i = 0; i < Math.min(15, currentNumbers.length); i++) {
+      const num = currentNumbers[i].number
+      const status = statusArray[i]
+      const isStrat = strategyNumbers.includes(num)
+      if (status !== 'NEUTRAL' || isStrat) {
+        console.log(`      [${i}] ${num} → ${status} ${isStrat ? '★' : ''}`)
+      }
+    }
     
     setNumberStatuses(statuses)
     setStatusMap(newStatusMap)
