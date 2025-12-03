@@ -901,9 +901,13 @@ export default function Home() {
     setStatusMap(newStatusMap)
   }
 
-  const getNumberColor = (number: number, index: number) => {
+  const getNumberColor = (number: number, displayIndex: number, totalNumbers: number) => {
+    // O displayIndex vem do array revertido (0 = mais antigo exibido primeiro)
+    // Precisamos converter para o índice do recentNumbers (0 = mais recente)
+    const originalIndex = totalNumbers - 1 - displayIndex
+    
     // Buscar o timestamp correspondente ao índice no recentNumbers
-    const entry = recentNumbers[index]
+    const entry = recentNumbers[originalIndex]
     if (!entry) {
       return 'bg-gray-700 text-gray-300' // NEUTRAL
     }
@@ -1469,7 +1473,7 @@ export default function Home() {
                   return (
                     <div
                       key={index}
-                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 hover:scale-110`}
                     >
                       {number}
                       <button
@@ -2668,7 +2672,7 @@ export default function Home() {
                           lg:w-8 lg:h-8 lg:text-sm
                           xl:w-10 xl:h-10 xl:text-sm
                           2xl:w-12 2xl:h-12 2xl:text-base
-                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index)} transition-all duration-200 hover:scale-110`}
+                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 hover:scale-110`}
                       >
                         {number}
                         <button
