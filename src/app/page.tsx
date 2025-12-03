@@ -830,8 +830,13 @@ export default function Home() {
     for (let i = recentWithTimestamp.length - 1; i >= 0; i--) {
       const currentNum = recentWithTimestamp[i].number
       
-      // Pula se não for número da estratégia
+      // Pula se não for número da estratégia OU se já foi processado (GREEN)
       if (!strategyNumbers.includes(currentNum)) {
+        continue
+      }
+      
+      // Se já foi marcado como GREEN, não sobrescrever
+      if (statuses[i].status === 'GREEN') {
         continue
       }
       
