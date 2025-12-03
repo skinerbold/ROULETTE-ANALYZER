@@ -1122,17 +1122,7 @@ export default function Home() {
                 )}
               </div>
               
-              {/* Botão de Refresh */}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => selectedRoulette && requestHistory(selectedRoulette, analysisLimit)}
-                disabled={!isConnected || !selectedRoulette}
-                className="h-7 px-2 gap-1"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span className="hidden sm:inline">Atualizar</span>
-              </Button>
+              {/* Botão de Refresh REMOVIDO - causava corrupção de dados */}
             </div>
           </div>
         </div>
