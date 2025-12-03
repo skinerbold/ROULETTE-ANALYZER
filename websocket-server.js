@@ -128,22 +128,63 @@ function registerRoulette(rouletteIdRaw) {
 // PERSISTÊNCIA SUPABASE
 // ============================================
 
+// Cache para rastrear último número persistido por roleta (evita duplicatas)
+const lastPersistedNumber = new Map(); // rouletteId -> { number, timestamp }
+
+/**
+ * Persiste UM ÚNICO número usando a função RPC update_roulette_history
+ * Esta função já implementa a lógica de shift de posições (1-500)
+ */
+async function persistSingleNumber(rouletteId, number, timestamp) {
+    if (!supabaseAdmin) {
+        return false;
+    }
+    
+    // Verificar se já persistiu este número recentemente (evita duplicatas)
+    const lastPersisted = lastPersistedNumber.get(rouletteId);
+    if (lastPersisted && lastPersisted.number === number && 
+        Math.abs(lastPersisted.timestamp - timestamp) < 5000) {
+        console.log(`⏭️ Número ${number} já persistido recentemente para ${rouletteId}, ignorando`);
+        return false;
+    }
+    
+    try {
+        const { data, error } = await supabaseAdmin.rpc('update_roulette_history', {
+            p_roulette_id: rouletteId,
+            p_number: number,
+            p_timestamp: new Date(timestamp).toISOString()
+        });
+        
+        if (error) {
+            console.error(`❌ Erro ao persistir número ${number} para ${rouletteId}:`, error.message);
+            return false;
+        }
+        
+        // Atualizar cache de último número persistido
+        lastPersistedNumber.set(rouletteId, { number, timestamp });
+        
+        console.log(`💾 Número ${number} persistido para ${rouletteId} via RPC`);
+        return true;
+    } catch (err) {
+        console.error('❌ Erro inesperado ao persistir número:', err);
+        return false;
+    }
+}
+
+/**
+ * @deprecated Use persistSingleNumber para novos números
+ * Mantido para compatibilidade com carga inicial do histórico
+ */
 async function persistEntries(rouletteId, entries) {
     if (!supabaseAdmin || !entries.length) {
         return;
     }
-    try {
-        const payload = entries.map(entry => ({
-            roulette_id: rouletteId,
-            value: entry.value,
-            occurred_at: new Date(entry.timestamp).toISOString()
-        }));
-        const { error } = await supabaseAdmin.from('roulette_history').insert(payload, { returning: 'minimal' });
-        if (error) {
-            console.error('❌ Falha ao persistir entradas no Supabase:', error.message);
-        }
-    } catch (err) {
-        console.error('❌ Erro inesperado ao persistir histórico:', err);
+    
+    // Para carga inicial, persistir apenas o número mais recente
+    // Os outros serão carregados da API quando necessário
+    const latestEntry = entries[entries.length - 1]; // último = mais recente na ordem cronológica
+    if (latestEntry) {
+        await persistSingleNumber(rouletteId, latestEntry.value, latestEntry.timestamp);
     }
 }
 
@@ -158,11 +199,12 @@ async function hydrateFromStore(rouletteId) {
 
     const promise = (async () => {
         try {
+            // CORRIGIDO: Usar nomes corretos das colunas (number, timestamp, position)
             const { data, error } = await supabaseAdmin
                 .from('roulette_history')
-                .select('value, occurred_at')
+                .select('number, timestamp, position')
                 .eq('roulette_id', rouletteId)
-                .order('occurred_at', { ascending: false })
+                .order('position', { ascending: true }) // position 1 = mais recente
                 .limit(MAX_CACHE_LENGTH);
 
             if (error) {
@@ -171,9 +213,10 @@ async function hydrateFromStore(rouletteId) {
             }
 
             if (Array.isArray(data) && data.length) {
+                // Mapear para formato interno (value, timestamp)
                 const entries = data.map(row => ({
-                    value: row.value,
-                    timestamp: new Date(row.occurred_at).getTime()
+                    value: row.number,  // CORRIGIDO: era row.value
+                    timestamp: new Date(row.timestamp).getTime()
                 }));
                 inMemoryHistory.set(rouletteId, entries);
                 rouletteMeta.set(rouletteId, { lastTimestamp: entries[0].timestamp });
@@ -193,20 +236,29 @@ async function fetchOlderFromStore(rouletteId, alreadyCached, limit) {
         return [];
     }
     try {
-        const offset = alreadyCached;
+        // CORRIGIDO: Usar nomes corretos das colunas e ordenar por position
+        // position já começa em alreadyCached + 1
+        const startPosition = alreadyCached + 1;
+        const endPosition = alreadyCached + limit;
+        
         const { data, error } = await supabaseAdmin
             .from('roulette_history')
-            .select('value, occurred_at')
+            .select('number, timestamp, position')
             .eq('roulette_id', rouletteId)
-            .order('occurred_at', { ascending: false })
-            .range(offset, offset + limit - 1);
+            .gte('position', startPosition)
+            .lte('position', endPosition)
+            .order('position', { ascending: true });
 
         if (error) {
             console.error('❌ Erro ao expandir histórico persistido:', error.message);
             return [];
         }
 
-        return data.map(row => ({ value: row.value, timestamp: new Date(row.occurred_at).getTime() }));
+        // Mapear para formato interno
+        return data.map(row => ({ 
+            value: row.number,  // CORRIGIDO: era row.value
+            timestamp: new Date(row.timestamp).getTime() 
+        }));
     } catch (err) {
         console.error('❌ Exceção ao buscar histórico adicional:', err);
         return [];
@@ -292,33 +344,91 @@ async function processApiHistory(rawRouletteId, numbers) {
 
     const existing = inMemoryHistory.get(rouletteId) || [];
     const existingValues = existing.map(entry => entry.value);
-
-    const overlapIndex = findOverlap(normalizedNumbers, existingValues);
     const now = Date.now();
-    const newEntries = [];
 
-    for (let i = 0; i < overlapIndex; i += 1) {
-        const timestamp = now - i * 1000; // diferença mínima para preservar ordem
-        newEntries.push({ value: normalizedNumbers[i], timestamp });
-    }
-
-    if (!existing.length && normalizedNumbers.length && newEntries.length === 0) {
-        // Primeiro carregamento: considerar todo o histórico recebido.
-        for (let i = 0; i < normalizedNumbers.length; i += 1) {
-            const timestamp = now - i * 1000;
+    // ============================================
+    // LÓGICA CORRIGIDA: Detectar apenas números NOVOS
+    // ============================================
+    
+    // Se já temos dados no cache, verificar apenas o número mais recente
+    if (existing.length > 0) {
+        const latestIncoming = normalizedNumbers[0];
+        const latestExisting = existing[0]?.value;
+        
+        // Se o número mais recente é igual ao que já temos, não há novidade
+        if (latestIncoming === latestExisting) {
+            return; // Nada novo
+        }
+        
+        // Encontrar quantos números novos chegaram
+        // Procurar onde o número mais recente do cache aparece no incoming
+        let newCount = 0;
+        for (let i = 0; i < normalizedNumbers.length; i++) {
+            if (normalizedNumbers[i] === latestExisting) {
+                newCount = i;
+                break;
+            }
+            // Se não encontrou até o fim, assumir que é apenas 1 novo
+            if (i === normalizedNumbers.length - 1) {
+                newCount = 1;
+            }
+        }
+        
+        // Limitar a 10 novos por vez (proteção contra carga inicial duplicada)
+        newCount = Math.min(newCount, 10);
+        
+        if (newCount === 0) {
+            newCount = 1; // Pelo menos 1 novo
+        }
+        
+        // Criar entradas apenas para os novos números
+        const newEntries = [];
+        for (let i = 0; i < newCount; i++) {
+            const timestamp = now - i * 100; // Pequena diferença para ordem
             newEntries.push({ value: normalizedNumbers[i], timestamp });
         }
-    }
-
-    if (newEntries.length) {
-        // Inserimos na frente do cache mantendo o limite.
+        
+        // Atualizar cache em memória
         const updatedHistory = [...newEntries, ...existing].slice(0, MAX_CACHE_LENGTH);
         inMemoryHistory.set(rouletteId, updatedHistory);
         rouletteMeta.set(rouletteId, { lastTimestamp: updatedHistory[0].timestamp });
-
-        await persistEntries(rouletteId, [...newEntries].reverse()); // persiste em ordem cronológica
-
+        
+        // PERSISTIR APENAS O NÚMERO MAIS RECENTE (1 por vez)
         const latest = newEntries[0];
+        await persistSingleNumber(rouletteId, latest.value, latest.timestamp);
+        
+        // Broadcast para clientes
+        broadcastToSubscribers(rouletteId, {
+            type: 'result',
+            roulette: rouletteId,
+            number: latest.value,
+            timestamp: latest.timestamp
+        });
+        
+        console.log(`📊 ${rouletteId}: ${newCount} novo(s) número(s), último: ${latest.value}`);
+        return;
+    }
+    
+    // ============================================
+    // PRIMEIRO CARREGAMENTO (cache vazio)
+    // Carregar em memória mas NÃO persistir todo o histórico
+    // ============================================
+    
+    const newEntries = [];
+    for (let i = 0; i < normalizedNumbers.length; i += 1) {
+        const timestamp = now - i * 1000;
+        newEntries.push({ value: normalizedNumbers[i], timestamp });
+    }
+    
+    // Salvar em memória
+    inMemoryHistory.set(rouletteId, newEntries.slice(0, MAX_CACHE_LENGTH));
+    rouletteMeta.set(rouletteId, { lastTimestamp: newEntries[0]?.timestamp || now });
+    
+    // PERSISTIR APENAS O NÚMERO MAIS RECENTE (não todo o histórico!)
+    if (newEntries.length > 0) {
+        const latest = newEntries[0];
+        await persistSingleNumber(rouletteId, latest.value, latest.timestamp);
+        
         broadcastToSubscribers(rouletteId, {
             type: 'result',
             roulette: rouletteId,
@@ -326,28 +436,8 @@ async function processApiHistory(rawRouletteId, numbers) {
             timestamp: latest.timestamp
         });
     }
-}
-
-function findOverlap(incoming, existingValues) {
-    if (!existingValues.length) {
-        return incoming.length;
-    }
-
-    for (let index = 0; index < incoming.length; index += 1) {
-        let matches = true;
-        for (let offset = 0; offset < existingValues.length; offset += 1) {
-            const incomingValue = incoming[index + offset];
-            const existingValue = existingValues[offset];
-            if (incomingValue === undefined || incomingValue !== existingValue) {
-                matches = false;
-                break;
-            }
-        }
-        if (matches) {
-            return index;
-        }
-    }
-    return incoming.length;
+    
+    console.log(`🆕 ${rouletteId}: Primeiro carregamento - ${newEntries.length} números em memória, 1 persistido`);
 }
 
 // ============================================
@@ -597,10 +687,11 @@ async function ensureHistoryLength(rouletteId, limit) {
                 }));
                 
                 inMemoryHistory.set(rouletteId, entries.slice(0, MAX_CACHE_LENGTH));
-                console.log(`✅ ${entries.length} números carregados da API Fly.io`);
+                console.log(`✅ ${entries.length} números carregados da API Fly.io (apenas memória, sem persistir)`);
                 
-                // Persistir no Supabase para próximas consultas
-                await persistEntries(rouletteId, [...entries].reverse());
+                // NÃO PERSISTIR dados históricos do Fly.io!
+                // O Supabase só deve receber números NOVOS em tempo real
+                // Os dados do Fly.io são apenas para consulta imediata
             }
         } catch (error) {
             console.error(`❌ Erro ao buscar histórico da API Fly.io: ${error.message}`);
