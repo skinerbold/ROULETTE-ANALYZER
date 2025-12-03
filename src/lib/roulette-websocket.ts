@@ -74,8 +74,7 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'lightning',
     'xxxtreme',
     'immersive',
-    'auto-roulette',
-    'auto roulette',
+    'auto-roulette',  // ✅ Com hífen (auto roulette com espaço está bloqueada)
     'vip roulette',
     'speed',
     'roulette macao',
@@ -128,30 +127,9 @@ const BLOCKED_ROULETTES = [
   'super roulette',
   'super spin roulette',
   'turkish roulette',
-  'slingshot auto'
+  'slingshot auto',
+  'auto roulette'  // ❌ Bloqueada (com espaço) - auto-roulette (com hífen) é permitida
 ]
-
-// Função para verificar se nome NÃO é "auto roulette" puro
-// Importante: "auto-roulette" e "auto roulette" devem ser permitidas
-// Mas "auto roulette la partage" ou outras variações com prefixo devem passar pelo filtro normal
-function isBlockedAutoRoulette(name: string): boolean {
-  const lowerName = name.toLowerCase().trim()
-  
-  // Lista de "auto roulette" permitidas (exatas ou com sufixo de número/vip)
-  const allowedAutoPatterns = [
-    /^auto[- ]?roulette$/i,           // auto roulette, auto-roulette
-    /^auto[- ]?roulette \d+$/i,       // auto roulette 1, auto-roulette 2
-    /^auto[- ]?roulette vip$/i,       // auto roulette vip
-    /^speed auto[- ]?roulette$/i,     // speed auto roulette
-  ]
-  
-  // Se é uma das permitidas, não bloquear
-  if (allowedAutoPatterns.some(pattern => pattern.test(lowerName))) {
-    return false
-  }
-  
-  return false // Por padrão não bloqueia
-}
 
 // Verificar se a roleta específica está na lista permitida
 // 🔓 MODO ABERTO: Se tem provedor conhecido, aceitar TODAS (exceto bloqueadas)
@@ -159,13 +137,19 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   const lowerName = rouletteName.toLowerCase().trim()
   
   // 🚫 PRIMEIRO: Verificar se está na lista de bloqueadas
-  if (BLOCKED_ROULETTES.some(blocked => lowerName.includes(blocked))) {
-    return false
-  }
-  
-  // 🚫 SEGUNDO: Verificar se é "auto roulette" bloqueada
-  if (isBlockedAutoRoulette(lowerName)) {
-    return false
+  // Usar comparação exata para "auto roulette" para não bloquear "auto-roulette"
+  for (const blocked of BLOCKED_ROULETTES) {
+    if (blocked === 'auto roulette') {
+      // Para "auto roulette", verificar se é EXATAMENTE esse nome (não "auto-roulette")
+      if (lowerName === 'auto roulette' || lowerName.includes('auto roulette ')) {
+        return false
+      }
+    } else {
+      // Para outras, usar includes normal
+      if (lowerName.includes(blocked)) {
+        return false
+      }
+    }
   }
   
   // 🆕 MODO ABERTO: Se tem um provedor conhecido, ACEITAR
@@ -176,8 +160,7 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
   
   // 🆕 ESPECIAL: Roletas sem provedor identificado mas que sabemos que são válidas
   const knownValidRoulettes = [
-    'auto roulette',
-    'auto-roulette',
+    'auto-roulette',  // ✅ Com hífen é permitida
     'roulette',
     'speed roulette',
     'vip roulette'
@@ -223,8 +206,7 @@ export function parseRouletteName(rouletteName: string): RouletteInfo {
     // Evolution Gaming - Específicos
     'lightning': 'Evolution Gaming',
     'speed auto': 'Evolution Gaming',
-    'auto roulette': 'Evolution Gaming',
-    'auto-roulette': 'Evolution Gaming',
+    'auto-roulette': 'Evolution Gaming',  // ✅ Com hífen
     'auto-roulette vip': 'Evolution Gaming',
     'relampago': 'Evolution Gaming',
     'bac bo': 'Evolution Gaming',
