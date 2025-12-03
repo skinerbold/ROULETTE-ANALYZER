@@ -829,66 +829,76 @@ export default function Home() {
     console.log('   Total números:', currentNumbers.length)
 
     // ========================================
-    // NOVA LÓGICA SIMPLIFICADA E CORRETA
+    // LÓGICA CORRIGIDA DE MARCAÇÃO
     // ========================================
     // Array currentNumbers: [índice 0 = mais recente, ..., índice N = mais antigo]
     // 
-    // Para cada número da estratégia que aparece:
-    // 1. Marca como ACTIVATION
-    // 2. Verifica os próximos N números (mais recentes, índices menores)
-    // 3. Se algum dos próximos N é da estratégia → GREEN nesse número
-    // 4. Se nenhum dos próximos N é da estratégia → RED no último verificado
-    // 5. Se não tem N números à frente → apenas ACTIVATION (aguardando)
+    // REGRAS CORRETAS:
+    // 1. ACTIVATION: Marca número da estratégia que aparece
+    // 2. GREEN: Marca número da estratégia que aparece DENTRO das N casas após ACTIVATION
+    //    - NÃO pode ser um número que já foi marcado como ACTIVATION
+    //    - Só marca dentro da janela específica de cada ACTIVATION
+    // 3. RED: Marca APENAS na casa N (última) se:
+    //    - Todas as N casas foram verificadas
+    //    - Nenhuma das N casas é da estratégia
+    //    - A posição verificada é EXATAMENTE i - greenRedAttempts (casa N, não casa 1)
     // ========================================
     
     // Inicializar todos como NEUTRAL
     const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = 
       new Array(currentNumbers.length).fill('NEUTRAL')
     
+    // Primeiro passo: Marcar todos os ACTIVATIONS
     // Processar do mais antigo (índice maior) para o mais recente (índice menor)
+    const activationIndices: number[] = []
     for (let i = currentNumbers.length - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
-      
-      // Se não é número da estratégia, pula
-      if (!strategyNumbers.includes(num)) {
-        continue
+      if (strategyNumbers.includes(num)) {
+        statusArray[i] = 'ACTIVATION'
+        activationIndices.push(i)
       }
-      
-      // Se já foi marcado como GREEN (por uma ACTIVATION anterior), não sobrescrever
-      if (statusArray[i] === 'GREEN') {
-        continue
-      }
-      
-      // É número da estratégia → marca como ACTIVATION
-      statusArray[i] = 'ACTIVATION'
-      
-      // Verificar os próximos greenRedAttempts números (índices menores = mais recentes)
+    }
+    
+    // Segundo passo: Para cada ACTIVATION, verificar a janela de N casas
+    for (const activationIndex of activationIndices) {
       let foundGreenInWindow = false
-      let lastCheckedIndex = -1
+      let windowEnd = -1 // Última casa da janela (casa N)
       
+      // Verificar as próximas greenRedAttempts casas (índices menores = mais recentes)
       for (let j = 1; j <= greenRedAttempts; j++) {
-        const checkIndex = i - j
+        const checkIndex = activationIndex - j
         
-        // Se não tem mais números à frente, para (ainda aguardando resultado)
+        // Se não tem mais números à frente, para
         if (checkIndex < 0) {
           break
         }
         
-        lastCheckedIndex = checkIndex
+        // Se chegou na casa N (última), guardar o índice
+        if (j === greenRedAttempts) {
+          windowEnd = checkIndex
+        }
+        
         const checkNum = currentNumbers[checkIndex].number
         
-        // Se este número pertence à estratégia → GREEN!
-        if (strategyNumbers.includes(checkNum)) {
+        // REGRA CRÍTICA: Só marca GREEN se:
+        // 1. É número da estratégia
+        // 2. NÃO é uma ACTIVATION (não pode sobrescrever ACTIVATION com GREEN)
+        if (strategyNumbers.includes(checkNum) && statusArray[checkIndex] !== 'ACTIVATION') {
           statusArray[checkIndex] = 'GREEN'
           foundGreenInWindow = true
-          break // Encontrou GREEN, para de verificar
+          break // Encontrou GREEN, para de verificar esta janela
         }
       }
       
-      // Se verificou todas as N casas e não encontrou GREEN → RED na última casa verificada
-      if (!foundGreenInWindow && lastCheckedIndex >= 0 && lastCheckedIndex === i - greenRedAttempts) {
-        // Só marca RED se realmente verificou todas as casas
-        statusArray[lastCheckedIndex] = 'RED'
+      // REGRA CRÍTICA: RED só na casa N (última) se:
+      // 1. Verificou todas as N casas (windowEnd foi definido)
+      // 2. Não encontrou GREEN na janela
+      // 3. A posição da casa N NÃO é uma ACTIVATION
+      if (!foundGreenInWindow && windowEnd >= 0) {
+        // Só marca RED se não for uma ACTIVATION
+        if (statusArray[windowEnd] !== 'ACTIVATION' && statusArray[windowEnd] !== 'GREEN') {
+          statusArray[windowEnd] = 'RED'
+        }
       }
     }
     
@@ -904,13 +914,15 @@ export default function Home() {
     })
     
     // Log para debug
-    console.log('   📊 Resultados (primeiros 15):')
-    for (let i = 0; i < Math.min(15, currentNumbers.length); i++) {
+    console.log('   📊 Resultados COMPLETOS (todas as marcações):')
+    for (let i = 0; i < currentNumbers.length; i++) {
       const num = currentNumbers[i].number
       const status = statusArray[i]
       const isStrat = strategyNumbers.includes(num)
+      // Mostrar apenas os que têm marcação ou são da estratégia
       if (status !== 'NEUTRAL' || isStrat) {
-        console.log(`      [${i}] ${num} → ${status} ${isStrat ? '★' : ''}`)
+        const emoji = status === 'GREEN' ? '🟢' : status === 'RED' ? '🔴' : status === 'ACTIVATION' ? '🟡' : '⚪'
+        console.log(`      [${i}] ${num} ${emoji} ${status} ${isStrat ? '★' : ''}`)
       }
     }
     
