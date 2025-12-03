@@ -77,9 +77,10 @@ export default function RouletteWebSocketStatus({
   // Sincronizar números recebidos com o componente pai
   useEffect(() => {
     if (recentNumbers.length > 0 && onNumbersReceived) {
-      const numbers = recentNumbers.map(n => n.number)
+      // Inverter ordem: mais recente primeiro (índice 0 = mais recente)
+      const numbers = [...recentNumbers].reverse().map(n => n.number)
       onNumbersReceived(numbers)
-      console.log('📊 Números sincronizados:', numbers.length)
+      console.log('📊 Números sincronizados:', numbers.length, '(mais recente primeiro)')
     }
   }, [recentNumbers, onNumbersReceived])
 
