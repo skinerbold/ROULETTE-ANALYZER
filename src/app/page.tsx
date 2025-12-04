@@ -67,7 +67,7 @@ export default function Home() {
     console.log('   🚫 Select desabilitado?', !isConnected || availableRoulettes.length === 0)
   }, [isConnected, availableRoulettes, selectedRoulette, recentNumbers])
   
-  const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar
+  const [analysisLimit, setAnalysisLimit] = useState<number>(500) // Quantidade de números para analisar (limite de visualização)
   const [greenRedAttempts, setGreenRedAttempts] = useState<number>(3) // Quantidade de casas para analisar GREEN/RED (1, 2, 3, 4, 5 ou 6)
   
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
@@ -847,6 +847,7 @@ export default function Home() {
       new Array(currentNumbers.length).fill('NEUTRAL')
     
     // Processar do mais antigo (índice maior) para o mais recente (índice menor)
+    console.log('\n🔍 PROCESSANDO MARCAÇÕES:')
     for (let i = currentNumbers.length - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
       
@@ -857,21 +858,25 @@ export default function Home() {
       
       // Se já foi marcado (GREEN por uma ACTIVATION anterior), não sobrescrever
       if (statusArray[i] !== 'NEUTRAL') {
+        console.log(`   [${i}] ${num} já está marcado como ${statusArray[i]} - PULANDO`)
         continue
       }
       
       // É número da estratégia e ainda está NEUTRAL → marca como ACTIVATION
       statusArray[i] = 'ACTIVATION'
+      console.log(`\n   [${i}] ${num} 🟡 ACTIVATION`)
       
       // Verificar as próximas greenRedAttempts casas (índices menores = mais recentes)
       let foundGreenInWindow = false
       let windowEnd = -1
+      const windowNumbers: string[] = []
       
       for (let j = 1; j <= greenRedAttempts; j++) {
         const checkIndex = i - j
         
         // Se não tem mais números à frente, para
         if (checkIndex < 0) {
+          console.log(`      Casa ${j}: índice ${checkIndex} fora do array`)
           break
         }
         
@@ -881,12 +886,19 @@ export default function Home() {
         }
         
         const checkNum = currentNumbers[checkIndex].number
+        const checkStatus = statusArray[checkIndex]
+        windowNumbers.push(`Casa${j}[${checkIndex}]=${checkNum}(${checkStatus})`)
+        
+        console.log(`      Casa ${j} [${checkIndex}]: ${checkNum} (status: ${checkStatus})`)
         
         // Se encontrou número da estratégia na janela → GREEN
         if (strategyNumbers.includes(checkNum)) {
           // Só marca GREEN se ainda estiver NEUTRAL
           if (statusArray[checkIndex] === 'NEUTRAL') {
             statusArray[checkIndex] = 'GREEN'
+            console.log(`         ✅ Marcou [${checkIndex}] como GREEN`)
+          } else {
+            console.log(`         ⚠️ Já estava marcado como ${checkStatus}, não sobrescreveu`)
           }
           foundGreenInWindow = true
           break
@@ -895,10 +907,16 @@ export default function Home() {
       
       // Se não encontrou GREEN e verificou todas as casas → RED na casa N
       if (!foundGreenInWindow && windowEnd >= 0) {
+        console.log(`      ❌ Nenhum GREEN encontrado. windowEnd = ${windowEnd}`)
         // Só marca RED se a posição ainda estiver NEUTRAL
         if (statusArray[windowEnd] === 'NEUTRAL') {
           statusArray[windowEnd] = 'RED'
+          console.log(`         🔴 Marcou [${windowEnd}] ${currentNumbers[windowEnd].number} como RED`)
+        } else {
+          console.log(`         ⚠️ [${windowEnd}] já estava ${statusArray[windowEnd]}, não marcou RED`)
         }
+      } else if (!foundGreenInWindow) {
+        console.log(`      ⏳ Janela incompleta (windowEnd=${windowEnd}), aguardando mais números`)
       }
     }
     

@@ -33,7 +33,7 @@ export const WEBSOCKET_CONFIG: WebSocketConfig = {
   reconnectInterval: 5000, // 5 segundos
   maxReconnectAttempts: 10,
   heartbeatInterval: 30000, // 30 segundos
-  maxHistorySize: 500, // Últimos 500 números
+  maxHistorySize: 500, // Últimos 500 números no frontend (banco tem armazenamento ilimitado)
 }
 
 // LOG CRÍTICO: Mostrar configuração carregada
