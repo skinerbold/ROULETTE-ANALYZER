@@ -799,38 +799,29 @@ export default function Home() {
 
   const updateNumberStatuses = () => {
     // ========================================
-    // SISTEMA DE MARCAÇÃO DE CORES - REESCRITO DO ZERO
+    // SISTEMA DE MARCAÇÃO DE CORES - CORRIGIDO
     // ========================================
     // 
     // ESTRUTURA DO ARRAY currentNumbers:
     //   - Índice 0 = número MAIS RECENTE
-    //   - Índice N = número MAIS ANTIGO
+    //   - Índice N-1 = número MAIS ANTIGO
     //   - Exibição na tela: invertida (antigo → recente, esquerda → direita)
     //
-    // REGRAS DE MARCAÇÃO:
-    //   1. AMARELO (ACTIVATION): Primeiro número da estratégia encontrado
-    //      processando do MAIS ANTIGO para o MAIS RECENTE. Este é o ponto
-    //      de referência fixo para o cálculo da estratégia.
-    //   
-    //   2. VERDE (GREEN): Número da estratégia que aparece DENTRO do intervalo
-    //      de N casas APÓS uma ACTIVATION (onde N = greenRedAttempts).
-    //      - Conta a partir da casa APÓS a ACTIVATION
-    //      - Se cair na casa 1, 2, ... ou N → GREEN
-    //   
-    //   3. VERMELHO (RED): Marcado APENAS na casa N (última do intervalo)
-    //      quando nenhum número da estratégia apareceu nas N casas após ACTIVATION.
-    //      - NÃO marca RED em casas intermediárias
-    //      - NÃO marca RED se a janela está incompleta
-    //   
-    //   4. NEUTRO: Todos os outros números
+    // LÓGICA CORRETA:
+    //   1. Processar do MAIS RECENTE (índice 0) para o MAIS ANTIGO (índice N-1)
+    //   2. Quando encontrar número da estratégia → verificar se é GREEN ou ACTIVATION
+    //   3. Para cada número da estratégia encontrado:
+    //      - Olhar para TRÁS (índices MAIORES = mais antigos) para ver se há uma ACTIVATION prévia
+    //      - Se há ACTIVATION dentro de N casas anteriores → este número é GREEN
+    //      - Se não há ACTIVATION anterior (ou está fora da janela) → este é nova ACTIVATION
+    //   4. Depois de marcar ACTIVATION, olhar N casas À FRENTE (índices MENORES = mais recentes)
+    //      - Se encontrar número da estratégia → GREEN
+    //      - Se não encontrar em N casas completas → RED na última casa
     //
-    // FLUXO DE PROCESSAMENTO:
-    //   1. Processar do mais ANTIGO para o mais RECENTE
-    //   2. Quando encontra número da estratégia não marcado → ACTIVATION
-    //   3. Verificar as próximas N casas (em direção ao mais recente)
-    //   4. Se encontrar número da estratégia → GREEN (e encerrar busca)
-    //   5. Se não encontrar em N casas completas → RED na casa N
-    //   6. Continuar processando (próxima ACTIVATION só depois da janela atual)
+    // RESUMO:
+    //   - ACTIVATION = número da estratégia que INICIA uma sequência
+    //   - GREEN = número da estratégia que aparece nas N casas APÓS (mais recentes que) uma ACTIVATION
+    //   - RED = marcado na N-ésima casa se não houver GREEN
     // ========================================
     
     const currentNumbers = recentNumbers.slice(0, analysisLimit)
@@ -857,75 +848,68 @@ export default function Home() {
     const strategySet = new Set(strategyNumbers)
     
     // Inicializar array de status - todos começam NEUTRAL
-    const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = 
-      new Array(currentNumbers.length).fill('NEUTRAL')
+    const N = currentNumbers.length
+    const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = new Array(N).fill('NEUTRAL')
     
-    // Variável para rastrear até onde já processamos
-    // (evita que números dentro de janelas virem novas ACTIVATIONS)
-    let processedUntilIndex = currentNumbers.length // Começa "além" do array
+    // ========================================
+    // FASE 1: Identificar todas as ACTIVATIONs
+    // Processar do MAIS ANTIGO para o MAIS RECENTE
+    // Uma ACTIVATION é um número da estratégia que não está dentro
+    // da janela de uma ACTIVATION anterior
+    // ========================================
     
-    // Processar do MAIS ANTIGO (índice maior) para o MAIS RECENTE (índice menor)
-    for (let i = currentNumbers.length - 1; i >= 0; i--) {
+    let nextValidActivationIndex = N // Índice mínimo para próxima ACTIVATION válida
+    
+    for (let i = N - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
       
       // Pular se não é número da estratégia
-      if (!strategySet.has(num)) {
-        continue
-      }
+      if (!strategySet.has(num)) continue
       
-      // Pular se este índice já foi processado como parte de uma janela anterior
-      // OU se já está marcado como GREEN
-      if (i >= processedUntilIndex || statusArray[i] === 'GREEN') {
-        continue
-      }
+      // Pular se este índice está dentro da janela de uma ACTIVATION anterior
+      // (índices >= i que foram processados)
+      if (i >= nextValidActivationIndex) continue
       
-      // ========================================
-      // NOVA ACTIVATION ENCONTRADA
-      // ========================================
+      // Este é uma nova ACTIVATION!
       statusArray[i] = 'ACTIVATION'
       
-      // Definir o fim da janela de verificação
-      // A janela vai de (i-1) até (i-greenRedAttempts), ou seja, N casas APÓS a ACTIVATION
-      const windowStart = i - 1                        // Primeira casa após ACTIVATION
-      const windowEnd = i - greenRedAttempts           // Última casa da janela (pode ser negativo)
+      // Definir janela de verificação: N casas APÓS a activation (índices MENORES = mais recentes)
+      // Janela: de (i-1) até (i-greenRedAttempts), limitado a índice 0
+      const windowStart = i - 1                          // Primeira casa após activation
+      const windowEnd = Math.max(0, i - greenRedAttempts) // Última casa da janela
       
-      // Verificar se a janela está completa
-      const windowIsComplete = windowEnd >= 0
+      // Verificar se a janela está completa (todas as N casas existem)
+      const windowIsComplete = (i - greenRedAttempts) >= 0
       
-      // Buscar GREEN dentro da janela
+      // Buscar GREEN dentro da janela (mais recentes)
       let foundGreen = false
       let greenIndex = -1
       
-      for (let j = windowStart; j >= Math.max(0, windowEnd); j--) {
+      for (let j = windowStart; j >= windowEnd; j--) {
+        if (j < 0) break
         const checkNum = currentNumbers[j].number
         
         if (strategySet.has(checkNum)) {
-          // Encontrou número da estratégia dentro da janela → GREEN
           foundGreen = true
           greenIndex = j
           break // Para na primeira ocorrência (mais próxima da ACTIVATION)
         }
       }
       
-      // Aplicar marcação baseada no resultado
+      // Aplicar marcação
       if (foundGreen && greenIndex >= 0) {
-        // Marcar GREEN apenas se ainda estiver NEUTRAL
-        if (statusArray[greenIndex] === 'NEUTRAL') {
-          statusArray[greenIndex] = 'GREEN'
-        }
-        // Atualizar processedUntilIndex para evitar que números na janela virem ACTIVATION
-        processedUntilIndex = i
+        statusArray[greenIndex] = 'GREEN'
+        // A próxima ACTIVATION válida só pode ser APÓS o GREEN (índice menor)
+        nextValidActivationIndex = greenIndex
       } else if (windowIsComplete) {
-        // Janela completa sem GREEN → marcar RED na ÚLTIMA casa da janela
-        if (statusArray[windowEnd] === 'NEUTRAL') {
-          statusArray[windowEnd] = 'RED'
-        }
-        // Atualizar processedUntilIndex
-        processedUntilIndex = i
+        // Janela completa sem GREEN → RED na última casa da janela
+        statusArray[windowEnd] = 'RED'
+        // A próxima ACTIVATION válida só pode ser APÓS o RED
+        nextValidActivationIndex = windowEnd
       } else {
-        // Janela incompleta → não marca RED (aguardando mais números)
-        // Mas ainda atualiza processedUntilIndex para o que foi verificado
-        processedUntilIndex = i
+        // Janela incompleta → não marca RED, aguardando mais números
+        // Próxima ACTIVATION válida é após o fim da janela atual
+        nextValidActivationIndex = Math.max(0, windowEnd)
       }
     }
     
