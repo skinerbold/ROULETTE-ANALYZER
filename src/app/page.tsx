@@ -798,17 +798,50 @@ export default function Home() {
   }
 
   const updateNumberStatuses = () => {
-    // CORREÇÃO: Usar recentNumbers diretamente com analysisLimit
+    // ========================================
+    // SISTEMA DE MARCAÇÃO DE CORES - REESCRITO DO ZERO
+    // ========================================
+    // 
+    // ESTRUTURA DO ARRAY currentNumbers:
+    //   - Índice 0 = número MAIS RECENTE
+    //   - Índice N = número MAIS ANTIGO
+    //   - Exibição na tela: invertida (antigo → recente, esquerda → direita)
+    //
+    // REGRAS DE MARCAÇÃO:
+    //   1. AMARELO (ACTIVATION): Primeiro número da estratégia encontrado
+    //      processando do MAIS ANTIGO para o MAIS RECENTE. Este é o ponto
+    //      de referência fixo para o cálculo da estratégia.
+    //   
+    //   2. VERDE (GREEN): Número da estratégia que aparece DENTRO do intervalo
+    //      de N casas APÓS uma ACTIVATION (onde N = greenRedAttempts).
+    //      - Conta a partir da casa APÓS a ACTIVATION
+    //      - Se cair na casa 1, 2, ... ou N → GREEN
+    //   
+    //   3. VERMELHO (RED): Marcado APENAS na casa N (última do intervalo)
+    //      quando nenhum número da estratégia apareceu nas N casas após ACTIVATION.
+    //      - NÃO marca RED em casas intermediárias
+    //      - NÃO marca RED se a janela está incompleta
+    //   
+    //   4. NEUTRO: Todos os outros números
+    //
+    // FLUXO DE PROCESSAMENTO:
+    //   1. Processar do mais ANTIGO para o mais RECENTE
+    //   2. Quando encontra número da estratégia não marcado → ACTIVATION
+    //   3. Verificar as próximas N casas (em direção ao mais recente)
+    //   4. Se encontrar número da estratégia → GREEN (e encerrar busca)
+    //   5. Se não encontrar em N casas completas → RED na casa N
+    //   6. Continuar processando (próxima ACTIVATION só depois da janela atual)
+    // ========================================
+    
     const currentNumbers = recentNumbers.slice(0, analysisLimit)
     
-    // Se nenhuma estratégia selecionada ou sem números, todos ficam NEUTROS
+    // Validações iniciais
     if (selectedStrategies.length === 0 || currentNumbers.length === 0) {
       setNumberStatuses([])
       setStatusMap(new Map())
       return
     }
     
-    // Pegar a ÚLTIMA estratégia selecionada
     const lastSelectedId = selectedStrategies[selectedStrategies.length - 1]
     const strategy = STRATEGIES.find(s => s.id === lastSelectedId)
     if (!strategy) {
@@ -817,132 +850,97 @@ export default function Home() {
       return
     }
 
-    // Obter números da estratégia (array fixo de números que pertencem à estratégia)
+    // Obter números da estratégia
     const { getStrategyNumbers } = require('@/lib/strategies')
     const numbersOnly = currentNumbers.map(n => n.number)
     const strategyNumbers: number[] = getStrategyNumbers(lastSelectedId, numbersOnly)
+    const strategySet = new Set(strategyNumbers)
     
-    console.log('\n🎯 DEBUG updateNumberStatuses:')
-    console.log('   Estratégia:', strategy.name)
-    console.log('   Números da estratégia:', strategyNumbers)
-    console.log('   greenRedAttempts:', greenRedAttempts)
-    console.log('   Total números:', currentNumbers.length)
-
-    // ========================================
-    // LÓGICA CORRIGIDA DE MARCAÇÃO
-    // ========================================
-    // Array currentNumbers: [índice 0 = mais recente, ..., índice N = mais antigo]
-    // 
-    // REGRAS CORRETAS:
-    // 1. ACTIVATION: Número da estratégia que NÃO está dentro de uma janela de verificação
-    // 2. GREEN: Número da estratégia DENTRO das N casas após uma ACTIVATION
-    // 3. RED: APENAS na casa N (última) se não houve GREEN na janela
-    // 
-    // IMPORTANTE: Processar do mais antigo para o mais recente para garantir que
-    // janelas de ACTIVATIONS mais recentes tenham prioridade
-    // ========================================
-    
-    // Inicializar todos como NEUTRAL
+    // Inicializar array de status - todos começam NEUTRAL
     const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = 
       new Array(currentNumbers.length).fill('NEUTRAL')
     
-    // Processar do mais antigo (índice maior) para o mais recente (índice menor)
-    console.log('\n🔍 PROCESSANDO MARCAÇÕES:')
+    // Variável para rastrear até onde já processamos
+    // (evita que números dentro de janelas virem novas ACTIVATIONS)
+    let processedUntilIndex = currentNumbers.length // Começa "além" do array
+    
+    // Processar do MAIS ANTIGO (índice maior) para o MAIS RECENTE (índice menor)
     for (let i = currentNumbers.length - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
       
-      // Se não é número da estratégia, pula
-      if (!strategyNumbers.includes(num)) {
+      // Pular se não é número da estratégia
+      if (!strategySet.has(num)) {
         continue
       }
       
-      // Se já foi marcado (GREEN por uma ACTIVATION anterior), não sobrescrever
-      if (statusArray[i] !== 'NEUTRAL') {
-        console.log(`   [${i}] ${num} já está marcado como ${statusArray[i]} - PULANDO`)
+      // Pular se este índice já foi processado como parte de uma janela anterior
+      // OU se já está marcado como GREEN
+      if (i >= processedUntilIndex || statusArray[i] === 'GREEN') {
         continue
       }
       
-      // É número da estratégia e ainda está NEUTRAL → marca como ACTIVATION
+      // ========================================
+      // NOVA ACTIVATION ENCONTRADA
+      // ========================================
       statusArray[i] = 'ACTIVATION'
-      console.log(`\n   [${i}] ${num} 🟡 ACTIVATION`)
       
-      // Verificar as próximas greenRedAttempts casas (índices menores = mais recentes)
-      let foundGreenInWindow = false
-      let windowEnd = -1
-      const windowNumbers: string[] = []
+      // Definir o fim da janela de verificação
+      // A janela vai de (i-1) até (i-greenRedAttempts), ou seja, N casas APÓS a ACTIVATION
+      const windowStart = i - 1                        // Primeira casa após ACTIVATION
+      const windowEnd = i - greenRedAttempts           // Última casa da janela (pode ser negativo)
       
-      for (let j = 1; j <= greenRedAttempts; j++) {
-        const checkIndex = i - j
+      // Verificar se a janela está completa
+      const windowIsComplete = windowEnd >= 0
+      
+      // Buscar GREEN dentro da janela
+      let foundGreen = false
+      let greenIndex = -1
+      
+      for (let j = windowStart; j >= Math.max(0, windowEnd); j--) {
+        const checkNum = currentNumbers[j].number
         
-        // Se não tem mais números à frente, para
-        if (checkIndex < 0) {
-          console.log(`      Casa ${j}: índice ${checkIndex} fora do array`)
-          break
-        }
-        
-        // Marcar a última casa da janela
-        if (j === greenRedAttempts) {
-          windowEnd = checkIndex
-        }
-        
-        const checkNum = currentNumbers[checkIndex].number
-        const checkStatus = statusArray[checkIndex]
-        windowNumbers.push(`Casa${j}[${checkIndex}]=${checkNum}(${checkStatus})`)
-        
-        console.log(`      Casa ${j} [${checkIndex}]: ${checkNum} (status: ${checkStatus})`)
-        
-        // Se encontrou número da estratégia na janela → GREEN
-        if (strategyNumbers.includes(checkNum)) {
-          // Só marca GREEN se ainda estiver NEUTRAL
-          if (statusArray[checkIndex] === 'NEUTRAL') {
-            statusArray[checkIndex] = 'GREEN'
-            console.log(`         ✅ Marcou [${checkIndex}] como GREEN`)
-          } else {
-            console.log(`         ⚠️ Já estava marcado como ${checkStatus}, não sobrescreveu`)
-          }
-          foundGreenInWindow = true
-          break
+        if (strategySet.has(checkNum)) {
+          // Encontrou número da estratégia dentro da janela → GREEN
+          foundGreen = true
+          greenIndex = j
+          break // Para na primeira ocorrência (mais próxima da ACTIVATION)
         }
       }
       
-      // Se não encontrou GREEN e verificou todas as casas → RED na casa N
-      if (!foundGreenInWindow && windowEnd >= 0) {
-        console.log(`      ❌ Nenhum GREEN encontrado. windowEnd = ${windowEnd}`)
-        // Só marca RED se a posição ainda estiver NEUTRAL
+      // Aplicar marcação baseada no resultado
+      if (foundGreen && greenIndex >= 0) {
+        // Marcar GREEN apenas se ainda estiver NEUTRAL
+        if (statusArray[greenIndex] === 'NEUTRAL') {
+          statusArray[greenIndex] = 'GREEN'
+        }
+        // Atualizar processedUntilIndex para evitar que números na janela virem ACTIVATION
+        processedUntilIndex = i
+      } else if (windowIsComplete) {
+        // Janela completa sem GREEN → marcar RED na ÚLTIMA casa da janela
         if (statusArray[windowEnd] === 'NEUTRAL') {
           statusArray[windowEnd] = 'RED'
-          console.log(`         🔴 Marcou [${windowEnd}] ${currentNumbers[windowEnd].number} como RED`)
-        } else {
-          console.log(`         ⚠️ [${windowEnd}] já estava ${statusArray[windowEnd]}, não marcou RED`)
         }
-      } else if (!foundGreenInWindow) {
-        console.log(`      ⏳ Janela incompleta (windowEnd=${windowEnd}), aguardando mais números`)
+        // Atualizar processedUntilIndex
+        processedUntilIndex = i
+      } else {
+        // Janela incompleta → não marca RED (aguardando mais números)
+        // Mas ainda atualiza processedUntilIndex para o que foi verificado
+        processedUntilIndex = i
       }
     }
     
-    // Criar array de status e statusMap
+    // Converter para formato de saída
     const statuses: NumberStatus[] = currentNumbers.map((entry, i) => ({
       number: entry.number,
-      status: statusArray[i]
+      status: statusArray[i],
+      timestamp: entry.timestamp
     }))
     
+    // Criar mapa de timestamp → status para busca rápida
     const newStatusMap = new Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>()
     currentNumbers.forEach((entry, i) => {
       newStatusMap.set(entry.timestamp, statusArray[i])
     })
-    
-    // Log para debug
-    console.log('   📊 Resultados COMPLETOS (todas as marcações):')
-    for (let i = 0; i < currentNumbers.length; i++) {
-      const num = currentNumbers[i].number
-      const status = statusArray[i]
-      const isStrat = strategyNumbers.includes(num)
-      // Mostrar apenas os que têm marcação ou são da estratégia
-      if (status !== 'NEUTRAL' || isStrat) {
-        const emoji = status === 'GREEN' ? '🟢' : status === 'RED' ? '🔴' : status === 'ACTIVATION' ? '🟡' : '⚪'
-        console.log(`      [${i}] ${num} ${emoji} ${status} ${isStrat ? '★' : ''}`)
-      }
-    }
     
     setNumberStatuses(statuses)
     setStatusMap(newStatusMap)

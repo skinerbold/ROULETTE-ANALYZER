@@ -94,8 +94,12 @@ export interface AnalysisResult {
   firstAttemptHits: number
   secondAttemptHits: number
   thirdAttemptHits: number
+  fourthAttemptHits: number
+  fifthAttemptHits: number
+  sixthAttemptHits: number
   mostActivatingNumber: number
   mostActivatingCount: number
   profit: number
   activations: Activation[]
+  winRate?: number
 }
