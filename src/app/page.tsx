@@ -799,10 +799,12 @@ export default function Home() {
 
   const updateNumberStatuses = () => {
     // ========================================
-    // SISTEMA DE MARCAÇÃO DE CORES - VERSÃO FINAL v2
+    // SISTEMA DE MARCAÇÃO DE CORES - VERSÃO FINAL v3
     // ========================================
     // 
-    // REGRA PRINCIPAL: Todo número da estratégia DEVE ser pintado!
+    // REGRA: Cada ACTIVATION tem exatamente 1 resultado (GREEN ou RED)
+    // Um número da estratégia na janela = GREEN (encerra essa ACTIVATION)
+    // O GREEN também inicia uma NOVA ACTIVATION a partir dele
     // 
     // ESTRUTURA DO ARRAY currentNumbers:
     //   - Índice 0 = número MAIS RECENTE
@@ -812,13 +814,6 @@ export default function Home() {
     //   [0] [1] [2] ... [N-2] [N-1]
     //   recente ――――――――――――――→ antigo
     //   esquerda ―――――――――――――→ direita
-    //
-    // LÓGICA:
-    //   1. Processar do MAIS ANTIGO (índice N-1) para o MAIS RECENTE (índice 0)
-    //   2. Todo número da estratégia é uma ACTIVATION
-    //   3. A partir da ACTIVATION, olhar N casas para os MAIS RECENTES
-    //   4. Se encontrar número da estratégia → GREEN (e esse GREEN vira nova ACTIVATION)
-    //   5. Se não encontrar em N casas → RED na última casa verificada
     // ========================================
     
     const currentNumbers = recentNumbers.slice(0, analysisLimit)
@@ -848,69 +843,64 @@ export default function Home() {
     const N = currentNumbers.length
     const statusArray: ('GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL')[] = new Array(N).fill('NEUTRAL')
     
+    // Set para rastrear índices já "consumidos" (fazem parte de uma janela)
+    const consumedIndices = new Set<number>()
+    
     // ========================================
-    // PASSO 1: Marcar TODAS as ACTIVATIONs
-    // Todo número da estratégia começa como ACTIVATION
+    // Processar do MAIS ANTIGO (índice N-1) para o MAIS RECENTE (índice 0)
     // ========================================
     
-    const activationIndices: number[] = []
-    
-    // Processar do mais antigo para o mais recente
     for (let i = N - 1; i >= 0; i--) {
       const num = currentNumbers[i].number
       
       // Pular se não é número da estratégia
       if (!strategySet.has(num)) continue
       
-      // TODA ocorrência de número da estratégia é uma ACTIVATION inicial
+      // Pular se este índice já foi consumido por uma ACTIVATION anterior
+      if (consumedIndices.has(i)) continue
+      
+      // Este é uma ACTIVATION
       statusArray[i] = 'ACTIVATION'
-      activationIndices.push(i)
-    }
-    
-    // ========================================
-    // PASSO 2: Para cada ACTIVATION, verificar se há GREEN na janela
-    // Se houver GREEN, marca como GREEN (sobrescreve ACTIVATION)
-    // Se não houver GREEN após N casas, marca RED
-    // ========================================
-    
-    // Processar ACTIVATIONs da mais antiga para a mais recente
-    // (activationIndices já está nessa ordem pois processamos N-1 → 0)
-    
-    for (const actIdx of activationIndices) {
-      // Janela: N casas APÓS a activation (índices MENORES = mais recentes = esquerda na tela)
-      const windowStart = actIdx - 1                          // Primeira casa após (mais recente)
-      const windowEnd = Math.max(0, actIdx - greenRedAttempts)  // Última casa da janela
+      
+      // Definir janela: N casas para a ESQUERDA (índices menores = mais recentes)
+      const windowStart = i - 1
+      const windowEnd = Math.max(0, i - greenRedAttempts)
       
       // Verificar se a janela está completa
-      const windowIsComplete = (actIdx - greenRedAttempts) >= 0
+      const windowIsComplete = (i - greenRedAttempts) >= 0
       
-      // Buscar GREEN dentro da janela (mais recentes, índices menores)
+      // Buscar GREEN dentro da janela
       let foundGreen = false
       let greenIndex = -1
       
+      // Procurar do mais próximo (windowStart) ao mais distante (windowEnd)
       for (let j = windowStart; j >= windowEnd; j--) {
         if (j < 0) break
+        
         const checkNum = currentNumbers[j].number
         
         if (strategySet.has(checkNum)) {
           foundGreen = true
           greenIndex = j
-          break // Para na primeira ocorrência (mais próxima da ACTIVATION)
+          break // Para na PRIMEIRA ocorrência (mais próxima da ACTIVATION)
         }
       }
       
-      // Aplicar marcação
+      // Aplicar resultado
       if (foundGreen && greenIndex >= 0) {
-        // Marcar como GREEN (sobrescreve ACTIVATION que estava lá)
+        // Marcar como GREEN
         statusArray[greenIndex] = 'GREEN'
+        // O GREEN será processado como nova ACTIVATION na próxima iteração
+        // (não está em consumedIndices, então será encontrado)
       } else if (windowIsComplete) {
-        // Janela completa sem GREEN → RED na última casa da janela
-        // Só marca RED se a posição não tem um número da estratégia
-        if (!strategySet.has(currentNumbers[windowEnd].number)) {
-          statusArray[windowEnd] = 'RED'
+        // Janela completa sem GREEN → RED na última posição
+        statusArray[windowEnd] = 'RED'
+        // Consumir todas as posições da janela para evitar marcações duplicadas
+        for (let k = windowStart; k >= windowEnd; k--) {
+          if (k >= 0) consumedIndices.add(k)
         }
       }
-      // Se janela incompleta, não marca RED (aguardando mais números)
+      // Se janela incompleta e sem GREEN, não marca nada (aguardando)
     }
     
     // Converter para formato de saída
