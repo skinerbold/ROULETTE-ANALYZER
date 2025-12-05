@@ -35,6 +35,7 @@ export interface UseRouletteWebSocketReturn {
   sendMessage: (message: string) => void
   selectRoulette: (rouletteId: string) => void
   requestHistory: (rouletteId: string, limit?: number) => void // NOVO
+  requestStatus: () => void // NOVO: diagnóstico
 }
 
 export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
@@ -585,6 +586,24 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         return
       }
       
+      // FORMATO: Status do servidor (diagnóstico)
+      if (message.type === 'status') {
+        console.log('📊 STATUS DO SERVIDOR:')
+        console.log(`   🔌 API Connection: ${message.apiConnection}`)
+        console.log(`   📨 Last API Message: ${message.lastApiMessage || 'NENHUMA'}`)
+        console.log(`   📊 API Message Count: ${message.apiMessageCount}`)
+        console.log(`   🎰 Roulettes: ${message.roulettesCount}`)
+        console.log(`   👥 Clients: ${message.clientsConnected}`)
+        console.log(`   ⏱️ Uptime: ${Math.round(message.uptime)}s`)
+        return
+      }
+      
+      // Mensagens conhecidas que podem ser ignoradas silenciosamente
+      if (message.type === 'connected' || message.type === 'pong') {
+        // Ignorar silenciosamente
+        return
+      }
+      
       // Se não for formato da API real, mostrar detalhes da mensagem
       console.log('⚠️ MENSAGEM IGNORADA (formato desconhecido)')
       console.log('   📦 Tipo:', typeof message)
@@ -771,6 +790,16 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     }
   }, [])
 
+  // Solicitar status do servidor (para diagnóstico)
+  const requestStatus = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'status' }))
+      console.log('📤 Solicitando status do servidor...')
+    } else {
+      console.warn('⚠️ WebSocket não está conectado para solicitar status')
+    }
+  }, [])
+
   // Conectar automaticamente ao montar
   useEffect(() => {
     connect()
@@ -800,6 +829,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     disconnect,
     sendMessage,
     selectRoulette,
-    requestHistory // NOVO
+    requestHistory, // NOVO
+    requestStatus // NOVO: diagnóstico
   }
 }
