@@ -947,9 +947,16 @@ export default function Home() {
   }
 
   const getNumberColor = (number: number, displayIndex: number, totalNumbers: number) => {
-    // displayIndex agora corresponde diretamente ao índice do recentNumbers
-    // (0 = mais recente, N-1 = mais antigo)
-    // Buscar o timestamp correspondente ao índice
+    // Como removemos o .reverse() da renderização, o displayIndex agora é:
+    // 0 = mais recente (primeiro exibido)
+    // N-1 = mais antigo (último exibido)
+    // 
+    // Mas o statusMap foi calculado com a lógica antiga onde processamos
+    // do mais antigo para o mais recente. Precisamos manter a mesma referência.
+    // 
+    // recentNumbers: índice 0 = mais recente, índice N-1 = mais antigo
+    // displayIndex sem reverse: 0 = mais recente (correto, igual ao recentNumbers)
+    
     const limitedRecent = recentNumbers.slice(0, totalNumbers)
     const entry = limitedRecent[displayIndex]
     if (!entry) {
