@@ -947,14 +947,11 @@ export default function Home() {
   }
 
   const getNumberColor = (number: number, displayIndex: number, totalNumbers: number) => {
-    // O displayIndex vem do array revertido (0 = mais antigo exibido primeiro)
-    // Precisamos converter para o índice do recentNumbers (0 = mais recente)
-    const originalIndex = totalNumbers - 1 - displayIndex
-    
+    // displayIndex agora corresponde diretamente ao índice do recentNumbers
+    // (0 = mais recente, N-1 = mais antigo)
     // Buscar o timestamp correspondente ao índice
-    // CORREÇÃO: Limitar ao tamanho de analysisLimit (mesmo usado em numbersToAnalyze)
     const limitedRecent = recentNumbers.slice(0, totalNumbers)
-    const entry = limitedRecent[originalIndex]
+    const entry = limitedRecent[displayIndex]
     if (!entry) {
       return 'bg-gray-700 text-gray-300' // NEUTRAL
     }
@@ -1516,7 +1513,7 @@ export default function Home() {
           {numbersToAnalyze.length > 0 ? (
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
-                {[...numbersToAnalyze].reverse().map((number, index) => {
+                {numbersToAnalyze.map((number, index) => {
                   return (
                     <div
                       key={index}
@@ -2708,7 +2705,7 @@ export default function Home() {
             {numbersToAnalyze.length > 0 ? (
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
-                  {[...numbersToAnalyze].reverse().map((number, index) => {
+                  {numbersToAnalyze.map((number, index) => {
                     return (
                       <div
                         key={index}
