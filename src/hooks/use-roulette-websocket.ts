@@ -51,11 +51,13 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const watchdogTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isIntentionalCloseRef = useRef(false)
   const discoveredRoulettesRef = useRef<Set<string>>(new Set())
   const rouletteHistoryRef = useRef<Map<string, RouletteNumber[]>>(new Map())
   const selectedRouletteRef = useRef<string>('') // REF para valor sempre atualizado
   const cacheInitializedRef = useRef(false) // Flag para inicialização única do cache
+  const lastMessageTimeRef = useRef<number>(Date.now())
 
   // Inicializar cache na montagem do componente
   useEffect(() => {
@@ -76,6 +78,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current)
+      watchdogTimeoutRef.current = null
+    }
   }, [])
 
   // Iniciar heartbeat (manter conexão viva)
@@ -87,6 +93,31 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       }
     }, WEBSOCKET_CONFIG.heartbeatInterval)
   }, [clearTimeouts])
+  
+  // Watchdog: verifica se mensagens estão chegando (60 segundos sem mensagens = reconectar)
+  const startWatchdog = useCallback(() => {
+    if (watchdogTimeoutRef.current) {
+      clearTimeout(watchdogTimeoutRef.current)
+    }
+    
+    const checkConnection = () => {
+      const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current
+      const threshold = 60000 // 60 segundos
+      
+      if (timeSinceLastMessage > threshold && wsRef.current?.readyState === WebSocket.OPEN) {
+        console.warn(`⚠️ WATCHDOG: ${Math.floor(timeSinceLastMessage/1000)}s sem mensagens - forçando reconexão`)
+        // Forçar reconexão
+        if (wsRef.current) {
+          wsRef.current.close()
+        }
+      }
+      
+      // Verificar novamente em 30 segundos
+      watchdogTimeoutRef.current = setTimeout(checkConnection, 30000)
+    }
+    
+    watchdogTimeoutRef.current = setTimeout(checkConnection, 30000)
+  }, [])
 
   // Processar mensagens recebidas
   const handleMessage = useCallback((data: string) => {
@@ -680,9 +711,11 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         setError(null)
         setReconnectAttempts(0)
         isIntentionalCloseRef.current = false
+        lastMessageTimeRef.current = Date.now()
         
-        // Iniciar heartbeat
+        // Iniciar heartbeat e watchdog
         startHeartbeat()
+        startWatchdog()
         
         // Solicitar lista de roletas e histórico completo
         console.log('📤 Solicitando lista de roletas e histórico completo...')
@@ -694,6 +727,10 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         console.log('\n📨 📨 📨 MENSAGEM RECEBIDA DO WEBSOCKET:')
         console.log('   📏 Tamanho:', event.data.length, 'caracteres')
         console.log('   📄 Preview:', typeof event.data === 'string' ? event.data.substring(0, 200) : event.data)
+        
+        // Atualizar timestamp da última mensagem
+        lastMessageTimeRef.current = Date.now()
+        
         handleMessage(event.data)
       })
 
@@ -726,7 +763,7 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
       setError('Não foi possível conectar ao servidor')
       attemptReconnect()
     }
-  }, [startHeartbeat, handleMessage, attemptReconnect, clearTimeouts])
+  }, [startHeartbeat, startWatchdog, handleMessage, attemptReconnect, clearTimeouts])
   
   // Função pública connect - reseta tentativas e conecta
   const connect = useCallback(() => {
@@ -834,13 +871,15 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
 
   // Conectar automaticamente ao montar
   useEffect(() => {
+    console.log('🚀 useEffect montagem - iniciando conexão automática')
     connect()
 
     // Cleanup ao desmontar
     return () => {
+      console.log('🔌 useEffect desmontagem - desconectando')
       disconnect()
     }
-  }, []) // Executar apenas uma vez
+  }, [connect, disconnect]) // Incluir dependências
 
   // Sincronizar ref com state sempre que selectedRoulette mudar
   useEffect(() => {
