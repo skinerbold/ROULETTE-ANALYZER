@@ -615,29 +615,48 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     }
   }, []) // REMOVIDO selectedRoulette - agora usa REF!
 
-  // Tentar reconectar
+  // Tentar reconectar - SEM dependências para evitar stale closures
   const attemptReconnect = useCallback(() => {
     if (isIntentionalCloseRef.current) {
       console.log('⏹️ Reconexão cancelada (fechamento intencional)')
       return
     }
 
-    if (reconnectAttempts >= WEBSOCKET_CONFIG.maxReconnectAttempts) {
-      setError(`Falha ao conectar após ${WEBSOCKET_CONFIG.maxReconnectAttempts} tentativas`)
-      console.error('❌ Máximo de tentativas de reconexão atingido')
-      return
-    }
+    // Verificar tentativas usando ref atualizado via setReconnectAttempts
+    setReconnectAttempts(prev => {
+      if (prev >= WEBSOCKET_CONFIG.maxReconnectAttempts) {
+        setError(`Falha ao conectar após ${WEBSOCKET_CONFIG.maxReconnectAttempts} tentativas`)
+        console.error('❌ Máximo de tentativas de reconexão atingido')
+        return prev
+      }
 
-    console.log(`🔄 Tentando reconectar... (Tentativa ${reconnectAttempts + 1}/${WEBSOCKET_CONFIG.maxReconnectAttempts})`)
-    
-    reconnectTimeoutRef.current = setTimeout(() => {
-      setReconnectAttempts(prev => prev + 1)
-      connect()
-    }, WEBSOCKET_CONFIG.reconnectInterval)
-  }, [reconnectAttempts])
+      console.log(`🔄 Tentando reconectar... (Tentativa ${prev + 1}/${WEBSOCKET_CONFIG.maxReconnectAttempts})`)
+      
+      // Limpar timeout anterior se existir
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        console.log('⚡ Executando reconexão...')
+        // Forçar fechamento de conexão anterior se existir
+        if (wsRef.current) {
+          try {
+            wsRef.current.close()
+          } catch (e) {
+            console.warn('Erro ao fechar WS anterior:', e)
+          }
+          wsRef.current = null
+        }
+        connectInternal()
+      }, WEBSOCKET_CONFIG.reconnectInterval)
+      
+      return prev + 1
+    })
+  }, [])
 
-  // Conectar ao WebSocket
-  const connect = useCallback(() => {
+  // Conectar ao WebSocket (função interna - não exportada)
+  const connectInternal = useCallback(() => {
     // Evitar múltiplas conexões
     if (wsRef.current?.readyState === WebSocket.OPEN || 
         wsRef.current?.readyState === WebSocket.CONNECTING) {
@@ -688,21 +707,34 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
 
       ws.addEventListener('close', (event) => {
         console.log(`🔌 Conexão fechada. Código: ${event.code}, Motivo: ${event.reason}`)
+        console.log(`   🔍 Intencional?: ${isIntentionalCloseRef.current}`)
         setIsConnected(false)
         clearTimeouts()
         
         // Definir mensagem de erro apropriada
         if (!isIntentionalCloseRef.current) {
           setError('🔌 Conexão perdida. Tentando reconectar...')
+          console.log('🔄 Iniciando processo de reconexão automática...')
           attemptReconnect()
+        } else {
+          console.log('⏹️ Conexão fechada intencionalmente, não reconectar')
         }
       })
 
     } catch (err) {
       console.error('❌ Erro ao criar WebSocket:', err)
       setError('Não foi possível conectar ao servidor')
+      attemptReconnect()
     }
   }, [startHeartbeat, handleMessage, attemptReconnect, clearTimeouts])
+  
+  // Função pública connect - reseta tentativas e conecta
+  const connect = useCallback(() => {
+    console.log('🎯 Connect() chamado - resetando contador de tentativas')
+    setReconnectAttempts(0)
+    isIntentionalCloseRef.current = false
+    connectInternal()
+  }, [connectInternal])
 
   // Desconectar do WebSocket
   const disconnect = useCallback(() => {
