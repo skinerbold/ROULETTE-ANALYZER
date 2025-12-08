@@ -36,6 +36,7 @@ export interface StrategyStats {
   frequencyCount: number       // Quantidade de vezes que os números da estratégia apareceram
   winRate: number              // Percentual de acerto (GREEN / (GREEN + RED))
   allRedSequences: number[]    // Array com todas as sequências de red da estratégia
+  allGreenSequences: number[]  // Array com todas as sequências de green da estratégia
 }
 
 export interface NumberStatus {

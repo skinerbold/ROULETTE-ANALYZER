@@ -74,6 +74,10 @@ export default function Home() {
   const [maxRedSequenceFilter, setMaxRedSequenceFilter] = useState<number>(0) // 0 = desativado, 1-3 = valores fixos, >3 = custom
   const [customMaxRedSequence, setCustomMaxRedSequence] = useState<string>('') // Valor customizado
   
+  // Filtro de Sequência Máxima de Green
+  const [maxGreenSequenceFilter, setMaxGreenSequenceFilter] = useState<number>(0) // 0 = desativado, 2-4 = valores fixos, 999 = custom
+  const [customMaxGreenSequence, setCustomMaxGreenSequence] = useState<string>('') // Valor customizado
+  
   const [strategyStats, setStrategyStats] = useState<StrategyStats[]>([])
   const [numberStatuses, setNumberStatuses] = useState<NumberStatus[]>([])
   const [statusMap, setStatusMap] = useState<StatusMap>(new Map())
@@ -417,7 +421,8 @@ export default function Home() {
       bestEntryPattern: 'neutral' as const,
       postGreenWins: 0,
       postRedWins: 0,
-      allRedSequences: []
+      allRedSequences: [],
+      allGreenSequences: []
     }))
     setStrategyStats(initialStats)
   }
@@ -605,6 +610,7 @@ export default function Home() {
     let maxGreenSequence = 0
     let maxRedSequence = 0
     let allRedSequences: number[] = [] // Rastreia TODAS as sequências de red
+    let allGreenSequences: number[] = [] // Rastreia TODAS as sequências de green
     let firstAttemptHits = 0
     let secondAttemptHits = 0
     let thirdAttemptHits = 0
@@ -704,6 +710,12 @@ export default function Home() {
         } else {
           // RED: não encontrou nas N tentativas configuradas (ou chegou no fim do array)
           totalRed++
+          
+          // Salvar sequência de green antes de resetar
+          if (currentGreenSequence > 0) {
+            allGreenSequences.push(currentGreenSequence)
+          }
+          
           currentRedSequence++
           currentGreenSequence = 0
           
@@ -777,7 +789,8 @@ export default function Home() {
       postRedWins,
       frequencyCount,
       winRate,
-      allRedSequences // Array com todas as sequências de red
+      allRedSequences, // Array com todas as sequências de red
+      allGreenSequences // Array com todas as sequências de green
     }
   }
 
@@ -810,7 +823,8 @@ export default function Home() {
         postRedWins: analysis?.postRedWins || 0,
         frequencyCount: analysis?.frequencyCount || 0,
         winRate: analysis?.winRate || 0,
-        allRedSequences: analysis?.allRedSequences || []
+        allRedSequences: analysis?.allRedSequences || [],
+        allGreenSequences: analysis?.allGreenSequences || []
       }
     }).sort((a, b) => b.profit - a.profit)
 
@@ -1079,20 +1093,35 @@ export default function Home() {
     const MAX_DISPLAY = 50
     
     // Obter o valor do filtro de sequência máxima de red
-    const filterValue = maxRedSequenceFilter === 999 
+    const redFilterValue = maxRedSequenceFilter === 999 
       ? (customMaxRedSequence ? parseInt(customMaxRedSequence) : 0)
       : maxRedSequenceFilter
+    
+    // Obter o valor do filtro de sequência máxima de green
+    const greenFilterValue = maxGreenSequenceFilter === 999 
+      ? (customMaxGreenSequence ? parseInt(customMaxGreenSequence) : 0)
+      : maxGreenSequenceFilter
     
     const strategies = selectedStrategies
       .map(strategyId => strategyStats.find(s => s.id === strategyId))
       .filter((s): s is NonNullable<typeof s> => Boolean(s)) // Type guard
       .filter(s => {
         // Aplicar filtro de sequência máxima de red
-        if (filterValue > 0 && s.allRedSequences && s.allRedSequences.length > 0) {
-          // Verificar se TODAS as sequências de red são exatamente do valor especificado
-          return s.allRedSequences.every(seq => seq === filterValue)
+        if (redFilterValue > 0 && s.allRedSequences && s.allRedSequences.length > 0) {
+          if (!s.allRedSequences.every(seq => seq === redFilterValue)) {
+            return false
+          }
         }
-        return true // Se filtro desativado ou sem sequências, mostrar estratégia
+        
+        // Aplicar filtro de sequência máxima de green (mínimo)
+        if (greenFilterValue > 0 && s.allGreenSequences && s.allGreenSequences.length > 0) {
+          // Verificar se TODAS as sequências de green são >= ao valor especificado
+          if (!s.allGreenSequences.every(seq => seq >= greenFilterValue)) {
+            return false
+          }
+        }
+        
+        return true // Se filtros desativados ou sem sequências, mostrar estratégia
       })
       .sort((a, b) => {
         // Ordenar por taxa de aproveitamento (GREEN / ATIVAÇÕES)
@@ -1122,7 +1151,7 @@ export default function Home() {
       total: strategies.length,
       hasMore: strategies.length > MAX_DISPLAY
     }
-  }, [selectedStrategies, strategyStats, maxRedSequenceFilter, customMaxRedSequence])
+  }, [selectedStrategies, strategyStats, maxRedSequenceFilter, customMaxRedSequence, maxGreenSequenceFilter, customMaxGreenSequence])
 
   // Mostrar loading enquanto verifica autenticação
   if (isLoadingSession) {
@@ -1386,6 +1415,66 @@ export default function Home() {
                   : maxRedSequenceFilter === 999
                     ? 'Digite um valor customizado'
                     : `Máximo de ${maxRedSequenceFilter} red consecutivos`
+              }
+            </p>
+          </div>
+        </div>
+
+        {/* Filtro de Sequência Máxima de Green - Mobile */}
+        <div className="p-3 bg-gray-800 border-b border-gray-700">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              🟢 Sequência Mínima de Green
+            </label>
+            <Select 
+              value={maxGreenSequenceFilter.toString()} 
+              onValueChange={(value) => {
+                const numValue = Number(value)
+                setMaxGreenSequenceFilter(numValue)
+                if (numValue !== 999) { // 999 = custom
+                  setCustomMaxGreenSequence('')
+                }
+              }}
+            >
+              <SelectTrigger className="w-full h-10 bg-gray-700 border-gray-600 text-white text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 border-gray-600">
+                <SelectItem value="0" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  Desativado
+                </SelectItem>
+                <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  2 green
+                </SelectItem>
+                <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  3 green
+                </SelectItem>
+                <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  4 green
+                </SelectItem>
+                <SelectItem value="999" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                  Custom
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {maxGreenSequenceFilter === 999 && (
+              <input
+                type="number"
+                min="2"
+                placeholder="Digite o valor"
+                value={customMaxGreenSequence}
+                onChange={(e) => setCustomMaxGreenSequence(e.target.value)}
+                className="w-full h-10 px-3 bg-gray-700 border border-gray-600 text-white text-sm rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            )}
+            <p className="text-xs text-gray-500">
+              {maxGreenSequenceFilter === 0 
+                ? 'Filtro desativado' 
+                : maxGreenSequenceFilter === 999 && customMaxGreenSequence
+                  ? `Mínimo de ${customMaxGreenSequence} green consecutivos`
+                  : maxGreenSequenceFilter === 999
+                    ? 'Digite um valor customizado'
+                    : `Mínimo de ${maxGreenSequenceFilter} green consecutivos`
               }
             </p>
           </div>
@@ -1707,9 +1796,13 @@ export default function Home() {
                 <div className="p-4 space-y-2 pb-8">
                   {/* Listar TODAS as estratégias individuais, ordenadas por filtro selecionado - MOBILE */}
                   {(() => {
-                    const filterValue = maxRedSequenceFilter === 999 
+                    const redFilterValue = maxRedSequenceFilter === 999 
                       ? (customMaxRedSequence ? parseInt(customMaxRedSequence) : 0)
                       : maxRedSequenceFilter
+                    
+                    const greenFilterValue = maxGreenSequenceFilter === 999 
+                      ? (customMaxGreenSequence ? parseInt(customMaxGreenSequence) : 0)
+                      : maxGreenSequenceFilter
                     
                     return FOLDERS
                       .flatMap(folder => 
@@ -1721,9 +1814,19 @@ export default function Home() {
                       )
                       .filter(({ stats }) => {
                         // Aplicar filtro de sequência máxima de red
-                        if (filterValue > 0 && stats?.allRedSequences && stats.allRedSequences.length > 0) {
-                          return stats.allRedSequences.every(seq => seq === filterValue)
+                        if (redFilterValue > 0 && stats?.allRedSequences && stats.allRedSequences.length > 0) {
+                          if (!stats.allRedSequences.every(seq => seq === redFilterValue)) {
+                            return false
+                          }
                         }
+                        
+                        // Aplicar filtro de sequência mínima de green
+                        if (greenFilterValue > 0 && stats?.allGreenSequences && stats.allGreenSequences.length > 0) {
+                          if (!stats.allGreenSequences.every(seq => seq >= greenFilterValue)) {
+                            return false
+                          }
+                        }
+                        
                         return true
                       })
                       .sort((a, b) => {
@@ -2522,6 +2625,75 @@ export default function Home() {
               </p>
             </div>
 
+            {/* Filtro de Sequência Máxima de Green - Desktop */}
+            <div className={`space-y-1 transition-all duration-300 ${
+              isStrategiesScrolled ? '' : ''
+            }`}>
+              <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px]'
+              }`}>
+                🟢 Sequência Mínima de Green
+              </label>
+              <div className={`overflow-hidden transition-all duration-300 ${
+                isStrategiesScrolled ? 'max-h-0 opacity-0' : 'max-h-20 opacity-100'
+              }`}>
+                <Select 
+                  value={maxGreenSequenceFilter.toString()} 
+                  onValueChange={(value) => {
+                    const numValue = Number(value)
+                    setMaxGreenSequenceFilter(numValue)
+                    if (numValue !== 999) { // 999 = custom
+                      setCustomMaxGreenSequence('')
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-gray-700 border-gray-600 text-white hover:bg-gray-650 focus:ring-2 focus:ring-blue-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700 border-gray-600">
+                    <SelectItem value="0" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      Desativado
+                    </SelectItem>
+                    <SelectItem value="2" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      2 green
+                    </SelectItem>
+                    <SelectItem value="3" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      3 green
+                    </SelectItem>
+                    <SelectItem value="4" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      4 green
+                    </SelectItem>
+                    <SelectItem value="999" className="text-white hover:bg-gray-600 focus:bg-gray-600">
+                      Custom
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {maxGreenSequenceFilter === 999 && (
+                  <input
+                    type="number"
+                    min="2"
+                    placeholder="Digite o valor"
+                    value={customMaxGreenSequence}
+                    onChange={(e) => setCustomMaxGreenSequence(e.target.value)}
+                    className="w-full h-8 px-2 mt-1 bg-gray-700 border border-gray-600 text-white text-xs rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                )}
+              </div>
+              {/* Versão compacta quando scrolled */}
+              <p className={`text-gray-400 transition-all ${
+                isStrategiesScrolled ? 'text-[9px]' : 'text-[10px] text-gray-500'
+              }`}>
+                {maxGreenSequenceFilter === 0 
+                  ? (isStrategiesScrolled ? 'Desativado' : 'Filtro desativado')
+                  : maxGreenSequenceFilter === 999 && customMaxGreenSequence
+                    ? (isStrategiesScrolled ? `Mín ${customMaxGreenSequence}` : `Mínimo de ${customMaxGreenSequence} green consecutivos`)
+                    : maxGreenSequenceFilter === 999
+                      ? (isStrategiesScrolled ? 'Custom' : 'Digite um valor customizado')
+                      : (isStrategiesScrolled ? `Mín ${maxGreenSequenceFilter}` : `Mínimo de ${maxGreenSequenceFilter} green consecutivos`)
+                }
+              </p>
+            </div>
+
             {/* Filtro de Ordenação */}
             <div className="space-y-1">
               <label className={`font-medium text-gray-400 uppercase tracking-wide transition-all ${
@@ -2713,9 +2885,13 @@ export default function Home() {
             
             {/* Listar TODAS as estratégias individuais, ordenadas conforme filtro selecionado */}
             {(() => {
-              const filterValue = maxRedSequenceFilter === 999 
+              const redFilterValue = maxRedSequenceFilter === 999 
                 ? (customMaxRedSequence ? parseInt(customMaxRedSequence) : 0)
                 : maxRedSequenceFilter
+              
+              const greenFilterValue = maxGreenSequenceFilter === 999 
+                ? (customMaxGreenSequence ? parseInt(customMaxGreenSequence) : 0)
+                : maxGreenSequenceFilter
               
               return FOLDERS
                 .flatMap(folder => 
@@ -2727,9 +2903,19 @@ export default function Home() {
                 )
                 .filter(({ stats }) => {
                   // Aplicar filtro de sequência máxima de red
-                  if (filterValue > 0 && stats?.allRedSequences && stats.allRedSequences.length > 0) {
-                    return stats.allRedSequences.every(seq => seq === filterValue)
+                  if (redFilterValue > 0 && stats?.allRedSequences && stats.allRedSequences.length > 0) {
+                    if (!stats.allRedSequences.every(seq => seq === redFilterValue)) {
+                      return false
+                    }
                   }
+                  
+                  // Aplicar filtro de sequência mínima de green
+                  if (greenFilterValue > 0 && stats?.allGreenSequences && stats.allGreenSequences.length > 0) {
+                    if (!stats.allGreenSequences.every(seq => seq >= greenFilterValue)) {
+                      return false
+                    }
+                  }
+                  
                   return true
                 })
                 .sort((a, b) => {
