@@ -60,8 +60,7 @@ export function formatRouletteNumber(number: number): string {
 const ALLOWED_PROVIDERS = [
   'Evolution Gaming', 
   'Playtech', 
-  'Pragmatic Play',
-  'Ezugi'
+  'Pragmatic Play'
 ]
 
 // 🎯 LISTA DE ROLETAS PERMITIDAS (baseada em dados REAIS da API)
@@ -146,7 +145,7 @@ function isBlockedAutoRoulette(name: string): boolean {
 }
 
 // Verificar se a roleta específica está na lista permitida
-// 🔓 MODO ABERTO: Se tem provedor conhecido, aceitar TODAS (exceto bloqueadas)
+// 🔒 MODO RESTRITO: Apenas roletas explicitamente na lista ALLOWED_ROULETTES
 export function isAllowedRoulette(rouletteName: string, provider?: string): boolean {
   const lowerName = rouletteName.toLowerCase().trim()
   
@@ -160,26 +159,22 @@ export function isAllowedRoulette(rouletteName: string, provider?: string): bool
     return false
   }
   
-  // 🆕 MODO ABERTO: Se tem um provedor conhecido, ACEITAR
-  // Isso permite todas as roletas que conseguimos identificar o provedor
-  if (provider && ALLOWED_PROVIDERS.includes(provider)) {
-    return true
+  // ✅ TERCEIRO: Verificar se está na lista de permitidas do provedor
+  if (provider && ALLOWED_ROULETTES[provider]) {
+    const allowedForProvider = ALLOWED_ROULETTES[provider]
+    // Verificar se o nome da roleta contém alguma das palavras-chave permitidas
+    return allowedForProvider.some(keyword => lowerName.includes(keyword.toLowerCase()))
   }
   
-  // 🆕 ESPECIAL: Roletas sem provedor identificado mas que sabemos que são válidas
-  const knownValidRoulettes = [
-    'auto-roulette', // ✅ com hífen permitida
-    'roulette',
-    'speed roulette',
-    'vip roulette'
-  ]
-  
+  // 🆕 ESPECIAL: Roletas sem provedor identificado mas na lista permitida
   if (!provider || provider === '') {
-    // Se não tem provedor, verificar se é uma das roletas conhecidas
-    if (knownValidRoulettes.some(keyword => lowerName.includes(keyword))) {
-      return true
+    // Buscar em todos os provedores
+    for (const providerRoulettes of Object.values(ALLOWED_ROULETTES)) {
+      if (providerRoulettes.some(keyword => lowerName.includes(keyword.toLowerCase()))) {
+        return true
+      }
     }
-    return false // Outras sem provedor não são permitidas
+    return false
   }
   
   return false
