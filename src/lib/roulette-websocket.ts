@@ -82,7 +82,8 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'auto mega',
     'roleta brasileira pragmatic',
     'pragmatic',
-    'power up'
+    'power up',
+    'speed'
   ]
 }
 
