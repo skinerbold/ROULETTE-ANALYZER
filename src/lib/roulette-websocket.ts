@@ -67,8 +67,7 @@ const ALLOWED_PROVIDERS = [
 // 🎯 LISTA DE ROLETAS PERMITIDAS (baseada em dados REAIS da API)
 const ALLOWED_ROULETTES: Record<string, string[]> = {
   'Playtech': [
-    'mega fire blaze roulette live',
-    'roleta brasileira'
+    'mega fire blaze roulette live'
   ],
   'Evolution Gaming': [
     'lightning',
@@ -87,11 +86,6 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'roleta brasileira pragmatic',
     'pragmatic',
     'power up'
-  ],
-  'Ezugi': [
-    'ruby',
-    'rapida',
-    'azure'
   ]
 }
 
