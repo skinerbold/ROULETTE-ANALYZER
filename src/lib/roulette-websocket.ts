@@ -70,22 +70,12 @@ const ALLOWED_ROULETTES: Record<string, string[]> = {
     'mega fire blaze roulette live'
   ],
   'Evolution Gaming': [
+    'speed',
     'lightning',
     'xxxtreme',
-    'immersive',
-    'auto-roulette', // ✅ com hífen permitida
-    'vip roulette',
-    'speed',
-    'roulette macao',
-    'ao vivo',
-    'relampago'
-  ],
-  'Pragmatic Play': [
-    'mega roulette',
-    'auto mega',
-    'roleta brasileira pragmatic',
-    'pragmatic',
-    'power up'
+    'spain',
+    'auto-roulette',
+    'vip'
   ]
 }
 
