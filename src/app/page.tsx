@@ -1867,7 +1867,7 @@ export default function Home() {
                       ? (customMaxGreenSequence ? parseInt(customMaxGreenSequence) : 0)
                       : maxGreenSequenceFilter
                     
-                    return FOLDERS
+                    return ALL_FOLDERS
                       .flatMap(folder => 
                         folder.strategies.map(strategy => ({
                           strategy,
@@ -2956,7 +2956,7 @@ export default function Home() {
                 ? (customMaxGreenSequence ? parseInt(customMaxGreenSequence) : 0)
                 : maxGreenSequenceFilter
               
-              return FOLDERS
+              return ALL_FOLDERS
                 .flatMap(folder => 
                   folder.strategies.map(strategy => ({
                     strategy,
