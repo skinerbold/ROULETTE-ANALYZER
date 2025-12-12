@@ -171,7 +171,7 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
               placeholder="Ex: Minha Estratégia Personalizada"
               value={strategyName}
               onChange={(e) => setStrategyName(e.target.value)}
-              className="text-base"
+              className="text-base text-gray-900 dark:text-white"
               disabled={isSubmitting || success}
             />
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -190,7 +190,7 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
               value={numbersInput}
               onChange={(e) => setNumbersInput(e.target.value)}
               rows={4}
-              className="text-base font-mono"
+              className="text-base font-mono text-gray-900 dark:text-white"
               disabled={isSubmitting || success}
             />
             <div className="flex items-center justify-between">
@@ -223,17 +223,6 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
               </div>
             </div>
           )}
-
-          {/* Info Box */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">ℹ️ Informações Importantes</h4>
-            <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>• A estratégia será pública e visível para todos os usuários</li>
-              <li>• O programa identifica automaticamente quantas fichas a estratégia usa</li>
-              <li>• Números duplicados serão removidos automaticamente</li>
-              <li>• Você pode criar estratégias de 1 até 36 fichas</li>
-            </ul>
-          </div>
         </div>
 
         {/* Footer */}
