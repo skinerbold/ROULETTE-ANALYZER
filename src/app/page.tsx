@@ -127,6 +127,12 @@ export default function Home() {
         }))
     }
 
+    if (customFolder.strategies.length > 0) {
+      console.log('📋 ESTRATÉGIAS MAPEADAS:', customFolder.strategies)
+      console.log('📋 PRIMEIRA ESTRATÉGIA:', customFolder.strategies[0])
+      console.log('📋 NUMBERS DA PRIMEIRA:', customFolder.strategies[0]?.numbers)
+    }
+
     // Adicionar pasta customizada no início se tiver estratégias
     if (customFolder.strategies.length > 0) {
       return [customFolder, ...FOLDERS]
@@ -283,6 +289,10 @@ export default function Home() {
 
       if (data) {
         console.log(`✅ ${data.length} estratégias customizadas carregadas`)
+        console.log('📊 PRIMEIRA ESTRATÉGIA COMPLETA:', data[0])
+        console.log('📊 CAMPO NUMBERS:', data[0]?.numbers)
+        console.log('📊 TIPO DO CAMPO:', typeof data[0]?.numbers)
+        console.log('📊 É ARRAY?:', Array.isArray(data[0]?.numbers))
         setCustomStrategies(data)
       }
     } catch (error) {
