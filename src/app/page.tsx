@@ -293,7 +293,17 @@ export default function Home() {
         console.log('📊 CAMPO NUMBERS:', data[0]?.numbers)
         console.log('📊 TIPO DO CAMPO:', typeof data[0]?.numbers)
         console.log('📊 É ARRAY?:', Array.isArray(data[0]?.numbers))
-        setCustomStrategies(data)
+        
+        // Converter strings para números se necessário
+        const processedData = data.map(strategy => ({
+          ...strategy,
+          numbers: Array.isArray(strategy.numbers) 
+            ? strategy.numbers.map(n => typeof n === 'string' ? parseInt(n, 10) : n)
+            : []
+        }))
+        
+        console.log('📊 DEPOIS DA CONVERSÃO:', processedData[0]?.numbers)
+        setCustomStrategies(processedData)
       }
     } catch (error) {
       console.error('Erro ao carregar estratégias customizadas:', error)

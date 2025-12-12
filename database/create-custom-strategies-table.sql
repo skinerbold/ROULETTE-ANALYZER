@@ -60,34 +60,22 @@ CREATE TRIGGER update_custom_strategies_timestamp
   FOR EACH ROW
   EXECUTE FUNCTION update_custom_strategies_updated_at();
 
--- Função RPC para inserir estratégias com array de inteiros correto
-CREATE OR REPLACE FUNCTION insert_custom_strategy(
-  strategy_name TEXT,
-  strategy_numbers TEXT,
-  user_id UUID
-)
-RETURNS TABLE (
-  id INT,
-  name VARCHAR(255),
-  numbers INTEGER[],
-  chip_count INT,
-  created_by UUID,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ,
-  is_active BOOLEAN
-) AS $$
-DECLARE
-  numbers_array INTEGER[];
+-- Trigger para converter array de strings em inteiros no INSERT
+CREATE OR REPLACE FUNCTION convert_numbers_to_int_array()
+RETURNS TRIGGER AS $$
 BEGIN
-  -- Converter string para array de inteiros
-  numbers_array := strategy_numbers::INTEGER[];
-  
-  RETURN QUERY
-  INSERT INTO custom_strategies (name, numbers, chip_count, created_by)
-  VALUES (strategy_name, numbers_array, array_length(numbers_array, 1), user_id)
-  RETURNING *;
+  -- Se numbers vier como array de texto, converter para inteiros
+  IF pg_typeof(NEW.numbers) = 'text[]'::regtype THEN
+    NEW.numbers := ARRAY(SELECT unnest(NEW.numbers)::INTEGER);
+  END IF;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER convert_numbers_before_insert
+  BEFORE INSERT ON custom_strategies
+  FOR EACH ROW
+  EXECUTE FUNCTION convert_numbers_to_int_array();
 
 -- ============================================================================
 -- RESULTADO ESPERADO: 
