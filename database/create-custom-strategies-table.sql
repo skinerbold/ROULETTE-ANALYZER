@@ -60,26 +60,10 @@ CREATE TRIGGER update_custom_strategies_timestamp
   FOR EACH ROW
   EXECUTE FUNCTION update_custom_strategies_updated_at();
 
--- Trigger para converter array de strings em inteiros no INSERT
-CREATE OR REPLACE FUNCTION convert_numbers_to_int_array()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Se numbers vier como array de texto, converter para inteiros
-  IF pg_typeof(NEW.numbers) = 'text[]'::regtype THEN
-    NEW.numbers := ARRAY(SELECT unnest(NEW.numbers)::INTEGER);
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER convert_numbers_before_insert
-  BEFORE INSERT ON custom_strategies
-  FOR EACH ROW
-  EXECUTE FUNCTION convert_numbers_to_int_array();
-
 -- ============================================================================
 -- RESULTADO ESPERADO: 
 -- - Tabela criada com suporte a estratégias personalizadas
 -- - RLS configurado para segurança
 -- - Todos podem ver, apenas autenticados podem criar
+-- - Conversão de strings para inteiros é feita no frontend ao ler os dados
 -- ============================================================================
