@@ -89,16 +89,12 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
       const numbers = validation.numbers!
       const chipCount = numbers.length
 
-      // Garantir que são números inteiros
-      const numbersAsIntegers = numbers.map(n => parseInt(String(n), 10))
-
-      const { error: insertError } = await supabase
-        .from('custom_strategies')
-        .insert({
-          name: strategyName.trim(),
-          numbers: numbersAsIntegers,
-          chip_count: chipCount,
-          created_by: user.id
+      // Usar RPC function para garantir que o array seja salvo corretamente
+      const { data, error: insertError } = await supabase
+        .rpc('insert_custom_strategy', {
+          strategy_name: strategyName.trim(),
+          strategy_numbers: numbers,
+          user_id: user.id
         })
 
       if (insertError) {

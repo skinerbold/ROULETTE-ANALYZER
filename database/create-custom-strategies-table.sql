@@ -60,6 +60,30 @@ CREATE TRIGGER update_custom_strategies_timestamp
   FOR EACH ROW
   EXECUTE FUNCTION update_custom_strategies_updated_at();
 
+-- Função RPC para inserir estratégias com array de inteiros correto
+CREATE OR REPLACE FUNCTION insert_custom_strategy(
+  strategy_name TEXT,
+  strategy_numbers INTEGER[],
+  user_id UUID
+)
+RETURNS TABLE (
+  id INT,
+  name VARCHAR(255),
+  numbers INTEGER[],
+  chip_count INT,
+  created_by UUID,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  is_active BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  INSERT INTO custom_strategies (name, numbers, chip_count, created_by)
+  VALUES (strategy_name, strategy_numbers, array_length(strategy_numbers, 1), user_id)
+  RETURNING *;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ============================================================================
 -- RESULTADO ESPERADO: 
 -- - Tabela criada com suporte a estratégias personalizadas
