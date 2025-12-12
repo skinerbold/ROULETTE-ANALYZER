@@ -45,37 +45,63 @@ export async function GET(request: NextRequest) {
     const supabase = createClient<any>(supabaseUrl, supabaseKey)
     const openai = new OpenAI({ apiKey: openaiKey })
     
-    // Definir data do relatório
+    // Definir data do relatório (considerando fuso horário de Brasília UTC-3)
     let reportDate: Date
     if (dateParam) {
-      reportDate = new Date(dateParam)
+      // Parse manual para evitar problemas de fuso horário
+      const [year, month, day] = dateParam.split('-').map(Number)
+      reportDate = new Date(year, month - 1, day)
     } else {
-      // Por padrão, gerar relatório do dia anterior (meia-noite)
+      // Por padrão, gerar relatório do dia anterior
       reportDate = new Date()
       reportDate.setDate(reportDate.getDate() - 1)
     }
     
+    // Criar timestamps para início e fim do dia em horário local (Brasília)
     const startOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0)
-    const endOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59)
+    const endOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59, 999)
     
     // Converter para timestamps em milissegundos (formato usado em roulette_history)
     const startTimestamp = startOfDay.getTime()
     const endTimestamp = endOfDay.getTime()
     
-    console.log('📊 Gerando relatório para:', startOfDay.toISOString(), '-', endOfDay.toISOString())
+    console.log('📊 Gerando relatório para:', startOfDay.toLocaleDateString('pt-BR'), '00:00 até 23:59')
+    console.log('📊 Timestamps:', startTimestamp, '-', endTimestamp)
     
     // 1. Buscar dados das roletas da tabela roulette_history existente
-    const { data: rouletteData, error: rouletteError } = await supabase
-      .from('roulette_history')
-      .select('*')
-      .gte('timestamp', startTimestamp)
-      .lte('timestamp', endTimestamp)
-      .order('timestamp', { ascending: true })
+    // IMPORTANTE: Usar paginação para buscar TODOS os dados do dia (Supabase limita a 1000 por padrão)
+    let allRouletteData: RouletteNumber[] = []
+    let hasMore = true
+    let offset = 0
+    const pageSize = 1000
     
-    if (rouletteError) {
-      console.error('Erro ao buscar dados:', rouletteError)
-      return NextResponse.json({ error: 'Erro ao buscar dados das roletas' }, { status: 500 })
+    while (hasMore) {
+      const { data: pageData, error: pageError } = await supabase
+        .from('roulette_history')
+        .select('*')
+        .gte('timestamp', startTimestamp)
+        .lte('timestamp', endTimestamp)
+        .order('timestamp', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+      
+      if (pageError) {
+        console.error('Erro ao buscar dados:', pageError)
+        return NextResponse.json({ error: 'Erro ao buscar dados das roletas' }, { status: 500 })
+      }
+      
+      if (pageData && pageData.length > 0) {
+        allRouletteData = allRouletteData.concat(pageData)
+        offset += pageSize
+        hasMore = pageData.length === pageSize // Se retornou menos que o pageSize, não há mais dados
+        console.log(`📊 Página ${Math.ceil(offset / pageSize)}: ${pageData.length} registros (total: ${allRouletteData.length})`)
+      } else {
+        hasMore = false
+      }
     }
+    
+    const rouletteData = allRouletteData
+    
+    console.log(`✅ Total de lançamentos carregados: ${rouletteData.length}`)
     
     // 2. Buscar todas as estratégias
     const strategies = await fetchAllStrategies(supabase)
@@ -180,345 +206,489 @@ async function fetchAllStrategies(supabase: any): Promise<Strategy[]> {
   return strategies
 }
 
-// Gerar análise com ChatGPT
-async function generateAnalysis(
+// Definição de períodos do dia
+interface PeriodDefinition {
+  name: string
+  label: string
+  startHour: number
+  endHour: number
+}
+
+const PERIODS: PeriodDefinition[] = [
+  { name: 'madrugada', label: '🌙 MADRUGADA (00:00 - 05:59)', startHour: 0, endHour: 5 },
+  { name: 'manha', label: '☀️ MANHÃ (06:00 - 11:59)', startHour: 6, endHour: 11 },
+  { name: 'tarde', label: '🌤️ TARDE (12:00 - 17:59)', startHour: 12, endHour: 17 },
+  { name: 'noite', label: '🌃 NOITE (18:00 - 23:59)', startHour: 18, endHour: 23 },
+]
+
+// Calcular sequências GREEN/RED
+function calculateGreenRedSequences(numbers: number[], strategyNumbers: number[]): { greens: number, reds: number, sequences: string } {
+  let greens = 0
+  let reds = 0
+  const sequences: string[] = []
+  
+  for (let i = 0; i < numbers.length - 1; i++) {
+    if (strategyNumbers.includes(numbers[i])) {
+      let foundGreen = false
+      for (let j = 1; j <= 3 && i + j < numbers.length; j++) {
+        if (strategyNumbers.includes(numbers[i + j])) {
+          foundGreen = true
+          break
+        }
+      }
+      if (foundGreen) {
+        greens++
+        sequences.push('G')
+      } else {
+        reds++
+        sequences.push('R')
+      }
+    }
+  }
+  return { greens, reds, sequences: sequences.join('') }
+}
+
+// Gerar relatório parcial para um período específico
+async function generatePeriodReport(
   openai: OpenAI,
-  rouletteData: RouletteNumber[],
+  periodData: RouletteNumber[],
   strategies: Strategy[],
-  reportDate: Date
+  reportDate: Date,
+  period: PeriodDefinition
 ): Promise<string> {
-  // Agrupar dados por roleta
+  
+  if (periodData.length === 0) {
+    return `\n## ${period.label}\n\n⚠️ Nenhum dado disponível para este período.\n`
+  }
+
+  // Agrupar por roleta
   const byRoulette: Record<string, RouletteNumber[]> = {}
-  for (const entry of rouletteData) {
-    const key = entry.roulette_id
-    if (!byRoulette[key]) byRoulette[key] = []
-    byRoulette[key].push(entry)
-  }
-  
-  // Agrupar por período com sub-horários detalhados
-  const getSubPeriod = (hour: number): string => {
-    if (hour >= 0 && hour < 2) return 'madrugada_0-2h'
-    if (hour >= 2 && hour < 4) return 'madrugada_2-4h'
-    if (hour >= 4 && hour < 6) return 'madrugada_4-6h'
-    if (hour >= 6 && hour < 8) return 'manha_6-8h'
-    if (hour >= 8 && hour < 10) return 'manha_8-10h'
-    if (hour >= 10 && hour < 12) return 'manha_10-12h'
-    if (hour >= 12 && hour < 14) return 'tarde_12-14h'
-    if (hour >= 14 && hour < 16) return 'tarde_14-16h'
-    if (hour >= 16 && hour < 18) return 'tarde_16-18h'
-    if (hour >= 18 && hour < 20) return 'noite_18-20h'
-    if (hour >= 20 && hour < 22) return 'noite_20-22h'
-    return 'noite_22-24h'
+  for (const entry of periodData) {
+    if (!byRoulette[entry.roulette_id]) byRoulette[entry.roulette_id] = []
+    byRoulette[entry.roulette_id].push(entry)
   }
 
-  const bySubPeriod: Record<string, RouletteNumber[]> = {}
-  for (const entry of rouletteData) {
-    const hour = new Date(entry.timestamp).getHours()
-    const subPeriod = getSubPeriod(hour)
-    if (!bySubPeriod[subPeriod]) bySubPeriod[subPeriod] = []
-    bySubPeriod[subPeriod].push(entry)
-  }
-  
-  // Dados detalhados por hora
-  const byHour: Record<number, RouletteNumber[]> = {}
-  for (const entry of rouletteData) {
-    const hour = new Date(entry.timestamp).getHours()
-    if (!byHour[hour]) byHour[hour] = []
-    byHour[hour].push(entry)
-  }
-
-  // Calcular sequências GREEN/RED para cada estratégia em cada roleta
-  const calculateGreenRedSequences = (numbers: number[], strategyNumbers: number[]): { greens: number, reds: number, sequences: string[] } => {
-    let greens = 0
-    let reds = 0
-    const sequences: string[] = []
-    
-    for (let i = 0; i < numbers.length - 1; i++) {
-      if (strategyNumbers.includes(numbers[i])) {
-        // Verificar se próximos 3 números contêm algum da estratégia
-        let foundGreen = false
-        for (let j = 1; j <= 3 && i + j < numbers.length; j++) {
-          if (strategyNumbers.includes(numbers[i + j])) {
-            foundGreen = true
-            break
-          }
-        }
-        if (foundGreen) {
-          greens++
-          sequences.push('G')
-        } else {
-          reds++
-          sequences.push('R')
-        }
-      }
-    }
-    return { greens, reds, sequences }
-  }
-
-  // Analisar performance de cada estratégia por roleta
-  const strategyPerformanceByRoulette: Record<string, Record<string, { greens: number, reds: number, rate: number, sequences: string }>> = {}
-  
-  for (const [rouletteId, entries] of Object.entries(byRoulette)) {
-    strategyPerformanceByRoulette[rouletteId] = {}
+  // Gerar dados detalhados por roleta com TODOS os números
+  const roletasData = Object.entries(byRoulette).map(([rouletteId, entries]) => {
     const numbers = entries.map(e => e.number)
     
-    for (const strategy of strategies.slice(0, 100)) { // Top 100 estratégias para análise detalhada
-      const result = calculateGreenRedSequences(numbers, strategy.numbers)
-      const total = result.greens + result.reds
-      strategyPerformanceByRoulette[rouletteId][strategy.name] = {
-        greens: result.greens,
-        reds: result.reds,
-        rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
-        sequences: result.sequences.slice(-20).join('')
-      }
-    }
-  }
-
-  // Calcular performance geral de cada estratégia
-  const overallStrategyPerformance: { name: string, greens: number, reds: number, rate: number }[] = []
-  for (const strategy of strategies) {
-    const allNumbers = rouletteData.map(e => e.number)
-    const result = calculateGreenRedSequences(allNumbers, strategy.numbers)
-    const total = result.greens + result.reds
-    overallStrategyPerformance.push({
-      name: strategy.name,
-      greens: result.greens,
-      reds: result.reds,
-      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0
-    })
-  }
-  overallStrategyPerformance.sort((a, b) => b.rate - a.rate)
-
-  // Gerar dados completos por roleta
-  const detailedRouletteData = Object.entries(byRoulette).map(([rouletteId, entries]) => {
-    const numbers = entries.map(e => e.number)
+    // Frequência de cada número
     const frequency: Record<number, number> = {}
     for (const n of numbers) {
       frequency[n] = (frequency[n] || 0) + 1
     }
     const sortedFreq = Object.entries(frequency).sort((a, b) => b[1] - a[1])
     
-    // Performance das top 20 estratégias nesta roleta
-    const stratPerf = strategyPerformanceByRoulette[rouletteId] || {}
-    const topStrategies = Object.entries(stratPerf)
-      .sort((a, b) => b[1].rate - a[1].rate)
-      .slice(0, 20)
-      .map(([name, data]) => `${name}: ${data.rate}% (${data.greens}G/${data.reds}R) [${data.sequences}]`)
-    
-    const worstStrategies = Object.entries(stratPerf)
-      .sort((a, b) => a[1].rate - b[1].rate)
-      .slice(0, 10)
-      .map(([name, data]) => `${name}: ${data.rate}% (${data.greens}G/${data.reds}R)`)
+    // Calcular performance das estratégias nesta roleta
+    const strategyPerformance = strategies.map(strategy => {
+      const result = calculateGreenRedSequences(numbers, strategy.numbers)
+      const total = result.greens + result.reds
+      return {
+        name: strategy.name,
+        numbers: strategy.numbers,
+        greens: result.greens,
+        reds: result.reds,
+        rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
+        sequences: result.sequences
+      }
+    }).sort((a, b) => b.rate - a.rate)
 
-    // Distribuição por hora nesta roleta
-    const hourlyDist: Record<number, number> = {}
-    for (const e of entries) {
-      const h = new Date(e.timestamp).getHours()
-      hourlyDist[h] = (hourlyDist[h] || 0) + 1
+    // Estatísticas de cores
+    const redsNumbers = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]
+    let redCount = 0, blackCount = 0, greenCount = 0
+    for (const n of numbers) {
+      if (n === 0) greenCount++
+      else if (redsNumbers.includes(n)) redCount++
+      else blackCount++
     }
+
+    // Criar sequência completa com horários
+    const numbersWithTime = entries.map(e => {
+      const time = new Date(e.timestamp)
+      return `${e.number}(${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')})`
+    })
 
     return {
       rouletteId,
       totalLancamentos: entries.length,
+      numbersWithTime: numbersWithTime.join(', '),
       allNumbers: numbers.join(', '),
-      mostFrequent: sortedFreq.slice(0, 10).map(([n, c]) => `${n}(${c}x)`).join(', '),
-      leastFrequent: sortedFreq.slice(-10).map(([n, c]) => `${n}(${c}x)`).join(', '),
-      hourlyDistribution: Object.entries(hourlyDist).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([h, c]) => `${h}h:${c}`).join(', '),
-      topStrategies: topStrategies.join('\n    '),
-      worstStrategies: worstStrategies.join('\n    ')
+      frequencyTable: sortedFreq.map(([n, c]) => `${n}:${c}`).join(', '),
+      topNumbers: sortedFreq.slice(0, 10).map(([n, c]) => `${n}(${c}x)`).join(', '),
+      coldNumbers: sortedFreq.slice(-10).map(([n, c]) => `${n}(${c}x)`).join(', '),
+      redCount, blackCount, greenCount,
+      redPercent: Math.round((redCount / numbers.length) * 100),
+      blackPercent: Math.round((blackCount / numbers.length) * 100),
+      topStrategies: strategyPerformance.slice(0, 20),
+      worstStrategies: strategyPerformance.slice(-10)
     }
   })
 
-  // Gerar dados por sub-período
-  const subPeriodData = Object.entries(bySubPeriod)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([period, entries]) => {
-      const numbers = entries.map(e => e.number)
-      const frequency: Record<number, number> = {}
-      for (const n of numbers) {
-        frequency[n] = (frequency[n] || 0) + 1
-      }
-      const sortedFreq = Object.entries(frequency).sort((a, b) => b[1] - a[1])
-      
-      return {
-        period,
-        total: entries.length,
-        numbers: numbers.join(', '),
-        topNumbers: sortedFreq.slice(0, 5).map(([n, c]) => `${n}(${c}x)`).join(', '),
-        roulettes: [...new Set(entries.map(e => e.roulette_id))].join(', ')
-      }
-    })
+  // Calcular ranking geral de estratégias para o período
+  const allPeriodNumbers = periodData.map(e => e.number)
+  const overallStrategyRanking = strategies.map(strategy => {
+    const result = calculateGreenRedSequences(allPeriodNumbers, strategy.numbers)
+    const total = result.greens + result.reds
+    return {
+      name: strategy.name,
+      numbers: strategy.numbers,
+      greens: result.greens,
+      reds: result.reds,
+      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
+      sequences: result.sequences
+    }
+  }).sort((a, b) => b.rate - a.rate)
 
+  // Montar o prompt para este período
   const prompt = `
-# 🎰 ANÁLISE COMPLETA E APROFUNDADA DE ROLETAS - ${reportDate.toLocaleDateString('pt-BR')}
-
-Você é um analista ESPECIALISTA em dados de roletas. Preciso de um relatório EXTREMAMENTE DETALHADO e APROFUNDADO.
-NÃO RESUMA NADA. Quero TODOS os detalhes possíveis.
+# 🎰 ANÁLISE DETALHADA DO PERÍODO: ${period.label}
+## Data: ${reportDate.toLocaleDateString('pt-BR')}
 
 ---
 
-## 📊 DADOS COMPLETOS DO DIA (${rouletteData.length} LANÇAMENTOS)
+## 📊 ESTATÍSTICAS GERAIS DO PERÍODO
 
-### Resumo Geral
-- **Total de lançamentos:** ${rouletteData.length}
-- **Roletas monitoradas:** ${Object.keys(byRoulette).length}
-- **Total de estratégias:** ${strategies.length}
-- **Período:** 00:00 até 23:59
+- **Total de lançamentos:** ${periodData.length}
+- **Roletas ativas:** ${Object.keys(byRoulette).length}
+- **Horário:** ${period.startHour.toString().padStart(2, '0')}:00 até ${period.endHour.toString().padStart(2, '0')}:59
 
-### 📅 DISTRIBUIÇÃO POR SUB-PERÍODO (a cada 2 horas)
-${subPeriodData.map(p => `
-**${p.period}** (${p.total} lançamentos)
-- Roletas ativas: ${p.roulettes}
-- Números mais frequentes: ${p.topNumbers}
-- Sequência completa: [${p.numbers}]
-`).join('\n')}
+---
 
-### 🎰 DADOS COMPLETOS POR ROLETA
-${detailedRouletteData.map(r => `
-#### ROLETA: ${r.rouletteId}
-- **Total de lançamentos:** ${r.totalLancamentos}
-- **Distribuição por hora:** ${r.hourlyDistribution}
-- **Números mais frequentes:** ${r.mostFrequent}
-- **Números menos frequentes:** ${r.leastFrequent}
-- **SEQUÊNCIA COMPLETA DE NÚMEROS:** [${r.allNumbers}]
+## 🎰 DADOS COMPLETOS POR ROLETA (COM TODOS OS NÚMEROS E HORÁRIOS)
 
-**TOP 20 MELHORES ESTRATÉGIAS NESTA ROLETA (com sequências G/R):**
-    ${r.topStrategies}
+${roletasData.map(r => `
+### ROLETA: ${r.rouletteId.toUpperCase()}
 
-**10 PIORES ESTRATÉGIAS NESTA ROLETA:**
-    ${r.worstStrategies}
-`).join('\n---\n')}
+**📊 Estatísticas:**
+- Total de lançamentos: ${r.totalLancamentos}
+- 🔴 Vermelho: ${r.redCount} (${r.redPercent}%)
+- ⚫ Preto: ${r.blackCount} (${r.blackPercent}%)
+- 🟢 Zero: ${r.greenCount}
 
-### 🏆 RANKING GERAL DAS ESTRATÉGIAS (TOP 30)
-${overallStrategyPerformance.slice(0, 30).map((s, i) => 
-  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens} GREEN / ${s.reds} RED)`
+**🔥 Números mais frequentes:** ${r.topNumbers}
+**❄️ Números menos frequentes:** ${r.coldNumbers}
+
+**📈 FREQUÊNCIA COMPLETA DE TODOS OS NÚMEROS:**
+${r.frequencyTable}
+
+**⏰ SEQUÊNCIA COMPLETA DE NÚMEROS COM HORÁRIO DE ENTRADA:**
+${r.numbersWithTime}
+
+**🏆 TOP 20 MELHORES ESTRATÉGIAS NESTA ROLETA:**
+${r.topStrategies.map((s, i) => `${i + 1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R) - Sequência: [${s.sequences.slice(-30)}]`).join('\n')}
+
+**❌ 10 PIORES ESTRATÉGIAS:**
+${r.worstStrategies.map((s, i) => `${i + 1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R)`).join('\n')}
+`).join('\n\n========================================\n\n')}
+
+---
+
+## 🏆 RANKING GERAL DE ESTRATÉGIAS DO PERÍODO (TOP 50)
+
+${overallStrategyRanking.slice(0, 50).map((s, i) => 
+  `${i + 1}. **${s.name}** [${s.numbers.join(',')}]: ${s.rate}% (${s.greens}G/${s.reds}R) - Seq: [${s.sequences.slice(-20)}]`
 ).join('\n')}
 
-### ❌ PIORES ESTRATÉGIAS DO DIA (BOTTOM 20)
-${overallStrategyPerformance.slice(-20).reverse().map((s, i) => 
-  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens} GREEN / ${s.reds} RED)`
+---
+
+## ❌ PIORES ESTRATÉGIAS DO PERÍODO (BOTTOM 20)
+
+${overallStrategyRanking.slice(-20).reverse().map((s, i) => 
+  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
 ).join('\n')}
 
-### 📋 TODAS AS ESTRATÉGIAS DISPONÍVEIS
-${strategies.map(s => `- ${s.name}: [${s.numbers.join(', ')}]`).join('\n')}
-
 ---
 
-## 📝 INSTRUÇÕES OBRIGATÓRIAS PARA O RELATÓRIO
+## 📝 INSTRUÇÕES PARA ANÁLISE
 
-Gere um relatório COMPLETO e APROFUNDADO com as seguintes seções. NÃO PULE NENHUMA. NÃO RESUMA.
+Gere uma análise COMPLETA e APROFUNDADA deste período (${period.label}) incluindo:
 
-### 1. 📋 RESUMO EXECUTIVO (detalhado)
-- Todas as principais descobertas do dia
-- Alertas críticos identificados
-- Visão geral de desempenho de CADA período do dia
-
-### 2. 🎯 ANÁLISE DETALHADA POR ESTRATÉGIA
-- Analise as TOP 50 estratégias individualmente
-- Para cada uma: taxa de acerto, melhor horário, melhor roleta, pior roleta
-- Inclua as sequências de GREEN/RED observadas
-- Identifique padrões de quando cada estratégia funciona melhor
-
-### 3. ⏰ ANÁLISE COMPLETA POR PERÍODO DO DIA
-Divida em SUB-PERÍODOS de 2 horas cada:
-- **Madrugada 0-2h, 2-4h, 4-6h**
-- **Manhã 6-8h, 8-10h, 10-12h**
-- **Tarde 12-14h, 14-16h, 16-18h**
-- **Noite 18-20h, 20-22h, 22-24h**
-
-Para CADA sub-período:
-- Quantidade de lançamentos
-- Números mais frequentes
-- Estratégias que mais acertaram
-- Padrões identificados
-- Recomendações específicas
-
-### 4. 🎰 ANÁLISE INDIVIDUAL DE CADA ROLETA
-Para CADA roleta listada acima, forneça:
-- Análise completa de números (frequência, padrões)
-- Ranking das 20 MELHORES estratégias para esta roleta específica (com % e G/R)
-- Ranking das 10 PIORES estratégias para esta roleta
-- Melhores horários de atividade desta roleta
-- Padrões únicos desta roleta
-- Recomendações específicas para jogar nesta roleta
-
-### 5. 🏆 RANKINGS COMPLETOS POR ROLETA
-Crie uma TABELA DETALHADA para CADA roleta mostrando:
-| Posição | Estratégia | Taxa Acerto | Greens | Reds | Sequência G/R |
-
-### 6. 🔍 PADRÕES IDENTIFICADOS (MUITO DETALHADO)
-- Sequências de números que se repetem (ex: 14, 25, 36 apareceu 5 vezes seguidas)
-- Correlações entre roletas (quando uma roleta tem X, outra tende a ter Y)
-- Tendências horárias detalhadas
-- Números "quentes" e "frios" por período
-- Ciclos identificados (ex: a cada N lançamentos, padrão X se repete)
-- Anomalias estatísticas encontradas
-
-### 7. 🔴🟢 ANÁLISE DE SEQUÊNCIAS GREEN/RED
-- Maiores sequências de GREEN consecutivos por estratégia
-- Maiores sequências de RED consecutivos por estratégia
-- Padrões de alternância G/R
-- Momentos de virada (quando RED vira GREEN e vice-versa)
-
-### 8. 💡 SUGESTÕES DE NOVAS ESTRATÉGIAS (MÍNIMO 15)
-Para cada nova estratégia:
-- Nome criativo
-- Números exatos: [lista completa]
-- Justificativa DETALHADA baseada nos dados analisados
-- Horário ideal de uso
-- Roleta ideal para uso
-- Taxa de acerto esperada baseada nos padrões observados
-
-### 9. 📊 CONCLUSÕES E RECOMENDAÇÕES DETALHADAS
-- Resumo de TODAS as descobertas importantes
-- Estratégias recomendadas para cada horário
-- Estratégias recomendadas para cada roleta
-- Alertas e avisos importantes
-- Previsões baseadas nos padrões
-
----
+1. **RESUMO DO PERÍODO**: Principais descobertas e alertas
+2. **ANÁLISE DE CADA ROLETA**: Para CADA uma das ${Object.keys(byRoulette).length} roletas:
+   - Padrões identificados nos números
+   - Sequências que se repetem
+   - Melhores estratégias específicas
+   - Horários mais produtivos dentro do período
+3. **ANÁLISE DAS ESTRATÉGIAS**: 
+   - Quais estratégias dominaram este período
+   - Sequências de GREEN/RED mais longas
+   - Padrões de alternância
+4. **NÚMEROS QUENTES E FRIOS**: Detalhamento por roleta
+5. **CORRELAÇÕES**: Entre roletas e entre estratégias
+6. **RECOMENDAÇÕES**: Específicas para este período
 
 ⚠️ IMPORTANTE:
-- Use TABELAS Markdown sempre que possível
-- Seja EXTREMAMENTE específico com números e porcentagens
-- NÃO GENERALIZE - quero dados concretos
-- Analise TODOS os dados fornecidos
-- O relatório deve ter NO MÍNIMO 3000 palavras
-- Inclua TODAS as roletas na análise individual
+- Analise TODOS os dados de TODAS as ${Object.keys(byRoulette).length} roletas
+- Seja EXTREMAMENTE detalhado e específico
+- Use tabelas Markdown quando apropriado
+- Inclua números e porcentagens concretos
+- O relatório deste período deve ter NO MÍNIMO 1500 palavras
 `
 
   try {
-    console.log('🤖 Enviando para ChatGPT análise completa...')
-    console.log(`📊 Dados: ${rouletteData.length} lançamentos, ${strategies.length} estratégias, ${Object.keys(byRoulette).length} roletas`)
+    console.log(`🤖 Gerando relatório para ${period.name}... (${periodData.length} lançamentos)`)
     
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `Você é um analista de dados ESPECIALISTA em jogos de roleta com anos de experiência. 
-Sua função é gerar relatórios EXTREMAMENTE DETALHADOS e APROFUNDADOS.
+          content: `Você é um analista de dados ESPECIALISTA em jogos de roleta.
+Gere relatórios EXTREMAMENTE DETALHADOS e APROFUNDADOS.
 NUNCA resuma ou simplifique os dados.
 Use tabelas Markdown, emojis e formatação clara.
 Seja MUITO específico com números, porcentagens e estatísticas.
-Analise TODOS os dados fornecidos sem exceção.
-O relatório DEVE ter no mínimo 3000 palavras.`
+Analise TODOS os dados fornecidos para TODAS as roletas sem exceção.`
         },
         {
           role: 'user',
           content: prompt
         }
       ],
+      max_tokens: 8000,
+      temperature: 0.5
+    })
+    
+    return completion.choices[0]?.message?.content || `Erro ao gerar análise do período ${period.name}`
+    
+  } catch (error) {
+    console.error(`Erro ao gerar relatório do período ${period.name}:`, error)
+    return `\n## ${period.label}\n\n⚠️ Erro ao gerar análise deste período.\n`
+  }
+}
+
+// Gerar relatório final consolidado
+async function generateFinalConsolidatedReport(
+  openai: OpenAI,
+  partialReports: string[],
+  rouletteData: RouletteNumber[],
+  strategies: Strategy[],
+  reportDate: Date
+): Promise<string> {
+  
+  const byRoulette: Record<string, RouletteNumber[]> = {}
+  for (const entry of rouletteData) {
+    if (!byRoulette[entry.roulette_id]) byRoulette[entry.roulette_id] = []
+    byRoulette[entry.roulette_id].push(entry)
+  }
+
+  // Calcular ranking geral do dia
+  const allNumbers = rouletteData.map(e => e.number)
+  const overallRanking = strategies.map(strategy => {
+    const result = calculateGreenRedSequences(allNumbers, strategy.numbers)
+    const total = result.greens + result.reds
+    return {
+      name: strategy.name,
+      greens: result.greens,
+      reds: result.reds,
+      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0
+    }
+  }).sort((a, b) => b.rate - a.rate)
+
+  const consolidationPrompt = `
+# 🎰 CONSOLIDAÇÃO FINAL - RELATÓRIO COMPLETO DO DIA ${reportDate.toLocaleDateString('pt-BR')}
+
+Você recebeu 4 relatórios parciais detalhados (Madrugada, Manhã, Tarde e Noite).
+Sua tarefa é UNIFICAR todos em um RELATÓRIO FINAL COMPLETO.
+
+---
+
+## 📊 ESTATÍSTICAS GERAIS DO DIA COMPLETO
+
+- **Total de lançamentos no dia:** ${rouletteData.length}
+- **Roletas monitoradas:** ${Object.keys(byRoulette).length}
+- **Total de estratégias analisadas:** ${strategies.length}
+- **Média de lançamentos por hora:** ${Math.round(rouletteData.length / 24)}
+
+---
+
+## 🏆 RANKING GERAL DAS ESTRATÉGIAS (DIA COMPLETO - TOP 50)
+
+${overallRanking.slice(0, 50).map((s, i) => 
+  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
+).join('\n')}
+
+---
+
+## ❌ PIORES ESTRATÉGIAS DO DIA (BOTTOM 30)
+
+${overallRanking.slice(-30).reverse().map((s, i) => 
+  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
+).join('\n')}
+
+---
+
+## 📋 RELATÓRIOS PARCIAIS POR PERÍODO:
+
+${partialReports.join('\n\n---\n\n')}
+
+---
+
+## 📝 INSTRUÇÕES PARA CONSOLIDAÇÃO FINAL
+
+Com base em TODOS os relatórios parciais acima, gere um RELATÓRIO FINAL CONSOLIDADO contendo:
+
+### 1. 📋 RESUMO EXECUTIVO DO DIA
+- Visão geral de como foi o dia
+- Destaques de cada período
+- Principais alertas e descobertas
+
+### 2. 🎯 COMPARAÇÃO ENTRE PERÍODOS
+- Qual período teve melhor desempenho?
+- Diferenças significativas entre Madrugada, Manhã, Tarde e Noite
+- Estratégias que funcionaram em múltiplos períodos vs apenas em um
+
+### 3. 🎰 CONSOLIDAÇÃO POR ROLETA
+Para CADA roleta, faça um resumo do dia inteiro:
+- Desempenho geral
+- Melhores horários
+- Melhores estratégias
+
+### 4. 🔍 PADRÕES DO DIA
+- Padrões que se repetiram ao longo do dia
+- Tendências identificadas
+- Anomalias encontradas
+
+### 5. 💡 SUGESTÕES DE NOVAS ESTRATÉGIAS (MÍNIMO 15)
+Baseado em TODOS os dados do dia, sugira no mínimo 15 novas estratégias:
+- Nome criativo
+- Números exatos: [lista completa]
+- Justificativa DETALHADA
+- Horário ideal
+- Roleta ideal
+- Taxa de acerto esperada
+
+### 6. 📊 CONCLUSÕES E RECOMENDAÇÕES
+- Melhores estratégias para cada período
+- Melhores estratégias para cada roleta
+- O que evitar
+- Previsões para próximos dias
+
+⚠️ IMPORTANTE:
+- Este é o RELATÓRIO FINAL - deve ser MUITO completo
+- Mínimo de 3000 palavras
+- Use tabelas Markdown
+- Seja específico com números e porcentagens
+- Inclua TODAS as roletas e períodos
+`
+
+  try {
+    console.log('🤖 Gerando relatório final consolidado...')
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `Você é um analista de dados ESPECIALISTA em jogos de roleta.
+Sua tarefa é consolidar relatórios parciais em um RELATÓRIO FINAL COMPLETO e APROFUNDADO.
+Use tabelas Markdown, emojis e formatação clara.
+Seja MUITO específico com números e estatísticas.
+O relatório final DEVE ter no mínimo 3000 palavras.`
+        },
+        {
+          role: 'user',
+          content: consolidationPrompt
+        }
+      ],
       max_tokens: 16000,
       temperature: 0.5
     })
     
-    return completion.choices[0]?.message?.content || 'Erro ao gerar análise'
+    return completion.choices[0]?.message?.content || 'Erro ao gerar relatório consolidado'
     
   } catch (error) {
-    console.error('Erro ChatGPT:', error)
-    return generateFallbackReport(rouletteData, strategies, reportDate)
+    console.error('Erro ao gerar relatório consolidado:', error)
+    // Retornar relatórios parciais concatenados como fallback
+    return `# 📊 Relatório Diário - ${reportDate.toLocaleDateString('pt-BR')}\n\n${partialReports.join('\n\n---\n\n')}`
   }
+}
+
+// Gerar análise completa com ChatGPT (sistema de relatórios parciais)
+async function generateAnalysis(
+  openai: OpenAI,
+  rouletteData: RouletteNumber[],
+  strategies: Strategy[],
+  reportDate: Date
+): Promise<string> {
+  
+  console.log(`📊 Iniciando geração de relatório para ${rouletteData.length} lançamentos...`)
+  
+  // Separar dados por período
+  const dataByPeriod: Record<string, RouletteNumber[]> = {
+    madrugada: [],
+    manha: [],
+    tarde: [],
+    noite: []
+  }
+  
+  for (const entry of rouletteData) {
+    const hour = new Date(entry.timestamp).getHours()
+    if (hour >= 0 && hour <= 5) dataByPeriod.madrugada.push(entry)
+    else if (hour >= 6 && hour <= 11) dataByPeriod.manha.push(entry)
+    else if (hour >= 12 && hour <= 17) dataByPeriod.tarde.push(entry)
+    else dataByPeriod.noite.push(entry)
+  }
+  
+  console.log(`📊 Distribuição por período:`)
+  console.log(`   🌙 Madrugada: ${dataByPeriod.madrugada.length} lançamentos`)
+  console.log(`   ☀️ Manhã: ${dataByPeriod.manha.length} lançamentos`)
+  console.log(`   🌤️ Tarde: ${dataByPeriod.tarde.length} lançamentos`)
+  console.log(`   🌃 Noite: ${dataByPeriod.noite.length} lançamentos`)
+  
+  // Gerar relatórios parciais para cada período
+  const partialReports: string[] = []
+  
+  for (const period of PERIODS) {
+    const periodData = dataByPeriod[period.name]
+    console.log(`\n🔄 Processando ${period.label}...`)
+    
+    const report = await generatePeriodReport(openai, periodData, strategies, reportDate, period)
+    partialReports.push(report)
+    
+    // Pequena pausa entre chamadas para não sobrecarregar a API
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+  
+  // Gerar relatório final consolidado
+  console.log('\n🔄 Gerando relatório final consolidado...')
+  const finalReport = await generateFinalConsolidatedReport(
+    openai,
+    partialReports,
+    rouletteData,
+    strategies,
+    reportDate
+  )
+  
+  // Montar relatório completo com todos os parciais + consolidação
+  const fullReport = `
+# 🎰 RELATÓRIO COMPLETO DE ROLETAS - ${reportDate.toLocaleDateString('pt-BR')}
+
+## 📊 ESTATÍSTICAS GERAIS
+- **Data:** ${reportDate.toLocaleDateString('pt-BR')}
+- **Total de lançamentos:** ${rouletteData.length}
+- **Roletas monitoradas:** ${[...new Set(rouletteData.map(r => r.roulette_id))].length}
+- **Estratégias analisadas:** ${strategies.length}
+
+---
+
+# 📑 PARTE 1: RELATÓRIOS DETALHADOS POR PERÍODO
+
+${partialReports.join('\n\n---\n\n')}
+
+---
+
+# 📑 PARTE 2: CONSOLIDAÇÃO E CONCLUSÕES
+
+${finalReport}
+
+---
+
+*Relatório gerado em ${new Date().toLocaleString('pt-BR')}*
+*Sistema de Análise de Roletas v2.0*
+`
+
+  return fullReport
 }
 
 // Relatório de fallback
