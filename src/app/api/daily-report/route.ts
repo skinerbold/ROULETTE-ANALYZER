@@ -10,12 +10,10 @@ import { getAllStrategies } from '@/lib/strategies'
 
 // Tipos
 interface RouletteNumber {
-  id: number
+  id?: number
   roulette_id: string
-  roulette_name: string
   number: number
-  timestamp: string
-  created_at: string
+  timestamp: number // bigint em milissegundos na tabela roulette_history
 }
 
 interface Strategy {
@@ -60,14 +58,18 @@ export async function GET(request: NextRequest) {
     const startOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0)
     const endOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59)
     
+    // Converter para timestamps em milissegundos (formato usado em roulette_history)
+    const startTimestamp = startOfDay.getTime()
+    const endTimestamp = endOfDay.getTime()
+    
     console.log('📊 Gerando relatório para:', startOfDay.toISOString(), '-', endOfDay.toISOString())
     
-    // 1. Buscar dados das roletas
+    // 1. Buscar dados das roletas da tabela roulette_history existente
     const { data: rouletteData, error: rouletteError } = await supabase
-      .from('roulette_numbers')
+      .from('roulette_history')
       .select('*')
-      .gte('timestamp', startOfDay.toISOString())
-      .lte('timestamp', endOfDay.toISOString())
+      .gte('timestamp', startTimestamp)
+      .lte('timestamp', endTimestamp)
       .order('timestamp', { ascending: true })
     
     if (rouletteError) {
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
       stats: {
         totalLancamentos: rouletteData?.length || 0,
         totalEstrategias: strategies.length,
-        roletasAnalisadas: [...new Set(rouletteData?.map(r => r.roulette_name) || [])].length
+        roletasAnalisadas: [...new Set(rouletteData?.map(r => r.roulette_id) || [])].length
       },
       report: analysis
     })
@@ -188,12 +190,12 @@ async function generateAnalysis(
   // Agrupar dados por roleta
   const byRoulette: Record<string, RouletteNumber[]> = {}
   for (const entry of rouletteData) {
-    const key = entry.roulette_name || entry.roulette_id
+    const key = entry.roulette_id // roulette_history só tem roulette_id
     if (!byRoulette[key]) byRoulette[key] = []
     byRoulette[key].push(entry)
   }
   
-  // Agrupar por período
+  // Agrupar por período (timestamp é número em ms)
   const byPeriod = {
     madrugada: rouletteData.filter(r => {
       const h = new Date(r.timestamp).getHours()

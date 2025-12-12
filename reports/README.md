@@ -17,6 +17,7 @@ Os relatórios são gerados automaticamente:
 - **Quando:** Todo dia à meia-noite (00:00 UTC)
 - **Como:** Via Vercel Cron Jobs
 - **Análise:** Powered by OpenAI GPT-4o
+- **Fonte de Dados:** Tabela `roulette_history` do Supabase (dados já existentes)
 
 ## 📋 Conteúdo dos Relatórios
 
@@ -57,12 +58,15 @@ npx ts-node scripts/generate-daily-report.ts 2025-12-10
    ```
    OPENAI_API_KEY=sk-sua-chave-aqui
    SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
+   CRON_SECRET=seu-secret-seguro
    ```
 
 2. Execute o script SQL no Supabase:
    ```
-   database/create-daily-reports-tables.sql
+   database/create-reports-tables-simple.sql
    ```
+   
+   **Observação:** O sistema usa a tabela `roulette_history` existente. O SQL cria apenas as tabelas de relatórios: `daily_reports`, `ai_strategy_suggestions`, `report_execution_logs`.
 
 ## 📈 Banco de Dados
 
