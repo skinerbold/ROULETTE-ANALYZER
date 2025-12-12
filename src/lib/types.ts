@@ -10,7 +10,7 @@ export interface RouletteNumber {
 }
 
 export interface StrategyStats {
-  id: number
+  id: number | string  // number para hardcoded, string para custom
   name: string
   totalGreen: number
   totalRed: number

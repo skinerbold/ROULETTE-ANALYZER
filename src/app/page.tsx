@@ -16,6 +16,13 @@ import ProfileEdit from '@/components/ProfileEdit'
 import CreateStrategyModal from '@/components/CreateStrategyModal'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
 
+// Tipo union para estratégias (hardcoded + customizadas)
+type AnyStrategy = {
+  id: number | string // number para hardcoded, string para custom (e.g., 'custom_9')
+  name: string
+  numbers: number[]
+}
+
 interface NumberStatus {
   number: number
   status: 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'
@@ -154,7 +161,7 @@ export default function Home() {
     return FOLDERS
   }, [FOLDERS, customStrategies, chipCategory, customLimitNumber])
 
-  const STRATEGIES = ALL_FOLDERS.flatMap(folder => folder.strategies)
+  const STRATEGIES: AnyStrategy[] = ALL_FOLDERS.flatMap(folder => folder.strategies as AnyStrategy[])
 
   // Números filtrados com base no limite de análise
   // CORREÇÃO: Usar recentNumbers diretamente para garantir sincronização
@@ -317,7 +324,7 @@ export default function Home() {
         const processedData = data.map(strategy => ({
           ...strategy,
           numbers: Array.isArray(strategy.numbers) 
-            ? strategy.numbers.map(n => typeof n === 'string' ? parseInt(n, 10) : n)
+            ? strategy.numbers.map((n: any) => typeof n === 'string' ? parseInt(n, 10) : n)
             : []
         }))
         
@@ -529,7 +536,7 @@ export default function Home() {
   }
 
   // Funções para seleção múltipla de estratégias
-  const toggleStrategy = (strategyId: number) => {
+  const toggleStrategy = (strategyId: number | string) => {
     setSelectedStrategies(prev => 
       prev.includes(strategyId)
         ? prev.filter(id => id !== strategyId)
@@ -694,13 +701,20 @@ export default function Home() {
     return availableRoulettes.find(r => r.id === selectedRoulette)
   }, [availableRoulettes, selectedRoulette])
 
-  const analyzeStrategy = (strategyId: number, numbersArray: number[]) => {
+  const analyzeStrategy = (strategyId: number | string, numbersArray: number[]) => {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
     if (!strategy) return null
 
-    // Import getStrategyNumbers para suportar estratégias dinâmicas
-    const { getStrategyNumbers } = require('@/lib/strategies')
-    const allNumbers = getStrategyNumbers(strategyId, numbersArray)
+    // ✅ FIX: Para estratégias customizadas, usar strategy.numbers diretamente
+    // Para estratégias hardcoded, usar getStrategyNumbers que pode ter lógica dinâmica
+    let allNumbers: number[]
+    if (typeof strategyId === 'string' && strategyId.startsWith('custom_')) {
+      allNumbers = strategy.numbers || []
+    } else {
+      // Import getStrategyNumbers para suportar estratégias dinâmicas
+      const { getStrategyNumbers } = require('@/lib/strategies')
+      allNumbers = getStrategyNumbers(strategyId as number, numbersArray)
+    }
     
     const activations: Array<{position: number, activatingNumber: number, result: 'GREEN' | 'RED', attempts: number}> = []
     
@@ -1121,9 +1135,9 @@ export default function Home() {
 
   const lastSelectedStrategyId = getActiveStrategyId()
   
-  const lastSelectedStrategy = lastSelectedStrategyId 
+  const lastSelectedStrategy: AnyStrategy | undefined = lastSelectedStrategyId 
     ? STRATEGIES.find(s => s.id === lastSelectedStrategyId) 
-    : null
+    : undefined
   
   const lastSelectedStrategyStats = lastSelectedStrategyId 
     ? strategyStats.find(s => s.id === lastSelectedStrategyId) 
@@ -1133,7 +1147,15 @@ export default function Home() {
   const currentStrategyNumbers = useMemo(() => {
     if (!lastSelectedStrategy) return []
     
-    // Import getStrategyNumbers
+    // ✅ FIX: Para estratégias customizadas, usar diretamente lastSelectedStrategy.numbers
+    // Para estratégias hardcoded, usar getStrategyNumbers que pode ter lógica dinâmica
+    if (typeof lastSelectedStrategy.id === 'string' && lastSelectedStrategy.id.startsWith('custom_')) {
+      console.log('🔧 Estratégia customizada detectada:', lastSelectedStrategy.name)
+      console.log('🔧 Retornando numbers diretamente:', lastSelectedStrategy.numbers)
+      return lastSelectedStrategy.numbers || []
+    }
+    
+    // Import getStrategyNumbers para estratégias hardcoded
     const { getStrategyNumbers } = require('@/lib/strategies')
     return getStrategyNumbers(lastSelectedStrategy.id, numbersToAnalyze)
   }, [lastSelectedStrategy, numbersToAnalyze])
