@@ -136,6 +136,7 @@ const lastPersistedNumber = new Map(); // rouletteId -> { number, timestamp }
 /**
  * Persiste UM ÚNICO número usando a função RPC update_roulette_history
  * Esta função já implementa a lógica de shift de posições (1-500)
+ * TAMBÉM salva na tabela roulette_numbers para relatórios diários
  */
 async function persistSingleNumber(rouletteId, number, timestamp) {
     if (!supabaseAdmin) {
@@ -154,6 +155,7 @@ async function persistSingleNumber(rouletteId, number, timestamp) {
         // Converter para Unix timestamp em milissegundos (bigint)
         const timestampMs = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
         
+        // 1. Persistir via RPC na tabela roulette_history (sistema existente)
         const { data, error } = await supabaseAdmin.rpc('update_roulette_history', {
             p_roulette_id: rouletteId,
             p_number: number,
@@ -163,6 +165,22 @@ async function persistSingleNumber(rouletteId, number, timestamp) {
         if (error) {
             console.error(`❌ Erro ao persistir número ${number} para ${rouletteId}:`, error.message);
             return false;
+        }
+        
+        // 2. NOVO: Também salvar na tabela roulette_numbers para relatórios diários
+        try {
+            await supabaseAdmin
+                .from('roulette_numbers')
+                .insert({
+                    roulette_id: rouletteId,
+                    roulette_name: rouletteId, // Por enquanto usa o ID como nome
+                    number: number,
+                    timestamp: new Date(timestampMs).toISOString()
+                });
+            console.log(`📊 Número ${number} salvo em roulette_numbers para relatórios`);
+        } catch (reportError) {
+            // Não falhar se a tabela de relatórios não existir
+            console.warn(`⚠️ Não foi possível salvar em roulette_numbers:`, reportError.message || 'tabela pode não existir');
         }
         
         // Atualizar cache de último número persistido
