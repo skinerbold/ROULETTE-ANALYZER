@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { User, Settings, LogOut } from 'lucide-react'
+import { User, Settings, LogOut, PlusCircle } from 'lucide-react'
 
 interface HeaderProps {
   user: any
   onLogout: () => void
   onEditProfile: () => void
+  onCreateStrategy: () => void
 }
 
-export default function Header({ user, onLogout, onEditProfile }: HeaderProps) {
+export default function Header({ user, onLogout, onEditProfile, onCreateStrategy }: HeaderProps) {
   const [showMenu, setShowMenu] = useState(false)
 
   const handleLogout = async () => {
@@ -71,6 +72,17 @@ export default function Header({ user, onLogout, onEditProfile }: HeaderProps) {
                 >
                   <Settings className="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform duration-200" />
                   <span className="font-medium">Editar Perfil</span>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    onCreateStrategy()
+                    setShowMenu(false)
+                  }}
+                  className="w-full flex items-center gap-4 px-6 py-4 text-base text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-all duration-200 group"
+                >
+                  <PlusCircle className="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform duration-200" />
+                  <span className="font-medium">Cadastrar Estratégia</span>
                 </button>
                 
                 <div className="mx-4 my-2 border-t border-gray-200 dark:border-gray-600"></div>

@@ -13,6 +13,7 @@ import { supabase, getCurrentUser } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
 import Header from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
+import CreateStrategyModal from '@/components/CreateStrategyModal'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
 
 interface NumberStatus {
@@ -27,13 +28,15 @@ type StatusMap = Map<number, 'GREEN' | 'RED' | 'ACTIVATION' | 'NEUTRAL'>
 export default function Home() {
   const [user, setUser] = useState<any>(null)
   const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [showCreateStrategy, setShowCreateStrategy] = useState(false)
+  const [customStrategies, setCustomStrategies] = useState<any[]>([])
   const [numbers, setNumbers] = useState<number[]>([])
   
   // Estado para categoria de fichas
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
   const [customChipLimit, setCustomChipLimit] = useState<string>('5') // Limite customizado de fichas
   const [showCustomChipInput, setShowCustomChipInput] = useState(false) // Mostrar input customizado
-  const [selectedStrategies, setSelectedStrategies] = useState<number[]>([]) // MUDANÇA: Array de IDs
+  const [selectedStrategies, setSelectedStrategies] = useState<(number | string)[]>([]) // MUDANÇA: Array de IDs (número ou string para custom)
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
   
   // Estado para filtro de ordenação das estratégias
@@ -98,7 +101,40 @@ export default function Home() {
   // Obter pastas e estratégias da categoria atual
   const customLimitNumber = customChipLimit !== '' && customChipLimit !== '0' ? parseInt(customChipLimit) : undefined
   const FOLDERS = getAllStrategies(chipCategory, customLimitNumber)
-  const STRATEGIES = FOLDERS.flatMap(folder => folder.strategies)
+  
+  // Integrar estratégias customizadas
+  const ALL_FOLDERS = useMemo(() => {
+    if (customStrategies.length === 0) return FOLDERS
+
+    // Criar pasta de estratégias customizadas
+    const customFolder = {
+      name: "⭐ Estratégias Personalizadas",
+      strategies: customStrategies
+        .filter(cs => {
+          // Filtrar por categoria de fichas
+          if (chipCategory === 'all') return true
+          if (chipCategory === 'up-to-9') return cs.chip_count <= 9
+          if (chipCategory === 'more-than-9') return cs.chip_count > 9
+          if (chipCategory === 'custom' && customLimitNumber) {
+            return cs.chip_count <= customLimitNumber
+          }
+          return true
+        })
+        .map(cs => ({
+          id: `custom_${cs.id}`,
+          name: cs.name,
+          numbers: cs.numbers
+        }))
+    }
+
+    // Adicionar pasta customizada no início se tiver estratégias
+    if (customFolder.strategies.length > 0) {
+      return [customFolder, ...FOLDERS]
+    }
+    return FOLDERS
+  }, [FOLDERS, customStrategies, chipCategory, customLimitNumber])
+
+  const STRATEGIES = ALL_FOLDERS.flatMap(folder => folder.strategies)
 
   // Números filtrados com base no limite de análise
   // CORREÇÃO: Usar recentNumbers diretamente para garantir sincronização
@@ -216,15 +252,41 @@ export default function Home() {
           name: currentUser.email?.split('@')[0] || 'Usuário'
         }
         setUser(userData)
+        // Carregar estratégias customizadas
+        loadCustomStrategies()
       } else {
         // Limpar qualquer dados se não há usuário autenticado
         setUser(null)
+        setCustomStrategies([])
       }
     } catch (error) {
       console.error('Erro ao verificar usuário:', error)
       setUser(null)
+      setCustomStrategies([])
     } finally {
       setIsLoadingSession(false)
+    }
+  }
+
+  const loadCustomStrategies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('custom_strategies')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Erro ao carregar estratégias customizadas:', error)
+        return
+      }
+
+      if (data) {
+        console.log(`✅ ${data.length} estratégias customizadas carregadas`)
+        setCustomStrategies(data)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estratégias customizadas:', error)
     }
   }
 
@@ -436,7 +498,7 @@ export default function Home() {
     )
   }
 
-  const isStrategySelected = (strategyId: number) => {
+  const isStrategySelected = (strategyId: number | string) => {
     return selectedStrategies.includes(strategyId)
   }
 
@@ -1174,7 +1236,8 @@ export default function Home() {
       <Header 
         user={user} 
         onLogout={handleLogout} 
-        onEditProfile={() => setShowProfileEdit(true)} 
+        onEditProfile={() => setShowProfileEdit(true)}
+        onCreateStrategy={() => setShowCreateStrategy(true)}
       />
       
       {/* Card de Status - Dados Históricos da API */}
@@ -3655,6 +3718,17 @@ export default function Home() {
           user={user}
           onClose={() => setShowProfileEdit(false)}
           onUpdate={handleProfileUpdate}
+        />
+      )}
+
+      {/* Modal de Criar Estratégia */}
+      {showCreateStrategy && (
+        <CreateStrategyModal
+          onClose={() => setShowCreateStrategy(false)}
+          onSuccess={() => {
+            loadCustomStrategies()
+            setShowCreateStrategy(false)
+          }}
         />
       )}
     </div>
