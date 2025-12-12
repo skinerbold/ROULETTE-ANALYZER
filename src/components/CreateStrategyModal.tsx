@@ -89,6 +89,13 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
       const numbers = validation.numbers!
       const chipCount = numbers.length
 
+      console.log('🔵 ENVIANDO PARA O BANCO:')
+      console.log('🔵 name:', strategyName.trim())
+      console.log('🔵 numbers:', numbers)
+      console.log('🔵 numbers tipo:', typeof numbers)
+      console.log('🔵 numbers[0] tipo:', typeof numbers[0])
+      console.log('🔵 chip_count:', chipCount)
+
       const { error: insertError } = await supabase
         .from('custom_strategies')
         .insert({

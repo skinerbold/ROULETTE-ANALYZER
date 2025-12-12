@@ -15,10 +15,6 @@ import Header from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
 import CreateStrategyModal from '@/components/CreateStrategyModal'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
-import type { Strategy } from '@/lib/strategies'
-
-type StrategyId = number | string
-type StrategyLike = Pick<Strategy, 'name' | 'numbers'> & { id: StrategyId }
 
 interface NumberStatus {
   number: number
@@ -40,7 +36,7 @@ export default function Home() {
   const [chipCategory, setChipCategory] = useState<ChipCategory>('up-to-9')
   const [customChipLimit, setCustomChipLimit] = useState<string>('5') // Limite customizado de fichas
   const [showCustomChipInput, setShowCustomChipInput] = useState(false) // Mostrar input customizado
-  const [selectedStrategies, setSelectedStrategies] = useState<StrategyId[]>([]) // MUDANÇA: Array de IDs (número ou string para custom)
+  const [selectedStrategies, setSelectedStrategies] = useState<(number | string)[]>([]) // MUDANÇA: Array de IDs (número ou string para custom)
   const [selectAllFolders, setSelectAllFolders] = useState(false) // Estado para "All Pastas"
   
   // Estado para filtro de ordenação das estratégias
@@ -129,7 +125,14 @@ export default function Home() {
           return true
         })
         .map(cs => {
-          console.log('🔄 Mapeando estratégia:', cs.name, 'numbers:', cs.numbers)
+          console.log('🔄 Mapeando estratégia:', cs.name)
+          console.log('🔄   - ID:', cs.id)
+          console.log('🔄   - numbers:', cs.numbers)
+          console.log('🔄   - numbers é array?:', Array.isArray(cs.numbers))
+          console.log('🔄   - numbers.length:', cs.numbers?.length)
+          console.log('🔄   - primeiro número:', cs.numbers?.[0])
+          console.log('🔄   - tipo do primeiro:', typeof cs.numbers?.[0])
+          
           return {
             id: `custom_${cs.id}`,
             name: cs.name,
@@ -151,8 +154,7 @@ export default function Home() {
     return FOLDERS
   }, [FOLDERS, customStrategies, chipCategory, customLimitNumber])
 
-  const STRATEGIES: StrategyLike[] = ALL_FOLDERS.flatMap(folder => folder.strategies as any)
-  const STRATEGIES_NUMERIC = useMemo(() => STRATEGIES.filter((s): s is StrategyLike & { id: number } => typeof s.id === 'number'), [STRATEGIES])
+  const STRATEGIES = ALL_FOLDERS.flatMap(folder => folder.strategies)
 
   // Números filtrados com base no limite de análise
   // CORREÇÃO: Usar recentNumbers diretamente para garantir sincronização
@@ -306,11 +308,16 @@ export default function Home() {
         console.log('📊 TIPO DO CAMPO:', typeof data[0]?.numbers)
         console.log('📊 É ARRAY?:', Array.isArray(data[0]?.numbers))
         
+        if (data[0]?.numbers && Array.isArray(data[0].numbers)) {
+          console.log('📊 TIPO DO PRIMEIRO ELEMENTO:', typeof data[0].numbers[0])
+          console.log('📊 PRIMEIRO ELEMENTO:', data[0].numbers[0])
+        }
+        
         // Converter strings para números se necessário
         const processedData = data.map(strategy => ({
           ...strategy,
-            numbers: Array.isArray(strategy.numbers) 
-            ? strategy.numbers.map((n: unknown) => typeof n === 'string' ? parseInt(n, 10) : (n as number))
+          numbers: Array.isArray(strategy.numbers) 
+            ? strategy.numbers.map(n => typeof n === 'string' ? parseInt(n, 10) : n)
             : []
         }))
         
@@ -373,8 +380,7 @@ export default function Home() {
         user_id: user.id,
         numbers: numbers,
         chip_category: chipCategory === 'custom' ? 'all' : chipCategory, // Salvar 'all' quando custom
-        // Persistência mantém apenas IDs numéricos (catálogo). IDs custom são strings.
-        selected_strategies: selectedStrategies.filter((id): id is number => typeof id === 'number'),
+        selected_strategies: selectedStrategies,
         green_red_attempts: greenRedAttempts,
         updated_at: new Date().toISOString()
       }
@@ -491,7 +497,7 @@ export default function Home() {
   }
 
   const initializeStrategies = () => {
-    const initialStats = STRATEGIES_NUMERIC.map(strategy => ({
+    const initialStats = STRATEGIES.map(strategy => ({
       id: strategy.id,
       name: strategy.name,
       totalGreen: 0,
@@ -523,7 +529,7 @@ export default function Home() {
   }
 
   // Funções para seleção múltipla de estratégias
-  const toggleStrategy = (strategyId: StrategyId) => {
+  const toggleStrategy = (strategyId: number) => {
     setSelectedStrategies(prev => 
       prev.includes(strategyId)
         ? prev.filter(id => id !== strategyId)
@@ -890,7 +896,7 @@ export default function Home() {
   }
 
   const calculateAllStrategies = () => {
-    const updatedStats = STRATEGIES_NUMERIC.map(strategy => {
+    const updatedStats = STRATEGIES.map(strategy => {
       const analysis = analyzeStrategy(strategy.id, numbersToAnalyze)
       const profit = analysis ? analysis.totalGreen - analysis.totalRed : 0
       return {
@@ -966,9 +972,9 @@ export default function Home() {
     }
 
     // Obter números da estratégia
+    const { getStrategyNumbers } = require('@/lib/strategies')
     const numbersOnly = currentNumbers.map(n => n.number)
-    // Para estratégia customizada, os números estão no próprio objeto selecionado
-    const strategyNumbers: number[] = Array.isArray(strategy.numbers) ? strategy.numbers : []
+    const strategyNumbers: number[] = getStrategyNumbers(lastSelectedId, numbersOnly)
     const strategySet = new Set(strategyNumbers)
     
     // Inicializar array de status - todos começam NEUTRAL

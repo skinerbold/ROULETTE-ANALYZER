@@ -822,22 +822,11 @@ TOTAL GERAL: 18 PASTAS, 361 ESTRATÉGIAS
 // FUNÇÃO PARA OBTER NÚMEROS DE ESTRATÉGIAS
 // ========================================
 
-export function getStrategyNumbers(strategyId: number | string, lastNumbers: number[]): number[] {
-  // Estratégias customizadas chegam como string no formato "custom_<id>".
-  // Nesses casos, os números vêm do estado do frontend (STRATEGIES) e esta função
-  // não tem acesso a eles. Para manter compatibilidade e evitar "sem números",
-  // retornamos `lastNumbers` como fallback seguro.
-  if (typeof strategyId === 'string') {
-    if (strategyId.startsWith('custom_')) {
-      return lastNumbers
-    }
-    const parsed = Number(strategyId)
-    if (!Number.isFinite(parsed)) return []
-    strategyId = parsed
-  }
-
-  // Para estratégias fixas, retornar os números definidos no catálogo
-  const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9].flatMap(folder => folder.strategies)
+export function getStrategyNumbers(strategyId: number, lastNumbers: number[]): number[] {
+  // Para todas as estratégias, retornar os números fixos
+  const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9]
+    .flatMap(folder => folder.strategies)
+  
   const strategy = allStrategies.find(s => s.id === strategyId)
   return strategy?.numbers || []
 }
