@@ -63,7 +63,7 @@ CREATE TRIGGER update_custom_strategies_timestamp
 -- Função RPC para inserir estratégias com array de inteiros correto
 CREATE OR REPLACE FUNCTION insert_custom_strategy(
   strategy_name TEXT,
-  strategy_numbers INTEGER[],
+  strategy_numbers TEXT,
   user_id UUID
 )
 RETURNS TABLE (
@@ -76,10 +76,15 @@ RETURNS TABLE (
   updated_at TIMESTAMPTZ,
   is_active BOOLEAN
 ) AS $$
+DECLARE
+  numbers_array INTEGER[];
 BEGIN
+  -- Converter string para array de inteiros
+  numbers_array := strategy_numbers::INTEGER[];
+  
   RETURN QUERY
   INSERT INTO custom_strategies (name, numbers, chip_count, created_by)
-  VALUES (strategy_name, strategy_numbers, array_length(strategy_numbers, 1), user_id)
+  VALUES (strategy_name, numbers_array, array_length(numbers_array, 1), user_id)
   RETURNING *;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

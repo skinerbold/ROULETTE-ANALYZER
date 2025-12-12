@@ -89,11 +89,13 @@ export default function CreateStrategyModal({ onClose, onSuccess }: CreateStrate
       const numbers = validation.numbers!
       const chipCount = numbers.length
 
-      // Usar RPC function para garantir que o array seja salvo corretamente
+      // Converter para string no formato PostgreSQL array literal
+      const pgArray = `{${numbers.join(',')}}`
+
       const { data, error: insertError } = await supabase
         .rpc('insert_custom_strategy', {
           strategy_name: strategyName.trim(),
-          strategy_numbers: numbers,
+          strategy_numbers: pgArray,
           user_id: user.id
         })
 
