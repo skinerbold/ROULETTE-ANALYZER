@@ -985,10 +985,19 @@ export default function Home() {
       return
     }
 
-    // Obter números da estratégia
-    const { getStrategyNumbers } = require('@/lib/strategies')
-    const numbersOnly = currentNumbers.map(n => n.number)
-    const strategyNumbers: number[] = getStrategyNumbers(lastSelectedId, numbersOnly)
+    // ✅ FIX: Obter números da estratégia - suporte para customizadas
+    let strategyNumbers: number[]
+    if (typeof lastSelectedId === 'string' && lastSelectedId.startsWith('custom_')) {
+      // Estratégia customizada: usar números diretamente
+      console.log('🎨 Pintura: Estratégia customizada detectada:', strategy.name)
+      console.log('🎨 Usando numbers diretamente:', strategy.numbers)
+      strategyNumbers = strategy.numbers || []
+    } else {
+      // Estratégia hardcoded: usar getStrategyNumbers (pode ter lógica dinâmica)
+      const { getStrategyNumbers } = require('@/lib/strategies')
+      const numbersOnly = currentNumbers.map(n => n.number)
+      strategyNumbers = getStrategyNumbers(lastSelectedId as number, numbersOnly)
+    }
     const strategySet = new Set(strategyNumbers)
     
     // Inicializar array de status - todos começam NEUTRAL
