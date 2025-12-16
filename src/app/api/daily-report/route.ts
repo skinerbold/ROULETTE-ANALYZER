@@ -1,5 +1,6 @@
 // ========================================
 // API ROUTE - GERADOR DE RELATÓRIO DIÁRIO
+// Sistema de 3 Camadas com 12 Sub-Períodos
 // Endpoint: /api/daily-report
 // ========================================
 
@@ -8,12 +9,15 @@ import { createClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { getAllStrategies } from '@/lib/strategies'
 
-// Tipos
+// ========================================
+// TIPOS E INTERFACES
+// ========================================
+
 interface RouletteNumber {
   id?: number
   roulette_id: string
   number: number
-  timestamp: number // bigint em milissegundos na tabela roulette_history
+  timestamp: number
 }
 
 interface Strategy {
@@ -23,136 +27,185 @@ interface Strategy {
   source: 'hardcoded' | 'custom'
 }
 
-// GET - Gerar relatório do dia atual ou data específica
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams
-    const dateParam = searchParams.get('date') // formato: YYYY-MM-DD
-    
-    // Configurar cliente Supabase
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    const openaiKey = process.env.OPENAI_API_KEY
-    
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: 'Supabase não configurado' }, { status: 500 })
-    }
-    
-    if (!openaiKey) {
-      return NextResponse.json({ error: 'OpenAI API Key não configurada' }, { status: 500 })
-    }
-    
-    const supabase = createClient<any>(supabaseUrl, supabaseKey)
-    const openai = new OpenAI({ apiKey: openaiKey })
-    
-    // Definir data do relatório (considerando fuso horário de Brasília UTC-3)
-    let reportDate: Date
-    if (dateParam) {
-      // Parse manual para evitar problemas de fuso horário
-      const [year, month, day] = dateParam.split('-').map(Number)
-      reportDate = new Date(year, month - 1, day)
-    } else {
-      // Por padrão, gerar relatório do dia anterior
-      reportDate = new Date()
-      reportDate.setDate(reportDate.getDate() - 1)
-    }
-    
-    // Criar timestamps para início e fim do dia em horário local (Brasília)
-    const startOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0)
-    const endOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59, 999)
-    
-    // Converter para timestamps em milissegundos (formato usado em roulette_history)
-    const startTimestamp = startOfDay.getTime()
-    const endTimestamp = endOfDay.getTime()
-    
-    console.log('📊 Gerando relatório para:', startOfDay.toLocaleDateString('pt-BR'), '00:00 até 23:59')
-    console.log('📊 Timestamps:', startTimestamp, '-', endTimestamp)
-    
-    // 1. Buscar dados das roletas da tabela roulette_history existente
-    // IMPORTANTE: Usar paginação para buscar TODOS os dados do dia (Supabase limita a 1000 por padrão)
-    let allRouletteData: RouletteNumber[] = []
-    let hasMore = true
-    let offset = 0
-    const pageSize = 1000
-    
-    while (hasMore) {
-      const { data: pageData, error: pageError } = await supabase
-        .from('roulette_history')
-        .select('*')
-        .gte('timestamp', startTimestamp)
-        .lte('timestamp', endTimestamp)
-        .order('timestamp', { ascending: true })
-        .range(offset, offset + pageSize - 1)
-      
-      if (pageError) {
-        console.error('Erro ao buscar dados:', pageError)
-        return NextResponse.json({ error: 'Erro ao buscar dados das roletas' }, { status: 500 })
+interface SubPeriodDefinition {
+  name: string
+  label: string
+  startHour: number
+  endHour: number
+  order: number
+  parentPeriod: string
+}
+
+interface IntermediatePeriodDefinition {
+  name: string
+  label: string
+  subPeriods: string[]
+  order: number
+}
+
+interface ReportPart {
+  id: number
+  report_date: string
+  period_name: string
+  period_type: 'sub' | 'intermediate' | 'final'
+  period_order: number
+  content: string
+  total_lancamentos: number
+  generated_at: string
+}
+
+// ========================================
+// CONFIGURAÇÃO DE PERÍODOS (3 CAMADAS)
+// ========================================
+
+// CAMADA 1: 12 Sub-períodos de 2 horas cada (~2.500 registros cada)
+const SUB_PERIODS: SubPeriodDefinition[] = [
+  // Madrugada (00:00-05:59)
+  { name: 'sub_00_02', label: '🌙 00:00-01:59', startHour: 0, endHour: 1, order: 1, parentPeriod: 'madrugada' },
+  { name: 'sub_02_04', label: '🌙 02:00-03:59', startHour: 2, endHour: 3, order: 2, parentPeriod: 'madrugada' },
+  { name: 'sub_04_06', label: '🌙 04:00-05:59', startHour: 4, endHour: 5, order: 3, parentPeriod: 'madrugada' },
+  
+  // Manhã (06:00-11:59)
+  { name: 'sub_06_08', label: '☀️ 06:00-07:59', startHour: 6, endHour: 7, order: 4, parentPeriod: 'manha' },
+  { name: 'sub_08_10', label: '☀️ 08:00-09:59', startHour: 8, endHour: 9, order: 5, parentPeriod: 'manha' },
+  { name: 'sub_10_12', label: '☀️ 10:00-11:59', startHour: 10, endHour: 11, order: 6, parentPeriod: 'manha' },
+  
+  // Tarde (12:00-17:59)
+  { name: 'sub_12_14', label: '🌤️ 12:00-13:59', startHour: 12, endHour: 13, order: 7, parentPeriod: 'tarde' },
+  { name: 'sub_14_16', label: '🌤️ 14:00-15:59', startHour: 14, endHour: 15, order: 8, parentPeriod: 'tarde' },
+  { name: 'sub_16_18', label: '🌤️ 16:00-17:59', startHour: 16, endHour: 17, order: 9, parentPeriod: 'tarde' },
+  
+  // Noite (18:00-23:59)
+  { name: 'sub_18_20', label: '🌃 18:00-19:59', startHour: 18, endHour: 19, order: 10, parentPeriod: 'noite' },
+  { name: 'sub_20_22', label: '🌃 20:00-21:59', startHour: 20, endHour: 21, order: 11, parentPeriod: 'noite' },
+  { name: 'sub_22_24', label: '🌃 22:00-23:59', startHour: 22, endHour: 23, order: 12, parentPeriod: 'noite' },
+]
+
+// CAMADA 2: 4 Períodos Intermediários de 6 horas cada
+const INTERMEDIATE_PERIODS: IntermediatePeriodDefinition[] = [
+  { name: 'madrugada', label: '🌙 MADRUGADA (00:00-05:59)', subPeriods: ['sub_00_02', 'sub_02_04', 'sub_04_06'], order: 1 },
+  { name: 'manha', label: '☀️ MANHÃ (06:00-11:59)', subPeriods: ['sub_06_08', 'sub_08_10', 'sub_10_12'], order: 2 },
+  { name: 'tarde', label: '🌤️ TARDE (12:00-17:59)', subPeriods: ['sub_12_14', 'sub_14_16', 'sub_16_18'], order: 3 },
+  { name: 'noite', label: '🌃 NOITE (18:00-23:59)', subPeriods: ['sub_18_20', 'sub_20_22', 'sub_22_24'], order: 4 },
+]
+
+// ========================================
+// FUNÇÕES UTILITÁRIAS
+// ========================================
+
+// Calcular sequências GREEN/RED para uma estratégia
+function calculateGreenRedSequences(numbers: number[], strategyNumbers: number[]): { 
+  greens: number
+  reds: number
+  sequences: string
+  maxGreenStreak: number
+  maxRedStreak: number 
+} {
+  let greens = 0
+  let reds = 0
+  const sequences: string[] = []
+  
+  for (let i = 0; i < numbers.length - 1; i++) {
+    if (strategyNumbers.includes(numbers[i])) {
+      let foundGreen = false
+      for (let j = 1; j <= 3 && i + j < numbers.length; j++) {
+        if (strategyNumbers.includes(numbers[i + j])) {
+          foundGreen = true
+          break
+        }
       }
-      
-      if (pageData && pageData.length > 0) {
-        allRouletteData = allRouletteData.concat(pageData)
-        offset += pageSize
-        hasMore = pageData.length === pageSize // Se retornou menos que o pageSize, não há mais dados
-        console.log(`📊 Página ${Math.ceil(offset / pageSize)}: ${pageData.length} registros (total: ${allRouletteData.length})`)
+      if (foundGreen) {
+        greens++
+        sequences.push('G')
       } else {
-        hasMore = false
+        reds++
+        sequences.push('R')
       }
     }
-    
-    const rouletteData = allRouletteData
-    
-    console.log(`✅ Total de lançamentos carregados: ${rouletteData.length}`)
-    
-    // 2. Buscar todas as estratégias
-    const strategies = await fetchAllStrategies(supabase)
-    
-    // 3. Gerar análise com ChatGPT
-    const analysis = await generateAnalysis(openai, rouletteData || [], strategies, startOfDay)
-    
-    // 4. Salvar relatório no Supabase
-    const reportId = await saveReportToSupabase(supabase, analysis, startOfDay, rouletteData?.length || 0, strategies.length)
-    
-    return NextResponse.json({
-      success: true,
-      reportId,
-      date: startOfDay.toISOString().split('T')[0],
-      stats: {
-        totalLancamentos: rouletteData?.length || 0,
-        totalEstrategias: strategies.length,
-        roletasAnalisadas: [...new Set(rouletteData?.map(r => r.roulette_id) || [])].length
-      },
-      report: analysis
-    })
-    
-  } catch (error) {
-    console.error('Erro ao gerar relatório:', error)
-    return NextResponse.json({ 
-      error: 'Erro interno ao gerar relatório',
-      details: error instanceof Error ? error.message : 'Erro desconhecido'
-    }, { status: 500 })
+  }
+  
+  // Calcular streaks máximos
+  let maxGreenStreak = 0, maxRedStreak = 0
+  let currentGreen = 0, currentRed = 0
+  
+  for (const s of sequences) {
+    if (s === 'G') {
+      currentGreen++
+      currentRed = 0
+      maxGreenStreak = Math.max(maxGreenStreak, currentGreen)
+    } else {
+      currentRed++
+      currentGreen = 0
+      maxRedStreak = Math.max(maxRedStreak, currentRed)
+    }
+  }
+  
+  return { greens, reds, sequences: sequences.join(''), maxGreenStreak, maxRedStreak }
+}
+
+// Calcular análise de gap de 3 intervalos
+function calculateGapAnalysis(numbers: number[], strategyNumbers: number[]): {
+  totalGaps: number
+  gapsOf3: number
+  gapsOf4Plus: number
+  avgGap: number
+} {
+  const gaps: number[] = []
+  let lastHitIndex = -1
+  
+  for (let i = 0; i < numbers.length; i++) {
+    if (strategyNumbers.includes(numbers[i])) {
+      if (lastHitIndex >= 0) {
+        gaps.push(i - lastHitIndex - 1)
+      }
+      lastHitIndex = i
+    }
+  }
+  
+  const gapsOf3 = gaps.filter(g => g === 3).length
+  const gapsOf4Plus = gaps.filter(g => g >= 4).length
+  const avgGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
+  
+  return { totalGaps: gaps.length, gapsOf3, gapsOf4Plus, avgGap: Math.round(avgGap * 10) / 10 }
+}
+
+// Calcular números quentes e frios
+function calculateHotColdNumbers(numbers: number[]): {
+  hot: Array<{ number: number; count: number; percentage: number }>
+  cold: Array<{ number: number; count: number; percentage: number }>
+  frequency: Record<number, number>
+} {
+  const frequency: Record<number, number> = {}
+  
+  // Inicializar todos os números (0-36) com 0
+  for (let i = 0; i <= 36; i++) {
+    frequency[i] = 0
+  }
+  
+  // Contar frequências
+  for (const n of numbers) {
+    frequency[n] = (frequency[n] || 0) + 1
+  }
+  
+  // Ordenar por frequência
+  const sorted = Object.entries(frequency)
+    .map(([num, count]) => ({
+      number: parseInt(num),
+      count,
+      percentage: Math.round((count / numbers.length) * 100 * 10) / 10
+    }))
+    .sort((a, b) => b.count - a.count)
+  
+  return {
+    hot: sorted.slice(0, 10),
+    cold: sorted.slice(-10).reverse(),
+    frequency
   }
 }
 
-// POST - Agendar geração de relatório (para cron jobs)
-export async function POST(request: NextRequest) {
-  try {
-    // Verificar autorização (token secreto para cron jobs)
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-    
-    // Chamar GET para gerar o relatório
-    const response = await GET(request)
-    return response
-    
-  } catch (error) {
-    console.error('Erro no cron job:', error)
-    return NextResponse.json({ error: 'Erro ao executar cron job' }, { status: 500 })
-  }
-}
+// ========================================
+// FUNÇÕES DE BANCO DE DADOS
+// ========================================
 
 // Buscar todas as estratégias
 async function fetchAllStrategies(supabase: any): Promise<Strategy[]> {
@@ -206,59 +259,69 @@ async function fetchAllStrategies(supabase: any): Promise<Strategy[]> {
   return strategies
 }
 
-// Definição de períodos do dia
-interface PeriodDefinition {
-  name: string
-  label: string
-  startHour: number
-  endHour: number
-}
-
-const PERIODS: PeriodDefinition[] = [
-  { name: 'madrugada', label: '🌙 MADRUGADA (00:00 - 05:59)', startHour: 0, endHour: 5 },
-  { name: 'manha', label: '☀️ MANHÃ (06:00 - 11:59)', startHour: 6, endHour: 11 },
-  { name: 'tarde', label: '🌤️ TARDE (12:00 - 17:59)', startHour: 12, endHour: 17 },
-  { name: 'noite', label: '🌃 NOITE (18:00 - 23:59)', startHour: 18, endHour: 23 },
-]
-
-// Calcular sequências GREEN/RED
-function calculateGreenRedSequences(numbers: number[], strategyNumbers: number[]): { greens: number, reds: number, sequences: string } {
-  let greens = 0
-  let reds = 0
-  const sequences: string[] = []
+// Verificar partes já geradas
+async function getExistingParts(supabase: any, reportDate: string): Promise<ReportPart[]> {
+  const { data, error } = await supabase
+    .from('daily_report_parts')
+    .select('*')
+    .eq('report_date', reportDate)
+    .order('period_order', { ascending: true })
   
-  for (let i = 0; i < numbers.length - 1; i++) {
-    if (strategyNumbers.includes(numbers[i])) {
-      let foundGreen = false
-      for (let j = 1; j <= 3 && i + j < numbers.length; j++) {
-        if (strategyNumbers.includes(numbers[i + j])) {
-          foundGreen = true
-          break
-        }
-      }
-      if (foundGreen) {
-        greens++
-        sequences.push('G')
-      } else {
-        reds++
-        sequences.push('R')
-      }
-    }
+  if (error) {
+    console.error('Erro ao buscar partes existentes:', error)
+    return []
   }
-  return { greens, reds, sequences: sequences.join('') }
+  
+  return data || []
 }
 
-// Gerar relatório parcial para um período específico
-async function generatePeriodReport(
+// Salvar parte do relatório
+async function saveReportPart(
+  supabase: any,
+  reportDate: string,
+  periodName: string,
+  periodType: 'sub' | 'intermediate' | 'final',
+  periodOrder: number,
+  content: string,
+  totalLancamentos: number
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('daily_report_parts')
+    .upsert({
+      report_date: reportDate,
+      period_name: periodName,
+      period_type: periodType,
+      period_order: periodOrder,
+      content: content,
+      total_lancamentos: totalLancamentos,
+      generated_at: new Date().toISOString()
+    }, {
+      onConflict: 'report_date,period_name,period_type'
+    })
+  
+  if (error) {
+    console.error(`Erro ao salvar parte ${periodName}:`, error)
+    return false
+  }
+  
+  console.log(`✅ Parte ${periodName} salva com sucesso!`)
+  return true
+}
+
+// ========================================
+// GERAÇÃO DE RELATÓRIOS - CAMADA 1 (SUB-PERÍODOS)
+// ========================================
+
+async function generateSubPeriodReport(
   openai: OpenAI,
   periodData: RouletteNumber[],
   strategies: Strategy[],
   reportDate: Date,
-  period: PeriodDefinition
+  period: SubPeriodDefinition
 ): Promise<string> {
   
   if (periodData.length === 0) {
-    return `\n## ${period.label}\n\n⚠️ Nenhum dado disponível para este período.\n`
+    return `\n## ${period.label}\n\n⚠️ Nenhum dado disponível para este período (${period.startHour}:00-${period.endHour}:59).\n`
   }
 
   // Agrupar por roleta
@@ -268,20 +331,19 @@ async function generatePeriodReport(
     byRoulette[entry.roulette_id].push(entry)
   }
 
+  const roletasCount = Object.keys(byRoulette).length
+
   // Gerar dados detalhados por roleta com TODOS os números
   const roletasData = Object.entries(byRoulette).map(([rouletteId, entries]) => {
     const numbers = entries.map(e => e.number)
     
-    // Frequência de cada número
-    const frequency: Record<number, number> = {}
-    for (const n of numbers) {
-      frequency[n] = (frequency[n] || 0) + 1
-    }
-    const sortedFreq = Object.entries(frequency).sort((a, b) => b[1] - a[1])
+    // Análise de números quentes/frios
+    const hotCold = calculateHotColdNumbers(numbers)
     
-    // Calcular performance das estratégias nesta roleta
+    // Calcular performance das TOP 30 estratégias nesta roleta
     const strategyPerformance = strategies.map(strategy => {
       const result = calculateGreenRedSequences(numbers, strategy.numbers)
+      const gapAnalysis = calculateGapAnalysis(numbers, strategy.numbers)
       const total = result.greens + result.reds
       return {
         name: strategy.name,
@@ -289,7 +351,10 @@ async function generatePeriodReport(
         greens: result.greens,
         reds: result.reds,
         rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
-        sequences: result.sequences
+        sequences: result.sequences,
+        maxGreenStreak: result.maxGreenStreak,
+        maxRedStreak: result.maxRedStreak,
+        gapAnalysis
       }
     }).sort((a, b) => b.rate - a.rate)
 
@@ -313,21 +378,26 @@ async function generatePeriodReport(
       totalLancamentos: entries.length,
       numbersWithTime: numbersWithTime.join(', '),
       allNumbers: numbers.join(', '),
-      frequencyTable: sortedFreq.map(([n, c]) => `${n}:${c}`).join(', '),
-      topNumbers: sortedFreq.slice(0, 10).map(([n, c]) => `${n}(${c}x)`).join(', '),
-      coldNumbers: sortedFreq.slice(-10).map(([n, c]) => `${n}(${c}x)`).join(', '),
+      hotNumbers: hotCold.hot.map(h => `${h.number}(${h.count}x/${h.percentage}%)`).join(', '),
+      coldNumbers: hotCold.cold.map(c => `${c.number}(${c.count}x/${c.percentage}%)`).join(', '),
+      frequencyTable: Object.entries(hotCold.frequency)
+        .sort((a, b) => b[1] - a[1])
+        .map(([n, c]) => `${n}:${c}`)
+        .join(', '),
       redCount, blackCount, greenCount,
       redPercent: Math.round((redCount / numbers.length) * 100),
       blackPercent: Math.round((blackCount / numbers.length) * 100),
-      topStrategies: strategyPerformance.slice(0, 20),
-      worstStrategies: strategyPerformance.slice(-10)
+      greenPercent: Math.round((greenCount / numbers.length) * 100),
+      topStrategies: strategyPerformance.slice(0, 10),
+      worstStrategies: strategyPerformance.slice(-5)
     }
   })
 
-  // Calcular ranking geral de estratégias para o período
+  // Calcular ranking geral de estratégias para o sub-período
   const allPeriodNumbers = periodData.map(e => e.number)
   const overallStrategyRanking = strategies.map(strategy => {
     const result = calculateGreenRedSequences(allPeriodNumbers, strategy.numbers)
+    const gapAnalysis = calculateGapAnalysis(allPeriodNumbers, strategy.numbers)
     const total = result.greens + result.reds
     return {
       name: strategy.name,
@@ -335,145 +405,201 @@ async function generatePeriodReport(
       greens: result.greens,
       reds: result.reds,
       rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
-      sequences: result.sequences
+      sequences: result.sequences,
+      maxGreenStreak: result.maxGreenStreak,
+      maxRedStreak: result.maxRedStreak,
+      gapAnalysis
     }
   }).sort((a, b) => b.rate - a.rate)
 
-  // Montar o prompt para este período
+  // Números quentes/frios gerais do período
+  const overallHotCold = calculateHotColdNumbers(allPeriodNumbers)
+
+  // Montar o prompt para este sub-período (REDUZIDO para caber em 30k tokens)
   const prompt = `
-# 🎰 ANÁLISE DETALHADA DO PERÍODO: ${period.label}
+# 🎰 SUB-PERÍODO: ${period.label}
 ## Data: ${reportDate.toLocaleDateString('pt-BR')}
 
----
+## 📊 ESTATÍSTICAS
+- Total: ${periodData.length} lançamentos
+- Roletas: ${roletasCount}
 
-## 📊 ESTATÍSTICAS GERAIS DO PERÍODO
+## 🔥 QUENTES: ${overallHotCold.hot.slice(0,5).map((h, i) => `${h.number}(${h.count}x)`).join(', ')}
+## ❄️ FRIOS: ${overallHotCold.cold.slice(0,5).map((c, i) => `${c.number}(${c.count}x)`).join(', ')}
 
-- **Total de lançamentos:** ${periodData.length}
-- **Roletas ativas:** ${Object.keys(byRoulette).length}
-- **Horário:** ${period.startHour.toString().padStart(2, '0')}:00 até ${period.endHour.toString().padStart(2, '0')}:59
+## 🎰 DADOS POR ROLETA
 
----
+${roletasData.slice(0, 8).map(r => `
+### ${r.rouletteId.toUpperCase()} (${r.totalLancamentos})
+🔴${r.redPercent}% ⚫${r.blackPercent}% 🟢${r.greenPercent}%
+**Quentes:** ${r.hotNumbers.split(',').slice(0,5).join(',')}
+**Frios:** ${r.coldNumbers.split(',').slice(0,5).join(',')}
+**Números:** ${r.numbersWithTime}
+**Top 5 Estratégias:**
+${r.topStrategies.slice(0,5).map((s, i) => `${i+1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R)`).join('\n')}
+`).join('\n---\n')}
 
-## 🎰 DADOS COMPLETOS POR ROLETA (COM TODOS OS NÚMEROS E HORÁRIOS)
+## 🏆 TOP 20 ESTRATÉGIAS DO SUB-PERÍODO
 
-${roletasData.map(r => `
-### ROLETA: ${r.rouletteId.toUpperCase()}
-
-**📊 Estatísticas:**
-- Total de lançamentos: ${r.totalLancamentos}
-- 🔴 Vermelho: ${r.redCount} (${r.redPercent}%)
-- ⚫ Preto: ${r.blackCount} (${r.blackPercent}%)
-- 🟢 Zero: ${r.greenCount}
-
-**🔥 Números mais frequentes:** ${r.topNumbers}
-**❄️ Números menos frequentes:** ${r.coldNumbers}
-
-**📈 FREQUÊNCIA COMPLETA DE TODOS OS NÚMEROS:**
-${r.frequencyTable}
-
-**⏰ SEQUÊNCIA COMPLETA DE NÚMEROS COM HORÁRIO DE ENTRADA:**
-${r.numbersWithTime}
-
-**🏆 TOP 20 MELHORES ESTRATÉGIAS NESTA ROLETA:**
-${r.topStrategies.map((s, i) => `${i + 1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R) - Sequência: [${s.sequences.slice(-30)}]`).join('\n')}
-
-**❌ 10 PIORES ESTRATÉGIAS:**
-${r.worstStrategies.map((s, i) => `${i + 1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R)`).join('\n')}
-`).join('\n\n========================================\n\n')}
-
----
-
-## 🏆 RANKING GERAL DE ESTRATÉGIAS DO PERÍODO (TOP 50)
-
-${overallStrategyRanking.slice(0, 50).map((s, i) => 
-  `${i + 1}. **${s.name}** [${s.numbers.join(',')}]: ${s.rate}% (${s.greens}G/${s.reds}R) - Seq: [${s.sequences.slice(-20)}]`
+${overallStrategyRanking.slice(0, 20).map((s, i) => 
+  `${i+1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R) MaxG:${s.maxGreenStreak} MaxR:${s.maxRedStreak}`
 ).join('\n')}
 
 ---
 
-## ❌ PIORES ESTRATÉGIAS DO PERÍODO (BOTTOM 20)
-
-${overallStrategyRanking.slice(-20).reverse().map((s, i) => 
-  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
-).join('\n')}
-
----
-
-## 📝 INSTRUÇÕES PARA ANÁLISE
-
-Gere uma análise COMPLETA e APROFUNDADA deste período (${period.label}) incluindo:
-
-1. **RESUMO DO PERÍODO**: Principais descobertas e alertas
-2. **ANÁLISE DE CADA ROLETA**: Para CADA uma das ${Object.keys(byRoulette).length} roletas:
-   - Padrões identificados nos números
-   - Sequências que se repetem
-   - Melhores estratégias específicas
-   - Horários mais produtivos dentro do período
-3. **ANÁLISE DAS ESTRATÉGIAS**: 
-   - Quais estratégias dominaram este período
-   - Sequências de GREEN/RED mais longas
-   - Padrões de alternância
-4. **NÚMEROS QUENTES E FRIOS**: Detalhamento por roleta
-5. **CORRELAÇÕES**: Entre roletas e entre estratégias
-6. **RECOMENDAÇÕES**: Específicas para este período
-
-⚠️ IMPORTANTE:
-- Analise TODOS os dados de TODAS as ${Object.keys(byRoulette).length} roletas
-- Seja EXTREMAMENTE detalhado e específico
-- Use tabelas Markdown quando apropriado
-- Inclua números e porcentagens concretos
-- O relatório deste período deve ter NO MÍNIMO 1500 palavras
+Gere análise DETALHADA (mínimo 600 palavras):
+1. RESUMO do sub-período
+2. ANÁLISE por roleta
+3. ESTRATÉGIAS dominantes
+4. PADRÕES identificados
+5. RECOMENDAÇÕES
 `
 
   try {
-    console.log(`🤖 Gerando relatório para ${period.name}... (${periodData.length} lançamentos)`)
+    console.log(`🤖 Gerando sub-relatório ${period.name}... (${periodData.length} lançamentos, ${roletasCount} roletas)`)
     
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: `Você é um analista de dados ESPECIALISTA em jogos de roleta.
-Gere relatórios EXTREMAMENTE DETALHADOS e APROFUNDADOS.
-NUNCA resuma ou simplifique os dados.
-Use tabelas Markdown, emojis e formatação clara.
-Seja MUITO específico com números, porcentagens e estatísticas.
-Analise TODOS os dados fornecidos para TODAS as roletas sem exceção.`
+          content: `Analista ESPECIALISTA em roletas. Gere relatórios DETALHADOS. Use Markdown.`
         },
         {
           role: 'user',
           content: prompt
         }
       ],
-      max_tokens: 8000,
+      max_tokens: 4000,
       temperature: 0.5
     })
     
-    return completion.choices[0]?.message?.content || `Erro ao gerar análise do período ${period.name}`
+    return completion.choices[0]?.message?.content || `Erro ao gerar análise do sub-período ${period.name}`
     
-  } catch (error) {
-    console.error(`Erro ao gerar relatório do período ${period.name}:`, error)
-    return `\n## ${period.label}\n\n⚠️ Erro ao gerar análise deste período.\n`
+  } catch (error: any) {
+    console.error(`❌ Erro ao gerar sub-relatório ${period.name}:`, error?.message || error)
+    throw error
   }
 }
 
-// Gerar relatório final consolidado
-async function generateFinalConsolidatedReport(
+// ========================================
+// GERAÇÃO DE RELATÓRIOS - CAMADA 2 (INTERMEDIÁRIOS)
+// ========================================
+
+async function generateIntermediateReport(
   openai: OpenAI,
-  partialReports: string[],
+  subReports: string[],
+  periodData: RouletteNumber[],
+  strategies: Strategy[],
+  reportDate: Date,
+  period: IntermediatePeriodDefinition
+): Promise<string> {
+
+  // Calcular estatísticas consolidadas do período intermediário
+  const allNumbers = periodData.map(e => e.number)
+  const hotCold = calculateHotColdNumbers(allNumbers)
+  
+  const byRoulette: Record<string, RouletteNumber[]> = {}
+  for (const entry of periodData) {
+    if (!byRoulette[entry.roulette_id]) byRoulette[entry.roulette_id] = []
+    byRoulette[entry.roulette_id].push(entry)
+  }
+
+  // Ranking de estratégias do período
+  const strategyRanking = strategies.map(strategy => {
+    const result = calculateGreenRedSequences(allNumbers, strategy.numbers)
+    const total = result.greens + result.reds
+    return {
+      name: strategy.name,
+      greens: result.greens,
+      reds: result.reds,
+      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
+      maxGreenStreak: result.maxGreenStreak,
+      maxRedStreak: result.maxRedStreak
+    }
+  }).sort((a, b) => b.rate - a.rate)
+
+  const consolidationPrompt = `
+# 🎰 CONSOLIDAÇÃO: ${period.label}
+## Data: ${reportDate.toLocaleDateString('pt-BR')}
+
+## 📊 ESTATÍSTICAS (6 HORAS)
+- Total: ${periodData.length} lançamentos
+- Roletas: ${Object.keys(byRoulette).length}
+
+## 🔥 QUENTES: ${hotCold.hot.slice(0,5).map(h => `${h.number}(${h.count}x)`).join(', ')}
+## ❄️ FRIOS: ${hotCold.cold.slice(0,5).map(c => `${c.number}(${c.count}x)`).join(', ')}
+
+## 🏆 TOP 25 ESTRATÉGIAS
+
+${strategyRanking.slice(0, 25).map((s, i) => 
+  `${i+1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R)`
+).join('\n')}
+
+## 📋 SUB-RELATÓRIOS:
+
+${subReports.join('\n\n---\n\n')}
+
+---
+
+Gere CONSOLIDAÇÃO (mínimo 1000 palavras):
+1. RESUMO do período
+2. COMPARAÇÃO entre sub-períodos
+3. EVOLUÇÃO temporal
+4. ESTRATÉGIAS consistentes
+5. PADRÕES
+6. RECOMENDAÇÕES
+`
+
+  try {
+    console.log(`🤖 Gerando consolidação ${period.name}...`)
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Analista ESPECIALISTA em roletas. Consolide relatórios mantendo detalhes. Use Markdown.`
+        },
+        {
+          role: 'user',
+          content: consolidationPrompt
+        }
+      ],
+      max_tokens: 6000,
+      temperature: 0.5
+    })
+    
+    return completion.choices[0]?.message?.content || `Erro ao gerar consolidação ${period.name}`
+    
+  } catch (error: any) {
+    console.error(`❌ Erro ao gerar consolidação ${period.name}:`, error?.message || error)
+    throw error
+  }
+}
+
+// ========================================
+// GERAÇÃO DE RELATÓRIOS - CAMADA 3 (FINAL)
+// ========================================
+
+async function generateFinalReport(
+  openai: OpenAI,
+  intermediateReports: string[],
   rouletteData: RouletteNumber[],
   strategies: Strategy[],
   reportDate: Date
 ): Promise<string> {
-  
+
   const byRoulette: Record<string, RouletteNumber[]> = {}
   for (const entry of rouletteData) {
     if (!byRoulette[entry.roulette_id]) byRoulette[entry.roulette_id] = []
     byRoulette[entry.roulette_id].push(entry)
   }
 
-  // Calcular ranking geral do dia
   const allNumbers = rouletteData.map(e => e.number)
+  const hotCold = calculateHotColdNumbers(allNumbers)
+
+  // Ranking geral do dia
   const overallRanking = strategies.map(strategy => {
     const result = calculateGreenRedSequences(allNumbers, strategy.numbers)
     const total = result.greens + result.reds
@@ -481,187 +607,279 @@ async function generateFinalConsolidatedReport(
       name: strategy.name,
       greens: result.greens,
       reds: result.reds,
-      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0
+      rate: total > 0 ? Math.round((result.greens / total) * 100) : 0,
+      maxGreenStreak: result.maxGreenStreak,
+      maxRedStreak: result.maxRedStreak
     }
   }).sort((a, b) => b.rate - a.rate)
 
-  const consolidationPrompt = `
-# 🎰 CONSOLIDAÇÃO FINAL - RELATÓRIO COMPLETO DO DIA ${reportDate.toLocaleDateString('pt-BR')}
+  const finalPrompt = `
+# 🎰 RELATÓRIO FINAL - ${reportDate.toLocaleDateString('pt-BR')}
 
-Você recebeu 4 relatórios parciais detalhados (Madrugada, Manhã, Tarde e Noite).
-Sua tarefa é UNIFICAR todos em um RELATÓRIO FINAL COMPLETO.
+## 📊 ESTATÍSTICAS DO DIA
+- Total: ${rouletteData.length} lançamentos
+- Roletas: ${Object.keys(byRoulette).length}
+- Estratégias: ${strategies.length}
 
----
+## 🔥 TOP 10 QUENTES
+${hotCold.hot.map((h, i) => `${i+1}. ${h.number}: ${h.count}x (${h.percentage}%)`).join('\n')}
 
-## 📊 ESTATÍSTICAS GERAIS DO DIA COMPLETO
+## ❄️ TOP 10 FRIOS
+${hotCold.cold.map((c, i) => `${i+1}. ${c.number}: ${c.count}x (${c.percentage}%)`).join('\n')}
 
-- **Total de lançamentos no dia:** ${rouletteData.length}
-- **Roletas monitoradas:** ${Object.keys(byRoulette).length}
-- **Total de estratégias analisadas:** ${strategies.length}
-- **Média de lançamentos por hora:** ${Math.round(rouletteData.length / 24)}
+## 🏆 TOP 30 ESTRATÉGIAS
 
----
-
-## 🏆 RANKING GERAL DAS ESTRATÉGIAS (DIA COMPLETO - TOP 50)
-
-${overallRanking.slice(0, 50).map((s, i) => 
-  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
+${overallRanking.slice(0, 30).map((s, i) => 
+  `${i+1}. ${s.name}: ${s.rate}% (${s.greens}G/${s.reds}R)`
 ).join('\n')}
 
----
+## 📋 CONSOLIDAÇÕES (4 PERÍODOS):
 
-## ❌ PIORES ESTRATÉGIAS DO DIA (BOTTOM 30)
-
-${overallRanking.slice(-30).reverse().map((s, i) => 
-  `${i + 1}. **${s.name}**: ${s.rate}% (${s.greens}G/${s.reds}R)`
-).join('\n')}
+${intermediateReports.join('\n\n---\n\n')}
 
 ---
 
-## 📋 RELATÓRIOS PARCIAIS POR PERÍODO:
-
-${partialReports.join('\n\n---\n\n')}
-
----
-
-## 📝 INSTRUÇÕES PARA CONSOLIDAÇÃO FINAL
-
-Com base em TODOS os relatórios parciais acima, gere um RELATÓRIO FINAL CONSOLIDADO contendo:
-
-### 1. 📋 RESUMO EXECUTIVO DO DIA
-- Visão geral de como foi o dia
-- Destaques de cada período
-- Principais alertas e descobertas
-
-### 2. 🎯 COMPARAÇÃO ENTRE PERÍODOS
-- Qual período teve melhor desempenho?
-- Diferenças significativas entre Madrugada, Manhã, Tarde e Noite
-- Estratégias que funcionaram em múltiplos períodos vs apenas em um
-
-### 3. 🎰 CONSOLIDAÇÃO POR ROLETA
-Para CADA roleta, faça um resumo do dia inteiro:
-- Desempenho geral
-- Melhores horários
-- Melhores estratégias
-
-### 4. 🔍 PADRÕES DO DIA
-- Padrões que se repetiram ao longo do dia
-- Tendências identificadas
-- Anomalias encontradas
-
-### 5. 💡 SUGESTÕES DE NOVAS ESTRATÉGIAS (MÍNIMO 15)
-Baseado em TODOS os dados do dia, sugira no mínimo 15 novas estratégias:
-- Nome criativo
-- Números exatos: [lista completa]
-- Justificativa DETALHADA
-- Horário ideal
-- Roleta ideal
-- Taxa de acerto esperada
-
-### 6. 📊 CONCLUSÕES E RECOMENDAÇÕES
-- Melhores estratégias para cada período
-- Melhores estratégias para cada roleta
-- O que evitar
-- Previsões para próximos dias
-
-⚠️ IMPORTANTE:
-- Este é o RELATÓRIO FINAL - deve ser MUITO completo
-- Mínimo de 3000 palavras
-- Use tabelas Markdown
-- Seja específico com números e porcentagens
-- Inclua TODAS as roletas e períodos
+Gere RELATÓRIO FINAL (mínimo 2000 palavras):
+1. RESUMO EXECUTIVO
+2. COMPARAÇÃO entre períodos
+3. CONSOLIDAÇÃO por roleta
+4. PADRÕES do dia
+5. SUGESTÕES de novas estratégias (mínimo 8)
+6. CONCLUSÕES e recomendações
 `
 
   try {
-    console.log('🤖 Gerando relatório final consolidado...')
+    console.log('🤖 Gerando relatório FINAL...')
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `Você é um analista de dados ESPECIALISTA em jogos de roleta.
-Sua tarefa é consolidar relatórios parciais em um RELATÓRIO FINAL COMPLETO e APROFUNDADO.
-Use tabelas Markdown, emojis e formatação clara.
-Seja MUITO específico com números e estatísticas.
-O relatório final DEVE ter no mínimo 3000 palavras.`
+          content: `Analista ESPECIALISTA em roletas. Gere RELATÓRIO FINAL COMPLETO. Mínimo 2000 palavras. Use Markdown.`
         },
         {
           role: 'user',
-          content: consolidationPrompt
+          content: finalPrompt
         }
       ],
-      max_tokens: 16000,
+      max_tokens: 10000,
       temperature: 0.5
     })
     
-    return completion.choices[0]?.message?.content || 'Erro ao gerar relatório consolidado'
+    return completion.choices[0]?.message?.content || 'Erro ao gerar relatório final'
     
-  } catch (error) {
-    console.error('Erro ao gerar relatório consolidado:', error)
-    // Retornar relatórios parciais concatenados como fallback
-    return `# 📊 Relatório Diário - ${reportDate.toLocaleDateString('pt-BR')}\n\n${partialReports.join('\n\n---\n\n')}`
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar relatório final:', error?.message || error)
+    throw error
   }
 }
 
-// Gerar análise completa com ChatGPT (sistema de relatórios parciais)
+// ========================================
+// FUNÇÃO PRINCIPAL DE GERAÇÃO
+// ========================================
+
 async function generateAnalysis(
   openai: OpenAI,
+  supabase: any,
+  rouletteData: RouletteNumber[],
+  strategies: Strategy[],
+  reportDate: Date,
+  reportDateStr: string
+): Promise<{ report: string; progress: string; completed: boolean }> {
+  
+  console.log(`\n📊 ========================================`)
+  console.log(`📊 SISTEMA DE 3 CAMADAS - 12 SUB-PERÍODOS`)
+  console.log(`📊 Data: ${reportDate.toLocaleDateString('pt-BR')}`)
+  console.log(`📊 Total: ${rouletteData.length} lançamentos`)
+  console.log(`📊 Estratégias: ${strategies.length}`)
+  console.log(`📊 ========================================\n`)
+
+  // Verificar partes já geradas (para retomar se houver timeout)
+  const existingParts = await getExistingParts(supabase, reportDateStr)
+  const existingSubParts = existingParts.filter(p => p.period_type === 'sub')
+  const existingIntermediateParts = existingParts.filter(p => p.period_type === 'intermediate')
+  const existingFinalPart = existingParts.find(p => p.period_type === 'final')
+
+  console.log(`📋 Partes existentes:`)
+  console.log(`   - Sub-períodos: ${existingSubParts.length}/12`)
+  console.log(`   - Intermediários: ${existingIntermediateParts.length}/4`)
+  console.log(`   - Final: ${existingFinalPart ? 'SIM' : 'NÃO'}`)
+
+  // Se já tem relatório final, retornar ele
+  if (existingFinalPart) {
+    console.log(`✅ Relatório final já existe! Retornando...`)
+    return {
+      report: assembleFullReport(existingParts, rouletteData, strategies, reportDate),
+      progress: 'Relatório completo já gerado anteriormente',
+      completed: true
+    }
+  }
+
+  // Separar dados por sub-período
+  const dataBySubPeriod: Record<string, RouletteNumber[]> = {}
+  for (const subPeriod of SUB_PERIODS) {
+    dataBySubPeriod[subPeriod.name] = []
+  }
+
+  for (const entry of rouletteData) {
+    const hour = new Date(entry.timestamp).getHours()
+    const subPeriod = SUB_PERIODS.find(sp => hour >= sp.startHour && hour <= sp.endHour)
+    if (subPeriod) {
+      dataBySubPeriod[subPeriod.name].push(entry)
+    }
+  }
+
+  console.log(`\n📊 Distribuição por sub-período:`)
+  for (const sp of SUB_PERIODS) {
+    console.log(`   ${sp.label}: ${dataBySubPeriod[sp.name].length} lançamentos`)
+  }
+
+  // ========================================
+  // CAMADA 1: Gerar sub-relatórios faltantes
+  // ========================================
+  
+  const existingSubNames = new Set(existingSubParts.map(p => p.period_name))
+  let generatedCount = existingSubParts.length
+
+  for (const subPeriod of SUB_PERIODS) {
+    if (existingSubNames.has(subPeriod.name)) {
+      console.log(`⏭️ Sub-período ${subPeriod.name} já existe, pulando...`)
+      continue
+    }
+
+    const subData = dataBySubPeriod[subPeriod.name]
+    console.log(`\n🔄 Gerando ${subPeriod.label} (${subData.length} lançamentos)...`)
+
+    try {
+      const report = await generateSubPeriodReport(openai, subData, strategies, reportDate, subPeriod)
+      await saveReportPart(supabase, reportDateStr, subPeriod.name, 'sub', subPeriod.order, report, subData.length)
+      generatedCount++
+      
+      // Pequena pausa entre chamadas
+      await new Promise(resolve => setTimeout(resolve, 500))
+    } catch (error: any) {
+      console.error(`❌ Falha no sub-período ${subPeriod.name}:`, error?.message)
+      return {
+        report: '',
+        progress: `Gerados ${generatedCount}/12 sub-relatórios. Erro em ${subPeriod.name}. Chame novamente para continuar.`,
+        completed: false
+      }
+    }
+  }
+
+  // Recarregar partes após gerar sub-relatórios
+  const updatedParts = await getExistingParts(supabase, reportDateStr)
+  const allSubParts = updatedParts.filter(p => p.period_type === 'sub')
+
+  if (allSubParts.length < 12) {
+    return {
+      report: '',
+      progress: `Gerados ${allSubParts.length}/12 sub-relatórios. Chame novamente para continuar.`,
+      completed: false
+    }
+  }
+
+  console.log(`\n✅ Todos os 12 sub-relatórios gerados!`)
+
+  // ========================================
+  // CAMADA 2: Gerar relatórios intermediários
+  // ========================================
+
+  const existingIntermediateNames = new Set(updatedParts.filter(p => p.period_type === 'intermediate').map(p => p.period_name))
+
+  for (const intPeriod of INTERMEDIATE_PERIODS) {
+    if (existingIntermediateNames.has(intPeriod.name)) {
+      console.log(`⏭️ Intermediário ${intPeriod.name} já existe, pulando...`)
+      continue
+    }
+
+    // Buscar sub-relatórios deste período intermediário
+    const subReports = intPeriod.subPeriods.map(spName => {
+      const part = allSubParts.find(p => p.period_name === spName)
+      return part?.content || ''
+    }).filter(Boolean)
+
+    // Dados do período intermediário
+    const intData = intPeriod.subPeriods.flatMap(spName => dataBySubPeriod[spName] || [])
+
+    console.log(`\n🔄 Gerando consolidação ${intPeriod.label} (${intData.length} lançamentos)...`)
+
+    try {
+      const report = await generateIntermediateReport(openai, subReports, intData, strategies, reportDate, intPeriod)
+      await saveReportPart(supabase, reportDateStr, intPeriod.name, 'intermediate', intPeriod.order, report, intData.length)
+      
+      await new Promise(resolve => setTimeout(resolve, 500))
+    } catch (error: any) {
+      console.error(`❌ Falha no intermediário ${intPeriod.name}:`, error?.message)
+      return {
+        report: '',
+        progress: `Sub-relatórios completos. Erro na consolidação ${intPeriod.name}. Chame novamente para continuar.`,
+        completed: false
+      }
+    }
+  }
+
+  // Recarregar partes
+  const finalParts = await getExistingParts(supabase, reportDateStr)
+  const allIntermediateParts = finalParts.filter(p => p.period_type === 'intermediate')
+
+  if (allIntermediateParts.length < 4) {
+    return {
+      report: '',
+      progress: `Intermediários: ${allIntermediateParts.length}/4. Chame novamente para continuar.`,
+      completed: false
+    }
+  }
+
+  console.log(`\n✅ Todas as 4 consolidações intermediárias geradas!`)
+
+  // ========================================
+  // CAMADA 3: Gerar relatório final
+  // ========================================
+
+  console.log(`\n🔄 Gerando relatório FINAL...`)
+
+  const intermediateReports = INTERMEDIATE_PERIODS.map(ip => {
+    const part = allIntermediateParts.find(p => p.period_name === ip.name)
+    return part?.content || ''
+  }).filter(Boolean)
+
+  try {
+    const finalReport = await generateFinalReport(openai, intermediateReports, rouletteData, strategies, reportDate)
+    await saveReportPart(supabase, reportDateStr, 'final', 'final', 1, finalReport, rouletteData.length)
+    
+    // Montar relatório completo
+    const allParts = await getExistingParts(supabase, reportDateStr)
+    const completeReport = assembleFullReport(allParts, rouletteData, strategies, reportDate)
+
+    return {
+      report: completeReport,
+      progress: 'Relatório completo gerado com sucesso!',
+      completed: true
+    }
+  } catch (error: any) {
+    console.error(`❌ Falha no relatório final:`, error?.message)
+    return {
+      report: '',
+      progress: `Todas as partes geradas. Erro no relatório final. Chame novamente para continuar.`,
+      completed: false
+    }
+  }
+}
+
+// Montar relatório completo a partir das partes
+function assembleFullReport(
+  parts: ReportPart[],
   rouletteData: RouletteNumber[],
   strategies: Strategy[],
   reportDate: Date
-): Promise<string> {
-  
-  console.log(`📊 Iniciando geração de relatório para ${rouletteData.length} lançamentos...`)
-  
-  // Separar dados por período
-  const dataByPeriod: Record<string, RouletteNumber[]> = {
-    madrugada: [],
-    manha: [],
-    tarde: [],
-    noite: []
-  }
-  
-  for (const entry of rouletteData) {
-    const hour = new Date(entry.timestamp).getHours()
-    if (hour >= 0 && hour <= 5) dataByPeriod.madrugada.push(entry)
-    else if (hour >= 6 && hour <= 11) dataByPeriod.manha.push(entry)
-    else if (hour >= 12 && hour <= 17) dataByPeriod.tarde.push(entry)
-    else dataByPeriod.noite.push(entry)
-  }
-  
-  console.log(`📊 Distribuição por período:`)
-  console.log(`   🌙 Madrugada: ${dataByPeriod.madrugada.length} lançamentos`)
-  console.log(`   ☀️ Manhã: ${dataByPeriod.manha.length} lançamentos`)
-  console.log(`   🌤️ Tarde: ${dataByPeriod.tarde.length} lançamentos`)
-  console.log(`   🌃 Noite: ${dataByPeriod.noite.length} lançamentos`)
-  
-  // Gerar relatórios parciais para cada período
-  const partialReports: string[] = []
-  
-  for (const period of PERIODS) {
-    const periodData = dataByPeriod[period.name]
-    console.log(`\n🔄 Processando ${period.label}...`)
-    
-    const report = await generatePeriodReport(openai, periodData, strategies, reportDate, period)
-    partialReports.push(report)
-    
-    // Pequena pausa entre chamadas para não sobrecarregar a API
-    await new Promise(resolve => setTimeout(resolve, 1000))
-  }
-  
-  // Gerar relatório final consolidado
-  console.log('\n🔄 Gerando relatório final consolidado...')
-  const finalReport = await generateFinalConsolidatedReport(
-    openai,
-    partialReports,
-    rouletteData,
-    strategies,
-    reportDate
-  )
-  
-  // Montar relatório completo com todos os parciais + consolidação
-  const fullReport = `
+): string {
+  const subParts = parts.filter(p => p.period_type === 'sub').sort((a, b) => a.period_order - b.period_order)
+  const intermediateParts = parts.filter(p => p.period_type === 'intermediate').sort((a, b) => a.period_order - b.period_order)
+  const finalPart = parts.find(p => p.period_type === 'final')
+
+  return `
 # 🎰 RELATÓRIO COMPLETO DE ROLETAS - ${reportDate.toLocaleDateString('pt-BR')}
 
 ## 📊 ESTATÍSTICAS GERAIS
@@ -672,48 +890,158 @@ async function generateAnalysis(
 
 ---
 
-# 📑 PARTE 1: RELATÓRIOS DETALHADOS POR PERÍODO
+# 📑 PARTE 1: RELATÓRIOS DOS 12 SUB-PERÍODOS (2H CADA)
 
-${partialReports.join('\n\n---\n\n')}
+${subParts.map(p => p.content).join('\n\n---\n\n')}
 
 ---
 
-# 📑 PARTE 2: CONSOLIDAÇÃO E CONCLUSÕES
+# 📑 PARTE 2: CONSOLIDAÇÕES INTERMEDIÁRIAS (6H CADA)
 
-${finalReport}
+${intermediateParts.map(p => p.content).join('\n\n---\n\n')}
+
+---
+
+# 📑 PARTE 3: RELATÓRIO FINAL CONSOLIDADO
+
+${finalPart?.content || 'Relatório final ainda não gerado.'}
 
 ---
 
 *Relatório gerado em ${new Date().toLocaleString('pt-BR')}*
-*Sistema de Análise de Roletas v2.0*
-`
-
-  return fullReport
-}
-
-// Relatório de fallback
-function generateFallbackReport(
-  rouletteData: RouletteNumber[],
-  strategies: Strategy[],
-  reportDate: Date
-): string {
-  return `
-# 📊 Relatório Diário - ${reportDate.toLocaleDateString('pt-BR')}
-
-## ⚠️ Relatório Simplificado
-A análise via ChatGPT não estava disponível.
-
-## Dados Coletados
-- **Lançamentos:** ${rouletteData.length}
-- **Estratégias:** ${strategies.length}
-- **Roletas:** ${[...new Set(rouletteData.map(r => r.roulette_id))].length}
-
----
-*Gerado em ${new Date().toISOString()}*
+*Sistema de Análise de Roletas v3.0 - 3 Camadas*
 `
 }
 
-// Salvar relatório no Supabase
+// ========================================
+// ENDPOINTS HTTP
+// ========================================
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const dateParam = searchParams.get('date')
+    
+    // Configurar clientes
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const openaiKey = process.env.OPENAI_API_KEY
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ error: 'Supabase não configurado' }, { status: 500 })
+    }
+    
+    if (!openaiKey) {
+      return NextResponse.json({ error: 'OpenAI API Key não configurada' }, { status: 500 })
+    }
+    
+    const supabase = createClient<any>(supabaseUrl, supabaseKey)
+    const openai = new OpenAI({ apiKey: openaiKey })
+    
+    // Definir data do relatório
+    let reportDate: Date
+    if (dateParam) {
+      const [year, month, day] = dateParam.split('-').map(Number)
+      reportDate = new Date(year, month - 1, day)
+    } else {
+      reportDate = new Date()
+      reportDate.setDate(reportDate.getDate() - 1)
+    }
+    
+    const reportDateStr = reportDate.toISOString().split('T')[0]
+    
+    // Timestamps para busca
+    const startOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0)
+    const endOfDay = new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59, 999)
+    const startTimestamp = startOfDay.getTime()
+    const endTimestamp = endOfDay.getTime()
+    
+    console.log('📊 Gerando relatório para:', reportDateStr)
+    
+    // Buscar TODOS os dados do dia com paginação
+    let allRouletteData: RouletteNumber[] = []
+    let hasMore = true
+    let offset = 0
+    const pageSize = 1000
+    
+    while (hasMore) {
+      const { data: pageData, error: pageError } = await supabase
+        .from('roulette_history')
+        .select('*')
+        .gte('timestamp', startTimestamp)
+        .lte('timestamp', endTimestamp)
+        .order('timestamp', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+      
+      if (pageError) {
+        console.error('Erro ao buscar dados:', pageError)
+        return NextResponse.json({ error: 'Erro ao buscar dados das roletas' }, { status: 500 })
+      }
+      
+      if (pageData && pageData.length > 0) {
+        allRouletteData = allRouletteData.concat(pageData)
+        offset += pageSize
+        hasMore = pageData.length === pageSize
+        console.log(`📊 Página ${Math.ceil(offset / pageSize)}: ${pageData.length} registros (total: ${allRouletteData.length})`)
+      } else {
+        hasMore = false
+      }
+    }
+    
+    console.log(`✅ Total: ${allRouletteData.length} lançamentos`)
+    
+    // Buscar estratégias
+    const strategies = await fetchAllStrategies(supabase)
+    
+    // Gerar análise (com sistema de retomada)
+    const result = await generateAnalysis(openai, supabase, allRouletteData, strategies, reportDate, reportDateStr)
+    
+    // Salvar relatório completo na tabela principal (se completou)
+    let reportId = null
+    if (result.completed) {
+      reportId = await saveReportToSupabase(supabase, result.report, reportDate, allRouletteData.length, strategies.length)
+    }
+    
+    return NextResponse.json({
+      success: result.completed,
+      reportId,
+      date: reportDateStr,
+      progress: result.progress,
+      stats: {
+        totalLancamentos: allRouletteData.length,
+        totalEstrategias: strategies.length,
+        roletasAnalisadas: [...new Set(allRouletteData.map(r => r.roulette_id))].length
+      },
+      report: result.completed ? result.report : undefined
+    })
+    
+  } catch (error) {
+    console.error('Erro ao gerar relatório:', error)
+    return NextResponse.json({ 
+      error: 'Erro interno ao gerar relatório',
+      details: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET
+    
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+    
+    return await GET(request)
+    
+  } catch (error) {
+    console.error('Erro no cron job:', error)
+    return NextResponse.json({ error: 'Erro ao executar cron job' }, { status: 500 })
+  }
+}
+
+// Salvar relatório completo no Supabase
 async function saveReportToSupabase(
   supabase: any,
   content: string,
@@ -723,19 +1051,20 @@ async function saveReportToSupabase(
 ): Promise<number | null> {
   const { data, error } = await supabase
     .from('daily_reports')
-    .insert({
+    .upsert({
       report_date: reportDate.toISOString().split('T')[0],
       content: content,
       total_lancamentos: totalLancamentos,
       total_estrategias: totalEstrategias,
       generated_at: new Date().toISOString()
+    }, {
+      onConflict: 'report_date'
     })
     .select('id')
     .single()
   
   if (error) {
     console.error('Erro ao salvar relatório:', error)
-    // Se a tabela não existir, retornar null mas não falhar
     return null
   }
   
