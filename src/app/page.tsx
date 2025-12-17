@@ -1380,10 +1380,10 @@ export default function Home() {
           const dateKey = selectedDateRed ? format(selectedDateRed, "yyyy-MM-dd") : "yesterday"
           const cacheKey = `${rouletteId}_${strategy.id}_${dateKey}`
           
-          // Calcular streak atual de RED
+          // Calcular streak atual de RED (dos dados em tempo real)
           const currentStreak = calculateCurrentRedStreak(numbers, strategyNumbers, streakAttempts)
           
-          // Se não temos o máximo no cache, calcular
+          // Se não temos o máximo no cache, calcular com base na data selecionada
           let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
           if (maxRed === undefined) {
             console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name} (${dateKey})...`)
@@ -1395,12 +1395,39 @@ export default function Home() {
           // Verificar se atingiu o máximo E se houve novo lançamento desde última notificação
           const lastNotifiedTs = lastNotifiedTimestampRef.current.get(cacheKey) || 0
           
-          // Debug detalhado
+          // ========== DEBUG DETALHADO PARA INVESTIGAR BUG ==========
+          const shouldNotify = maxRed > 0 && currentStreak >= maxRed && latestTimestamp > lastNotifiedTs
+          
           if (currentStreak > 0 || maxRed > 0) {
-            console.log(`📊 ${rouletteId.substring(0, 20)}... | ${strategy.name.substring(0, 15)}... | Current: ${currentStreak} | Max: ${maxRed} | LastTs: ${lastNotifiedTs} | LatestTs: ${latestTimestamp}`)
+            console.log(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 ANÁLISE DE NOTIFICAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Roleta: ${rouletteId.substring(0, 30)}
+Estratégia: ${strategy.name}
+Números da estratégia: [${strategyNumbers.join(', ')}]
+Data de referência: ${dateKey}
+Casas de análise: ${streakAttempts}
+
+📈 DADOS:
+  • Sequência atual (tempo real): ${currentStreak} REDs
+  • Máximo da data selecionada:  ${maxRed} REDs
+  • Último timestamp notificado:  ${lastNotifiedTs}
+  • Timestamp do número mais recente: ${latestTimestamp}
+
+🔍 CONDIÇÕES:
+  ✓ maxRed > 0? ${maxRed > 0} (${maxRed})
+  ✓ currentStreak >= maxRed? ${currentStreak >= maxRed} (${currentStreak} >= ${maxRed})
+  ✓ latestTimestamp > lastNotifiedTs? ${latestTimestamp > lastNotifiedTs} (${latestTimestamp} > ${lastNotifiedTs})
+
+🎯 RESULTADO: ${shouldNotify ? '🔔 DISPARAR NOTIFICAÇÃO' : '⏸️  NÃO NOTIFICAR'}
+
+Últimos 10 números (recente→antigo): [${numbers.slice(0, 10).join(', ')}]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            `)
           }
           
-          if (maxRed > 0 && currentStreak >= maxRed && latestTimestamp > lastNotifiedTs) {
+          if (shouldNotify) {
             // Encontrar nome da roleta
             const rouletteInfo = availableRoulettes.find(r => r.id === rouletteId)
             const rouletteName = rouletteInfo?.name || rouletteId
@@ -1483,7 +1510,7 @@ export default function Home() {
     enableGreenAfterRedNotification,
     analyzeGreenAfterRedPattern,
     showGreenNotificationToast,
-    selectedDateRed // Data selecionada influencia o cálculo do maxRed
+    selectedDateRed // Necessário para comparar com a data selecionada
   ])
 
   // Limpar cache quando mudar as casas de análise ou a data selecionada
