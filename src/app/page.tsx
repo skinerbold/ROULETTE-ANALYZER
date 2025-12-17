@@ -744,12 +744,11 @@ export default function Home() {
 
   // Função para calcular sequência máxima de RED de ontem
   const calculateMaxRedStreakYesterday = useCallback(async () => {
-    console.log('🔥 Calculando sequência máxima de RED...')
+    console.log('🔥 Calculando sequência máxima de RED via API...')
     
     // Verificar se temos estratégia e roleta selecionadas
     if (selectedStrategies.length === 0 || !selectedRoulette) {
       console.log('⚠️ Sem estratégia ou roleta selecionada')
-      // NÃO definir como null para não limpar valores já calculados
       return
     }
 
@@ -762,121 +761,67 @@ export default function Home() {
         targetDate.setDate(targetDate.getDate() - 1) // ontem
       }
       
-      targetDate.setHours(0, 0, 0, 0)
-      
-      const targetDateEnd = new Date(targetDate)
-      targetDateEnd.setHours(23, 59, 59, 999)
+      // Formatar data como YYYY-MM-DD
+      const dateStr = targetDate.toISOString().split('T')[0]
 
-      const timestampStart = targetDate.getTime() // milissegundos
-      const timestampEnd = targetDateEnd.getTime() // milissegundos
-
-      console.log('📅 Buscando dados:', {
-        data: targetDate.toLocaleDateString('pt-BR'),
-        inicio: timestampStart,
-        fim: timestampEnd,
-        roleta: selectedRoulette
-      })
-
-      // Buscar dados do Supabase
-      // A tabela usa: roulette_id (TEXT), number (INTEGER), timestamp (BIGINT em milissegundos)
-      const { data, error } = await supabase
-        .from('roulette_history')
-        .select('number, timestamp')
-        .eq('roulette_id', selectedRoulette) // roulette_id, não roulette_name!
-        .gte('timestamp', timestampStart)
-        .lt('timestamp', timestampEnd)
-        .order('timestamp', { ascending: true })
-
-      if (error) {
-        console.error('❌ Erro Supabase:', error)
-        // NÃO definir como null para não limpar valores já calculados
-        return
-      }
-
-      if (!data || data.length === 0) {
-        console.log('⚠️ Nenhum dado encontrado para esta data')
-        setMaxRedStreakYesterday(0)
-        return
-      }
-
-      console.log(`✅ ${data.length} números carregados`)
-
-      // Pegar números da estratégia selecionada
+      // Pegar ID e números da estratégia selecionada
       const strategyId = selectedStrategies[0]
       const strategy = STRATEGIES.find(s => s.id === strategyId)
       
       if (!strategy) {
         console.log('❌ Estratégia não encontrada')
-        // NÃO definir como null para não limpar valores já calculados
         return
       }
 
+      // Obter números da estratégia
       let strategyNumbers: number[]
       if (typeof strategyId === 'string' && strategyId.startsWith('custom_')) {
         strategyNumbers = strategy.numbers || []
       } else {
         const { getStrategyNumbers } = require('@/lib/strategies')
-        const allNumbers = data.map(d => d.number)
-        strategyNumbers = getStrategyNumbers(strategyId as number, allNumbers)
+        strategyNumbers = getStrategyNumbers(strategyId as number, [])
       }
 
-      console.log(`🎯 Estratégia: ${strategy.name}, Números: [${strategyNumbers.join(', ')}]`)
+      console.log(`🎯 Consultando API para: ${strategy.name}`)
+      console.log(`   Roleta: ${selectedRoulette}`)
+      console.log(`   Data: ${dateStr}`)
+      console.log(`   Casas: ${streakAttempts}`)
+      console.log(`   Números: [${strategyNumbers.join(', ')}]`)
 
-      // Calcular sequências de RED (usando filtro de casas)
-      const numbers = data.map(d => d.number)
-      let maxStreak = 0
-      let currentStreak = 0
+      // Chamar API para buscar/calcular máximo
+      const params = new URLSearchParams({
+        rouletteId: selectedRoulette,
+        strategyId: String(typeof strategyId === 'string' ? strategyId.replace('custom_', '99999') : strategyId),
+        date: dateStr,
+        attempts: String(streakAttempts),
+        strategyNumbers: JSON.stringify(strategyNumbers)
+      })
 
-      for (let i = 0; i < numbers.length; i++) {
-        const num = numbers[i]
-        
-        // Verifica se é ativação (número da estratégia)
-        if (strategyNumbers.includes(num)) {
-          // Procura GREEN nas próximas X casas (streakAttempts)
-          let foundGreen = false
-          
-          for (let j = 1; j <= streakAttempts && i + j < numbers.length; j++) {
-            if (strategyNumbers.includes(numbers[i + j])) {
-              foundGreen = true
-              break
-            }
-          }
-          
-          if (foundGreen) {
-            // GREEN - fim da sequência
-            if (currentStreak > 0) {
-              maxStreak = Math.max(maxStreak, currentStreak)
-              currentStreak = 0
-            }
-          } else {
-            // RED - continua sequência
-            currentStreak++
-          }
-        }
+      const response = await fetch(`/api/max-streaks?${params}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        console.log(`📊 ✅ Resposta da API:`, data)
+        console.log(`   Max RED: ${data.maxRed} (${data.fromCache ? 'do cache' : 'calculado agora'})`)
+        console.log(`   Total de lançamentos: ${data.totalSpins}`)
+        setMaxRedStreakYesterday(data.maxRed)
+      } else {
+        console.error('❌ Erro na API:', data.error)
+        setMaxRedStreakYesterday(0)
       }
-
-      // Verifica última sequência
-      if (currentStreak > 0) {
-        maxStreak = Math.max(maxStreak, currentStreak)
-      }
-
-      console.log(`📊 ✅ Sequência máxima de RED: ${maxStreak}`)
-      setMaxRedStreakYesterday(maxStreak)
 
     } catch (err) {
       console.error('❌ Erro ao calcular RED:', err)
-      // NÃO definir como null para não limpar valores já calculados
     }
-  }, [selectedStrategies, selectedRoulette, selectedDateRed, streakAttempts])
+  }, [selectedStrategies, selectedRoulette, selectedDateRed, streakAttempts, STRATEGIES])
 
   // Função para calcular sequência máxima de GREEN
   const calculateMaxGreenStreakYesterday = useCallback(async () => {
-    console.log('🟢 Calculando sequência máxima de GREEN...')
+    console.log('🟢 Calculando sequência máxima de GREEN via API...')
     
     // Verificar se temos estratégia e roleta selecionadas
     if (selectedStrategies.length === 0 || !selectedRoulette) {
       console.log('⚠️ Sem estratégia ou roleta selecionada')
-      // NÃO definir como null para não limpar valores já calculados
       return
     }
 
@@ -889,111 +834,56 @@ export default function Home() {
         targetDate.setDate(targetDate.getDate() - 1) // ontem
       }
       
-      targetDate.setHours(0, 0, 0, 0)
-      
-      const targetDateEnd = new Date(targetDate)
-      targetDateEnd.setHours(23, 59, 59, 999)
+      // Formatar data como YYYY-MM-DD
+      const dateStr = targetDate.toISOString().split('T')[0]
 
-      const timestampStart = targetDate.getTime()
-      const timestampEnd = targetDateEnd.getTime()
-
-      console.log('📅 Buscando dados:', {
-        data: targetDate.toLocaleDateString('pt-BR'),
-        inicio: timestampStart,
-        fim: timestampEnd,
-        roleta: selectedRoulette
-      })
-
-      // Buscar dados do Supabase
-      const { data, error } = await supabase
-        .from('roulette_history')
-        .select('number, timestamp')
-        .eq('roulette_id', selectedRoulette)
-        .gte('timestamp', timestampStart)
-        .lt('timestamp', timestampEnd)
-        .order('timestamp', { ascending: true })
-
-      if (error) {
-        console.error('❌ Erro Supabase:', error)
-        // NÃO definir como null para não limpar valores já calculados
-        return
-      }
-
-      if (!data || data.length === 0) {
-        console.log('⚠️ Nenhum dado encontrado para esta data')
-        setMaxGreenStreakYesterday(0)
-        return
-      }
-
-      console.log(`✅ ${data.length} números carregados`)
-
-      // Pegar números da estratégia selecionada
+      // Pegar ID e números da estratégia selecionada
       const strategyId = selectedStrategies[0]
       const strategy = STRATEGIES.find(s => s.id === strategyId)
       
       if (!strategy) {
         console.log('❌ Estratégia não encontrada')
-        // NÃO definir como null para não limpar valores já calculados
         return
       }
 
+      // Obter números da estratégia
       let strategyNumbers: number[]
       if (typeof strategyId === 'string' && strategyId.startsWith('custom_')) {
         strategyNumbers = strategy.numbers || []
       } else {
         const { getStrategyNumbers } = require('@/lib/strategies')
-        const allNumbers = data.map(d => d.number)
-        strategyNumbers = getStrategyNumbers(strategyId as number, allNumbers)
+        strategyNumbers = getStrategyNumbers(strategyId as number, [])
       }
 
-      console.log(`🎯 Estratégia: ${strategy.name}, Números: [${strategyNumbers.join(', ')}]`)
+      console.log(`🎯 Consultando API para GREEN: ${strategy.name}`)
+      console.log(`   Roleta: ${selectedRoulette}`)
+      console.log(`   Data: ${dateStr}`)
+      console.log(`   Casas: ${streakAttempts}`)
 
-      // Calcular sequências de GREEN (usando filtro de casas)
-      const numbers = data.map(d => d.number)
-      let maxStreak = 0
-      let currentStreak = 0
+      // Chamar API para buscar/calcular máximo
+      const params = new URLSearchParams({
+        rouletteId: selectedRoulette,
+        strategyId: String(typeof strategyId === 'string' ? strategyId.replace('custom_', '99999') : strategyId),
+        date: dateStr,
+        attempts: String(streakAttempts),
+        strategyNumbers: JSON.stringify(strategyNumbers)
+      })
 
-      for (let i = 0; i < numbers.length; i++) {
-        const num = numbers[i]
-        
-        // Verifica se é ativação (número da estratégia)
-        if (strategyNumbers.includes(num)) {
-          // Procura GREEN nas próximas X casas (streakAttempts)
-          let foundGreen = false
-          
-          for (let j = 1; j <= streakAttempts && i + j < numbers.length; j++) {
-            if (strategyNumbers.includes(numbers[i + j])) {
-              foundGreen = true
-              break
-            }
-          }
-          
-          if (foundGreen) {
-            // GREEN encontrado - incrementa sequência
-            currentStreak++
-          } else {
-            // RED - fim da sequência de GREEN
-            if (currentStreak > 0) {
-              maxStreak = Math.max(maxStreak, currentStreak)
-              currentStreak = 0
-            }
-          }
-        }
+      const response = await fetch(`/api/max-streaks?${params}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        console.log(`📊 ✅ Max GREEN: ${data.maxGreen} (${data.fromCache ? 'do cache' : 'calculado agora'})`)
+        setMaxGreenStreakYesterday(data.maxGreen)
+      } else {
+        console.error('❌ Erro na API:', data.error)
+        setMaxGreenStreakYesterday(0)
       }
-
-      // Verifica última sequência
-      if (currentStreak > 0) {
-        maxStreak = Math.max(maxStreak, currentStreak)
-      }
-
-      console.log(`📊 ✅ Sequência máxima de GREEN: ${maxStreak}`)
-      setMaxGreenStreakYesterday(maxStreak)
 
     } catch (err) {
       console.error('❌ Erro ao calcular GREEN:', err)
-      // NÃO definir como null para não limpar valores já calculados
     }
-  }, [selectedStrategies, selectedRoulette, selectedDateGreen, streakAttempts])
+  }, [selectedStrategies, selectedRoulette, selectedDateGreen, streakAttempts, STRATEGIES])
 
   // useEffect para recalcular quando estratégia, roleta ou dia mudar
   useEffect(() => {
@@ -1090,83 +980,45 @@ export default function Home() {
     setNotifications(prev => prev.filter(n => n.id !== id))
   }, [])
 
-  // Função para calcular máximo de RED do histórico (ontem) para uma estratégia/roleta específica
+  // Função para calcular máximo de RED do histórico para uma estratégia/roleta específica
+  // Usa a mesma API que a UI para garantir consistência dos valores
   const calculateMaxRedForNotification = useCallback(async (
     rouletteId: string, 
     strategyNumbers: number[],
+    strategyId: number | string,
     attempts: number,
     targetDate?: Date | null
   ): Promise<number> => {
     try {
-      // Buscar dados do dia alvo (selectedDateRed ou ontem)
+      // Determinar a data alvo
       const now = new Date()
       const dateToAnalyze = targetDate ? new Date(targetDate) : new Date(now)
       
       if (!targetDate) {
-        dateToAnalyze.setDate(dateToAnalyze.getDate() - 1)
+        dateToAnalyze.setDate(dateToAnalyze.getDate() - 1) // ontem
       }
       
-      dateToAnalyze.setHours(0, 0, 0, 0)
-      
-      const dateEnd = new Date(dateToAnalyze)
-      dateEnd.setHours(23, 59, 59, 999)
+      // Formatar data como YYYY-MM-DD
+      const dateStr = dateToAnalyze.toISOString().split('T')[0]
 
-      const { data, error } = await supabase
-        .from('roulette_history')
-        .select('number, timestamp')
-        .eq('roulette_id', rouletteId)
-        .gte('timestamp', dateToAnalyze.getTime())
-        .lt('timestamp', dateEnd.getTime())
-        .order('timestamp', { ascending: true })
+      // Chamar API para buscar/calcular máximo
+      const params = new URLSearchParams({
+        rouletteId: rouletteId,
+        strategyId: String(typeof strategyId === 'string' ? strategyId.replace('custom_', '99999') : strategyId),
+        date: dateStr,
+        attempts: String(attempts),
+        strategyNumbers: JSON.stringify(strategyNumbers)
+      })
 
-      if (error) {
-        console.warn(`⚠️ Erro ao buscar histórico de ${rouletteId}:`, error.message)
+      const response = await fetch(`/api/max-streaks?${params}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        return data.maxRed
+      } else {
+        console.warn(`⚠️ Erro na API max-streaks: ${data.error}`)
         return 0
       }
-      
-      if (!data || data.length === 0) {
-        const dateLabel = targetDate ? format(targetDate, "dd/MM/yyyy", { locale: ptBR }) : "ontem"
-        console.log(`📭 Sem dados de ${dateLabel} para ${rouletteId.substring(0, 25)}...`)
-        return 0
-      }
-      
-      const dateLabel = targetDate ? format(targetDate, "dd/MM/yyyy", { locale: ptBR }) : "ontem"
-      console.log(`📊 ${rouletteId.substring(0, 25)}... - ${data.length} números de ${dateLabel} encontrados`)
-
-      // Calcular sequências de RED
-      const numbers = data.map(d => d.number)
-      let maxStreak = 0
-      let currentStreak = 0
-
-      for (let i = 0; i < numbers.length; i++) {
-        const num = numbers[i]
-        
-        if (strategyNumbers.includes(num)) {
-          let foundGreen = false
-          
-          for (let j = 1; j <= attempts && i + j < numbers.length; j++) {
-            if (strategyNumbers.includes(numbers[i + j])) {
-              foundGreen = true
-              break
-            }
-          }
-          
-          if (foundGreen) {
-            if (currentStreak > 0) {
-              maxStreak = Math.max(maxStreak, currentStreak)
-            }
-            currentStreak = 0
-          } else {
-            currentStreak++
-          }
-        }
-      }
-
-      if (currentStreak > 0) {
-        maxStreak = Math.max(maxStreak, currentStreak)
-      }
-
-      return maxStreak
     } catch (err) {
       console.error('Erro ao calcular max RED para notificação:', err)
       return 0
@@ -1387,7 +1239,7 @@ export default function Home() {
           let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
           if (maxRed === undefined) {
             console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name} (${dateKey})...`)
-            maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, streakAttempts, selectedDateRed)
+            maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, strategy.id, streakAttempts, selectedDateRed)
             maxRedStreakCacheRef.current.set(cacheKey, maxRed)
             console.log(`  ✅ maxRed calculado: ${maxRed} para data ${dateKey}`)
           }
