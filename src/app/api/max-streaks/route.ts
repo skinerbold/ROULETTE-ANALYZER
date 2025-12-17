@@ -98,7 +98,8 @@ export async function GET(request: NextRequest) {
       const maxGreenField = attempts === 1 ? 'max_green_1_casa' : 
                             attempts === 2 ? 'max_green_2_casas' : 'max_green_3_casas'
       
-      console.log(`📦 [CACHE HIT] Estratégia ${strategyId} na roleta ${rouletteId.substring(0, 20)}... para ${date}`)
+      console.log(`📦 [CACHE HIT] Estratégia ID=${strategyId} na roleta ${rouletteId.substring(0, 20)}... para ${date}`)
+      console.log(`   → maxRed (${attempts} casa${attempts > 1 ? 's' : ''}): ${cachedData[maxRedField]}`)
       
       return NextResponse.json({
         maxRed: cachedData[maxRedField],
@@ -126,9 +127,10 @@ export async function GET(request: NextRequest) {
     const startOfDay = new Date(date + 'T00:00:00.000Z')
     const endOfDay = new Date(date + 'T23:59:59.999Z')
 
-    console.log(`🔍 [CALCULANDO] Estratégia ${strategyId} na roleta ${rouletteId.substring(0, 20)}...`)
+    console.log(`🔍 [CALCULANDO] Estratégia ID=${strategyId} na roleta ${rouletteId.substring(0, 20)}...`)
     console.log(`   Data: ${date} (${startOfDay.toISOString()} até ${endOfDay.toISOString()})`)
     console.log(`   Números da estratégia: [${strategyNumbers.join(', ')}]`)
+    console.log(`   Tentativas (casas): ${attempts}`)
 
     const { data: historyData, error: historyError } = await supabase
       .from('roulette_history')
@@ -201,6 +203,8 @@ export async function GET(request: NextRequest) {
 
     // Retornar resultado baseado na quantidade de casas solicitada
     const result = attempts === 1 ? results1 : attempts === 2 ? results2 : results3
+
+    console.log(`   🎯 RETORNANDO: maxRed=${result.maxRed}, maxGreen=${result.maxGreen} (${attempts} casa${attempts > 1 ? 's' : ''})`)
 
     return NextResponse.json({
       maxRed: result.maxRed,

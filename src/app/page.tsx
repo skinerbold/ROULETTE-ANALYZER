@@ -1238,10 +1238,10 @@ export default function Home() {
           // Se não temos o máximo no cache, calcular com base na data selecionada
           let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
           if (maxRed === undefined) {
-            console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name} (${dateKey})...`)
+            console.log(`🔍 Calculando maxRed para ${rouletteId.substring(0, 20)}... - Estratégia: ${strategy.name} (ID=${strategy.id}) - Data: ${dateKey}`)
             maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, strategy.id, streakAttempts, selectedDateRed)
             maxRedStreakCacheRef.current.set(cacheKey, maxRed)
-            console.log(`  ✅ maxRed calculado: ${maxRed} para data ${dateKey}`)
+            console.log(`  ✅ maxRed calculado: ${maxRed} para Estratégia ${strategy.name} (ID=${strategy.id}) na data ${dateKey}`)
           }
           
           // Verificar se atingiu o máximo E se houve novo lançamento desde última notificação
@@ -1284,6 +1284,16 @@ Casas de análise: ${streakAttempts}
             const rouletteInfo = availableRoulettes.find(r => r.id === rouletteId)
             const rouletteName = rouletteInfo?.name || rouletteId
             
+            console.log(`🔔 ════════════════════════════════════════════════════════════════`)
+            console.log(`🔔 NOTIFICAÇÃO DISPARADA!`)
+            console.log(`🔔 Roleta: ${rouletteName}`)
+            console.log(`🔔 Estratégia: ${strategy.name} (ID=${strategy.id})`)
+            console.log(`🔔 Números da estratégia: [${strategyNumbers.join(', ')}]`)
+            console.log(`🔔 Sequência atual: ${currentStreak} REDs`)
+            console.log(`🔔 Máximo comparado: ${maxRed} REDs (data: ${dateKey}, ${streakAttempts} casa${streakAttempts > 1 ? 's' : ''})`)
+            console.log(`🔔 Cache Key: ${cacheKey}`)
+            console.log(`🔔 ════════════════════════════════════════════════════════════════`)
+            
             // Adicionar notificação
             addNotification({
               type: 'max-red',
@@ -1295,14 +1305,6 @@ Casas de análise: ${streakAttempts}
             
             // Marcar timestamp como notificado para esta combinação
             lastNotifiedTimestampRef.current.set(cacheKey, latestTimestamp)
-            
-            console.log(`🔔 NOTIFICAÇÃO: Máximo RED (${currentStreak}) atingido!`, {
-              roleta: rouletteName,
-              estrategia: strategy.name,
-              maxRed,
-              currentStreak,
-              latestTimestamp
-            })
           }
           
           // ========== NOTIFICAÇÃO GREEN PÓS RED PERSONALIZADO ==========
