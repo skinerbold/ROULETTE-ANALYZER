@@ -6,15 +6,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers, Database, RefreshCw } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers, Database, RefreshCw, Calendar as CalendarIcon } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
 import { StrategyStats, UserSession } from '@/lib/types'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
-import Header from '@/components/Header'
+import Header, { Notification } from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
 import CreateStrategyModal from '@/components/CreateStrategyModal'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 // Tipo union para estratégias (hardcoded + customizadas)
 type AnyStrategy = {
@@ -60,7 +64,9 @@ export default function Home() {
     sendMessage,
     connect,
     selectRoulette,
-    requestHistory // NOVO: função para solicitar mais histórico
+    requestHistory, // NOVO: função para solicitar mais histórico
+    getRouletteHistory, // NOVO: obter histórico de qualquer roleta
+    getAllRoulettesHistory // NOVO: obter histórico de todas as roletas
   } = useRouletteWebSocket()
   
   // WebSocket já fornece todo o histórico necessário via recentNumbers
@@ -94,6 +100,35 @@ export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [isLoadingSession, setIsLoadingSession] = useState(true)
   
+  // Estados para sequências máximas de RED e GREEN
+  const [maxRedStreakYesterday, setMaxRedStreakYesterday] = useState<number | null>(null)
+  const [maxGreenStreakYesterday, setMaxGreenStreakYesterday] = useState<number | null>(null)
+  const [selectedDateRed, setSelectedDateRed] = useState<Date | null>(null) // null = ontem
+  const [selectedDateGreen, setSelectedDateGreen] = useState<Date | null>(null) // null = ontem
+  const [showDatePickerRed, setShowDatePickerRed] = useState(false)
+  const [showDatePickerGreen, setShowDatePickerGreen] = useState(false)
+  const [streakAttempts, setStreakAttempts] = useState<number>(3) // Casas para análise (1, 2 ou 3)
+  
+  // Estados para notificações
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const maxRedStreakCacheRef = useRef<Map<string, number>>(new Map()) // cache: "roleta_estrategia" -> maxRed
+  const lastNotifiedTimestampRef = useRef<Map<string, number>>(new Map()) // cache: "roleta_estrategia" -> último timestamp notificado
+  
+  // Estados para notificações de GREEN pós RED personalizado
+  const [enableGreenAfterRedNotification, setEnableGreenAfterRedNotification] = useState(false)
+  const greenPatternCacheRef = useRef<Map<string, { redsNeeded: number, accuracy: number }>>(new Map()) // cache: "roleta_estrategia" -> padrão identificado
+  const lastGreenNotifiedTimestampRef = useRef<Map<string, number>>(new Map()) // cache para evitar notificações duplicadas
+  
+  // Estado para hover de números (realce visual)
+  const [hoveredNumber, setHoveredNumber] = useState<number | null>(null)
+  
+  // Debug: verificar mudanças no hover
+  useEffect(() => {
+    if (hoveredNumber !== null) {
+      console.log('🎯 Número em hover:', hoveredNumber)
+    }
+  }, [hoveredNumber])
+  
   // Estados para mobile
   const [showStrategiesMenu, setShowStrategiesMenu] = useState(false)
   const [showMetricsPanel, setShowMetricsPanel] = useState(false)
@@ -111,9 +146,9 @@ export default function Home() {
   
   // Integrar estratégias customizadas
   const ALL_FOLDERS = useMemo(() => {
-    console.log('🔄 ALL_FOLDERS useMemo executado')
-    console.log('🔄 customStrategies.length:', customStrategies.length)
-    console.log('🔄 customStrategies[0]:', customStrategies[0])
+    // console.log('🔄 ALL_FOLDERS useMemo executado')
+    // console.log('🔄 customStrategies.length:', customStrategies.length)
+    // console.log('🔄 customStrategies[0]:', customStrategies[0])
     
     if (customStrategies.length === 0) return FOLDERS
 
@@ -132,13 +167,13 @@ export default function Home() {
           return true
         })
         .map(cs => {
-          console.log('🔄 Mapeando estratégia:', cs.name)
-          console.log('🔄   - ID:', cs.id)
-          console.log('🔄   - numbers:', cs.numbers)
-          console.log('🔄   - numbers é array?:', Array.isArray(cs.numbers))
-          console.log('🔄   - numbers.length:', cs.numbers?.length)
-          console.log('🔄   - primeiro número:', cs.numbers?.[0])
-          console.log('🔄   - tipo do primeiro:', typeof cs.numbers?.[0])
+          // console.log('🔄 Mapeando estratégia:', cs.name)
+          // console.log('🔄   - ID:', cs.id)
+          // console.log('🔄   - numbers:', cs.numbers)
+          // console.log('🔄   - numbers é array?:', Array.isArray(cs.numbers))
+          // console.log('🔄   - numbers.length:', cs.numbers?.length)
+          // console.log('🔄   - primeiro número:', cs.numbers?.[0])
+          // console.log('🔄   - tipo do primeiro:', typeof cs.numbers?.[0])
           
           return {
             id: `custom_${cs.id}`,
@@ -148,11 +183,11 @@ export default function Home() {
         })
     }
 
-    if (customFolder.strategies.length > 0) {
-      console.log('📋 ESTRATÉGIAS MAPEADAS:', customFolder.strategies)
-      console.log('📋 PRIMEIRA ESTRATÉGIA:', customFolder.strategies[0])
-      console.log('📋 NUMBERS DA PRIMEIRA:', customFolder.strategies[0]?.numbers)
-    }
+    // if (customFolder.strategies.length > 0) {
+    //   console.log('📋 ESTRATÉGIAS MAPEADAS:', customFolder.strategies)
+    //   console.log('📋 PRIMEIRA ESTRATÉGIA:', customFolder.strategies[0])
+    //   console.log('📋 NUMBERS DA PRIMEIRA:', customFolder.strategies[0]?.numbers)
+    // }
 
     // Adicionar pasta customizada no início se tiver estratégias
     if (customFolder.strategies.length > 0) {
@@ -700,6 +735,747 @@ export default function Home() {
   const selectedRouletteInfo = useMemo(() => {
     return availableRoulettes.find(r => r.id === selectedRoulette)
   }, [availableRoulettes, selectedRoulette])
+
+  // Função para calcular sequência máxima de RED de ontem
+  const calculateMaxRedStreakYesterday = useCallback(async () => {
+    console.log('🔥 Calculando sequência máxima de RED...')
+    
+    // Verificar se temos estratégia e roleta selecionadas
+    if (selectedStrategies.length === 0 || !selectedRoulette) {
+      console.log('⚠️ Sem estratégia ou roleta selecionada')
+      // NÃO definir como null para não limpar valores já calculados
+      return
+    }
+
+    try {
+      // Usar data selecionada ou ontem por padrão
+      const now = new Date()
+      const targetDate = selectedDateRed ? new Date(selectedDateRed) : new Date(now)
+      
+      if (!selectedDateRed) {
+        targetDate.setDate(targetDate.getDate() - 1) // ontem
+      }
+      
+      targetDate.setHours(0, 0, 0, 0)
+      
+      const targetDateEnd = new Date(targetDate)
+      targetDateEnd.setHours(23, 59, 59, 999)
+
+      const timestampStart = targetDate.getTime() // milissegundos
+      const timestampEnd = targetDateEnd.getTime() // milissegundos
+
+      console.log('📅 Buscando dados:', {
+        data: targetDate.toLocaleDateString('pt-BR'),
+        inicio: timestampStart,
+        fim: timestampEnd,
+        roleta: selectedRoulette
+      })
+
+      // Buscar dados do Supabase
+      // A tabela usa: roulette_id (TEXT), number (INTEGER), timestamp (BIGINT em milissegundos)
+      const { data, error } = await supabase
+        .from('roulette_history')
+        .select('number, timestamp')
+        .eq('roulette_id', selectedRoulette) // roulette_id, não roulette_name!
+        .gte('timestamp', timestampStart)
+        .lt('timestamp', timestampEnd)
+        .order('timestamp', { ascending: true })
+
+      if (error) {
+        console.error('❌ Erro Supabase:', error)
+        // NÃO definir como null para não limpar valores já calculados
+        return
+      }
+
+      if (!data || data.length === 0) {
+        console.log('⚠️ Nenhum dado encontrado para esta data')
+        setMaxRedStreakYesterday(0)
+        return
+      }
+
+      console.log(`✅ ${data.length} números carregados`)
+
+      // Pegar números da estratégia selecionada
+      const strategyId = selectedStrategies[0]
+      const strategy = STRATEGIES.find(s => s.id === strategyId)
+      
+      if (!strategy) {
+        console.log('❌ Estratégia não encontrada')
+        // NÃO definir como null para não limpar valores já calculados
+        return
+      }
+
+      let strategyNumbers: number[]
+      if (typeof strategyId === 'string' && strategyId.startsWith('custom_')) {
+        strategyNumbers = strategy.numbers || []
+      } else {
+        const { getStrategyNumbers } = require('@/lib/strategies')
+        const allNumbers = data.map(d => d.number)
+        strategyNumbers = getStrategyNumbers(strategyId as number, allNumbers)
+      }
+
+      console.log(`🎯 Estratégia: ${strategy.name}, Números: [${strategyNumbers.join(', ')}]`)
+
+      // Calcular sequências de RED (usando filtro de casas)
+      const numbers = data.map(d => d.number)
+      let maxStreak = 0
+      let currentStreak = 0
+
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        
+        // Verifica se é ativação (número da estratégia)
+        if (strategyNumbers.includes(num)) {
+          // Procura GREEN nas próximas X casas (streakAttempts)
+          let foundGreen = false
+          
+          for (let j = 1; j <= streakAttempts && i + j < numbers.length; j++) {
+            if (strategyNumbers.includes(numbers[i + j])) {
+              foundGreen = true
+              break
+            }
+          }
+          
+          if (foundGreen) {
+            // GREEN - fim da sequência
+            if (currentStreak > 0) {
+              maxStreak = Math.max(maxStreak, currentStreak)
+              currentStreak = 0
+            }
+          } else {
+            // RED - continua sequência
+            currentStreak++
+          }
+        }
+      }
+
+      // Verifica última sequência
+      if (currentStreak > 0) {
+        maxStreak = Math.max(maxStreak, currentStreak)
+      }
+
+      console.log(`📊 ✅ Sequência máxima de RED: ${maxStreak}`)
+      setMaxRedStreakYesterday(maxStreak)
+
+    } catch (err) {
+      console.error('❌ Erro ao calcular RED:', err)
+      // NÃO definir como null para não limpar valores já calculados
+    }
+  }, [selectedStrategies, selectedRoulette, selectedDateRed, streakAttempts])
+
+  // Função para calcular sequência máxima de GREEN
+  const calculateMaxGreenStreakYesterday = useCallback(async () => {
+    console.log('🟢 Calculando sequência máxima de GREEN...')
+    
+    // Verificar se temos estratégia e roleta selecionadas
+    if (selectedStrategies.length === 0 || !selectedRoulette) {
+      console.log('⚠️ Sem estratégia ou roleta selecionada')
+      // NÃO definir como null para não limpar valores já calculados
+      return
+    }
+
+    try {
+      // Usar data selecionada ou ontem por padrão
+      const now = new Date()
+      const targetDate = selectedDateGreen ? new Date(selectedDateGreen) : new Date(now)
+      
+      if (!selectedDateGreen) {
+        targetDate.setDate(targetDate.getDate() - 1) // ontem
+      }
+      
+      targetDate.setHours(0, 0, 0, 0)
+      
+      const targetDateEnd = new Date(targetDate)
+      targetDateEnd.setHours(23, 59, 59, 999)
+
+      const timestampStart = targetDate.getTime()
+      const timestampEnd = targetDateEnd.getTime()
+
+      console.log('📅 Buscando dados:', {
+        data: targetDate.toLocaleDateString('pt-BR'),
+        inicio: timestampStart,
+        fim: timestampEnd,
+        roleta: selectedRoulette
+      })
+
+      // Buscar dados do Supabase
+      const { data, error } = await supabase
+        .from('roulette_history')
+        .select('number, timestamp')
+        .eq('roulette_id', selectedRoulette)
+        .gte('timestamp', timestampStart)
+        .lt('timestamp', timestampEnd)
+        .order('timestamp', { ascending: true })
+
+      if (error) {
+        console.error('❌ Erro Supabase:', error)
+        // NÃO definir como null para não limpar valores já calculados
+        return
+      }
+
+      if (!data || data.length === 0) {
+        console.log('⚠️ Nenhum dado encontrado para esta data')
+        setMaxGreenStreakYesterday(0)
+        return
+      }
+
+      console.log(`✅ ${data.length} números carregados`)
+
+      // Pegar números da estratégia selecionada
+      const strategyId = selectedStrategies[0]
+      const strategy = STRATEGIES.find(s => s.id === strategyId)
+      
+      if (!strategy) {
+        console.log('❌ Estratégia não encontrada')
+        // NÃO definir como null para não limpar valores já calculados
+        return
+      }
+
+      let strategyNumbers: number[]
+      if (typeof strategyId === 'string' && strategyId.startsWith('custom_')) {
+        strategyNumbers = strategy.numbers || []
+      } else {
+        const { getStrategyNumbers } = require('@/lib/strategies')
+        const allNumbers = data.map(d => d.number)
+        strategyNumbers = getStrategyNumbers(strategyId as number, allNumbers)
+      }
+
+      console.log(`🎯 Estratégia: ${strategy.name}, Números: [${strategyNumbers.join(', ')}]`)
+
+      // Calcular sequências de GREEN (usando filtro de casas)
+      const numbers = data.map(d => d.number)
+      let maxStreak = 0
+      let currentStreak = 0
+
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        
+        // Verifica se é ativação (número da estratégia)
+        if (strategyNumbers.includes(num)) {
+          // Procura GREEN nas próximas X casas (streakAttempts)
+          let foundGreen = false
+          
+          for (let j = 1; j <= streakAttempts && i + j < numbers.length; j++) {
+            if (strategyNumbers.includes(numbers[i + j])) {
+              foundGreen = true
+              break
+            }
+          }
+          
+          if (foundGreen) {
+            // GREEN encontrado - incrementa sequência
+            currentStreak++
+          } else {
+            // RED - fim da sequência de GREEN
+            if (currentStreak > 0) {
+              maxStreak = Math.max(maxStreak, currentStreak)
+              currentStreak = 0
+            }
+          }
+        }
+      }
+
+      // Verifica última sequência
+      if (currentStreak > 0) {
+        maxStreak = Math.max(maxStreak, currentStreak)
+      }
+
+      console.log(`📊 ✅ Sequência máxima de GREEN: ${maxStreak}`)
+      setMaxGreenStreakYesterday(maxStreak)
+
+    } catch (err) {
+      console.error('❌ Erro ao calcular GREEN:', err)
+      // NÃO definir como null para não limpar valores já calculados
+    }
+  }, [selectedStrategies, selectedRoulette, selectedDateGreen, streakAttempts])
+
+  // useEffect para recalcular quando estratégia, roleta ou dia mudar
+  useEffect(() => {
+    calculateMaxRedStreakYesterday()
+    calculateMaxGreenStreakYesterday()
+
+    // Configurar intervalo para recalcular à meia-noite
+    const now = new Date()
+    const tomorrow = new Date(now)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    tomorrow.setHours(0, 0, 0, 0)
+    
+    const timeUntilMidnight = tomorrow.getTime() - now.getTime()
+
+    const midnightTimer = setTimeout(() => {
+      calculateMaxRedStreakYesterday()
+      calculateMaxGreenStreakYesterday()
+      
+      // Configurar intervalo diário
+      const dailyInterval = setInterval(() => {
+        calculateMaxRedStreakYesterday()
+        calculateMaxGreenStreakYesterday()
+      }, 24 * 60 * 60 * 1000)
+      
+      return () => clearInterval(dailyInterval)
+    }, timeUntilMidnight)
+
+    return () => clearTimeout(midnightTimer)
+  }, [calculateMaxRedStreakYesterday, calculateMaxGreenStreakYesterday])
+
+  // ============================================================
+  // SISTEMA DE NOTIFICAÇÕES - Monitoramento em Background
+  // ============================================================
+
+  // Função para adicionar notificação
+  const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+    const newNotification: Notification = {
+      ...notification,
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      read: false
+    }
+    
+    setNotifications(prev => [newNotification, ...prev].slice(0, 50)) // Máximo 50 notificações
+    
+    // Mostrar toast na tela
+    showNotificationToast(newNotification)
+  }, [])
+
+  // Função para mostrar toast de notificação
+  const showNotificationToast = useCallback((notification: Notification) => {
+    // Criar elemento toast
+    const toast = document.createElement('div')
+    toast.className = 'fixed bottom-4 left-4 z-[9999] max-w-sm bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-4 animate-slide-in-left'
+    toast.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-full ${notification.type === 'max-red' ? 'bg-red-500/20' : 'bg-green-500/20'} flex items-center justify-center flex-shrink-0">
+          <span class="text-lg">${notification.type === 'max-red' ? '🔴' : '🟢'}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-white">${notification.type === 'max-red' ? 'Máximo RED atingido!' : 'Máximo GREEN atingido!'}</p>
+          <p class="text-xs text-gray-300 mt-1"><span class="text-blue-400">Roleta:</span> ${notification.rouletteName}</p>
+          <p class="text-xs text-gray-300"><span class="text-purple-400">Estratégia:</span> ${notification.strategyName}</p>
+          <p class="text-xs text-gray-400 mt-1 truncate"><span class="text-yellow-400">Números:</span> [${notification.strategyNumbers.slice(0, 5).join(', ')}${notification.strategyNumbers.length > 5 ? '...' : ''}]</p>
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(toast)
+    
+    // Remover após 5 segundos com animação
+    setTimeout(() => {
+      toast.classList.add('animate-slide-out-left')
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast)
+        }
+      }, 300)
+    }, 5000)
+  }, [])
+
+  // Função para limpar notificações
+  const clearNotifications = useCallback(() => {
+    setNotifications([])
+  }, [])
+
+  // Função para marcar todas como lidas
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  }, [])
+
+  // Função para remover uma notificação específica
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+  }, [])
+
+  // Função para calcular máximo de RED do histórico (ontem) para uma estratégia/roleta específica
+  const calculateMaxRedForNotification = useCallback(async (
+    rouletteId: string, 
+    strategyNumbers: number[],
+    attempts: number
+  ): Promise<number> => {
+    try {
+      // Buscar dados de ontem do Supabase
+      const now = new Date()
+      const yesterday = new Date(now)
+      yesterday.setDate(yesterday.getDate() - 1)
+      yesterday.setHours(0, 0, 0, 0)
+      
+      const yesterdayEnd = new Date(yesterday)
+      yesterdayEnd.setHours(23, 59, 59, 999)
+
+      const { data, error } = await supabase
+        .from('roulette_history')
+        .select('number, timestamp')
+        .eq('roulette_id', rouletteId)
+        .gte('timestamp', yesterday.getTime())
+        .lt('timestamp', yesterdayEnd.getTime())
+        .order('timestamp', { ascending: true })
+
+      if (error) {
+        console.warn(`⚠️ Erro ao buscar histórico de ${rouletteId}:`, error.message)
+        return 0
+      }
+      
+      if (!data || data.length === 0) {
+        console.log(`📭 Sem dados de ontem para ${rouletteId.substring(0, 25)}...`)
+        return 0
+      }
+      
+      console.log(`📊 ${rouletteId.substring(0, 25)}... - ${data.length} números de ontem encontrados`)
+
+      // Calcular sequências de RED
+      const numbers = data.map(d => d.number)
+      let maxStreak = 0
+      let currentStreak = 0
+
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        
+        if (strategyNumbers.includes(num)) {
+          let foundGreen = false
+          
+          for (let j = 1; j <= attempts && i + j < numbers.length; j++) {
+            if (strategyNumbers.includes(numbers[i + j])) {
+              foundGreen = true
+              break
+            }
+          }
+          
+          if (foundGreen) {
+            if (currentStreak > 0) {
+              maxStreak = Math.max(maxStreak, currentStreak)
+            }
+            currentStreak = 0
+          } else {
+            currentStreak++
+          }
+        }
+      }
+
+      if (currentStreak > 0) {
+        maxStreak = Math.max(maxStreak, currentStreak)
+      }
+
+      return maxStreak
+    } catch (err) {
+      console.error('Erro ao calcular max RED para notificação:', err)
+      return 0
+    }
+  }, [])
+
+  // Função para calcular streak atual de RED em tempo real
+  const calculateCurrentRedStreak = useCallback((
+    numbers: number[],
+    strategyNumbers: number[],
+    attempts: number
+  ): number => {
+    if (numbers.length === 0 || strategyNumbers.length === 0) return 0
+
+    let currentStreak = 0
+
+    // Analisar do mais recente para o mais antigo (números já vêm nessa ordem)
+    for (let i = 0; i < numbers.length; i++) {
+      const num = numbers[i]
+      
+      if (strategyNumbers.includes(num)) {
+        // É uma ativação, verificar se tem GREEN nas próximas X casas
+        let foundGreen = false
+        
+        for (let j = 1; j <= attempts && i + j < numbers.length; j++) {
+          if (strategyNumbers.includes(numbers[i + j])) {
+            foundGreen = true
+            break
+          }
+        }
+        
+        if (!foundGreen) {
+          currentStreak++
+        } else {
+          // Encontrou GREEN, parar de contar
+          break
+        }
+      }
+    }
+
+    return currentStreak
+  }, [])
+
+  // Função para analisar padrão de GREEN após RED (encontrar após quantos REDs vem GREEN com 85%+ de acerto)
+  const analyzeGreenAfterRedPattern = useCallback(async (
+    rouletteId: string,
+    strategyNumbers: number[],
+    attempts: number
+  ): Promise<{ redsNeeded: number, accuracy: number } | null> => {
+    try {
+      // Buscar todo o histórico disponível do Supabase (últimos 7 dias para ter mais dados)
+      const now = new Date()
+      const weekAgo = new Date(now)
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      weekAgo.setHours(0, 0, 0, 0)
+
+      const { data, error } = await supabase
+        .from('roulette_history')
+        .select('number, timestamp')
+        .eq('roulette_id', rouletteId)
+        .gte('timestamp', weekAgo.getTime())
+        .order('timestamp', { ascending: true })
+
+      if (error || !data || data.length < 100) {
+        return null // Precisa de dados suficientes para análise
+      }
+
+      const numbers = data.map(d => d.number)
+      
+      // Analisar sequências de RED e verificar quando GREEN aparece
+      // redCounts[n] = { total: quantas vezes teve n reds seguidos, greenAfter: quantas vezes deu green depois }
+      const redCounts: Map<number, { total: number, greenAfter: number }> = new Map()
+      
+      let currentRedStreak = 0
+      
+      for (let i = 0; i < numbers.length; i++) {
+        const num = numbers[i]
+        
+        if (strategyNumbers.includes(num)) {
+          // É uma ativação
+          let foundGreen = false
+          
+          for (let j = 1; j <= attempts && i + j < numbers.length; j++) {
+            if (strategyNumbers.includes(numbers[i + j])) {
+              foundGreen = true
+              break
+            }
+          }
+          
+          if (!foundGreen) {
+            // RED
+            currentRedStreak++
+          } else {
+            // GREEN - registrar que após currentRedStreak reds veio green
+            if (currentRedStreak > 0) {
+              const existing = redCounts.get(currentRedStreak) || { total: 0, greenAfter: 0 }
+              existing.total++
+              existing.greenAfter++
+              redCounts.set(currentRedStreak, existing)
+              
+              // Também registrar para todos os valores menores
+              for (let k = 1; k < currentRedStreak; k++) {
+                const ex = redCounts.get(k) || { total: 0, greenAfter: 0 }
+                ex.total++
+                // Não incrementar greenAfter pois continuou em red
+                redCounts.set(k, ex)
+              }
+            }
+            currentRedStreak = 0
+          }
+        }
+      }
+      
+      // Encontrar o menor número de REDs que garante GREEN com 85%+ de acerto
+      let bestPattern: { redsNeeded: number, accuracy: number } | null = null
+      
+      for (let reds = 2; reds <= 15; reds++) {
+        const stats = redCounts.get(reds)
+        if (stats && stats.total >= 5) { // Pelo menos 5 ocorrências para ser estatisticamente relevante
+          const accuracy = (stats.greenAfter / stats.total) * 100
+          if (accuracy >= 85) {
+            if (!bestPattern || reds < bestPattern.redsNeeded) {
+              bestPattern = { redsNeeded: reds, accuracy: Math.round(accuracy) }
+            }
+          }
+        }
+      }
+      
+      return bestPattern
+    } catch (err) {
+      console.error('Erro ao analisar padrão GREEN após RED:', err)
+      return null
+    }
+  }, [])
+
+  // Função para mostrar toast de notificação GREEN (lado direito)
+  const showGreenNotificationToast = useCallback((
+    rouletteName: string,
+    strategyName: string,
+    strategyNumbers: number[],
+    redsCount: number,
+    accuracy: number
+  ) => {
+    const toast = document.createElement('div')
+    toast.className = 'fixed bottom-4 right-4 z-[9999] max-w-md bg-gradient-to-r from-green-900 to-emerald-800 border border-green-500 rounded-lg shadow-2xl p-4 animate-slide-in-right'
+    toast.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-full bg-green-500/30 flex items-center justify-center flex-shrink-0 animate-pulse">
+          <span class="text-2xl">🎯</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-green-300">🔥 Altas chances de acertividade!</p>
+          <p class="text-xs text-white mt-1"><span class="text-blue-300">Roleta:</span> ${rouletteName}</p>
+          <p class="text-xs text-white"><span class="text-purple-300">Estratégia:</span> ${strategyName}</p>
+          <p class="text-xs text-gray-200 mt-1"><span class="text-yellow-300">Números:</span> [${strategyNumbers.slice(0, 6).join(', ')}${strategyNumbers.length > 6 ? '...' : ''}]</p>
+          <p class="text-xs text-white mt-1"><span class="text-orange-300">Comportamento:</span> Após ${redsCount} REDs, GREEN com ${accuracy}% de acerto</p>
+          <p class="text-sm font-bold text-red-400 mt-2">⚡ Acaba de dar ${redsCount} RED!</p>
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(toast)
+    
+    // Remover após 8 segundos (mais tempo por ser importante)
+    setTimeout(() => {
+      toast.classList.add('animate-slide-out-right')
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast)
+        }
+      }, 300)
+    }, 8000)
+  }, [])
+
+  // useEffect para monitorar em background TODAS as estratégias e roletas
+  useEffect(() => {
+    if (!isConnected || availableRoulettes.length === 0 || STRATEGIES.length === 0) {
+      return
+    }
+
+    const checkAllStreaks = async () => {
+      const allHistory = getAllRoulettesHistory()
+      
+      // Debug: mostrar todas as roletas sendo analisadas
+      const roletasAnalisadas: string[] = []
+      for (const [rouletteId] of allHistory) {
+        roletasAnalisadas.push(rouletteId)
+      }
+      console.log(`🔍 [NOTIFICAÇÕES] Verificando ${allHistory.size} roletas: [${roletasAnalisadas.slice(0, 5).join(', ')}${roletasAnalisadas.length > 5 ? '...' : ''}]`)
+      console.log(`🔍 [NOTIFICAÇÕES] Com ${STRATEGIES.length} estratégias e ${streakAttempts} casas`)
+      
+      // Para cada roleta com histórico
+      for (const [rouletteId, history] of allHistory) {
+        if (history.length < 10) {
+          console.log(`⏭️ Roleta ${rouletteId} ignorada: apenas ${history.length} números`)
+          continue
+        }
+        
+        const numbers = history.map(h => h.number)
+        const latestTimestamp = history[0]?.timestamp || 0 // Timestamp do número mais recente
+        
+        // Para cada estratégia
+        let strategyCount = 0
+        for (const strategy of STRATEGIES) {
+          const strategyNumbers = strategy.numbers
+          if (!strategyNumbers || strategyNumbers.length === 0) continue
+          
+          strategyCount++
+          const cacheKey = `${rouletteId}_${strategy.id}`
+          
+          // Calcular streak atual de RED
+          const currentStreak = calculateCurrentRedStreak(numbers, strategyNumbers, streakAttempts)
+          
+          // Se não temos o máximo no cache, calcular
+          let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
+          if (maxRed === undefined) {
+            console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name}...`)
+            maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, streakAttempts)
+            maxRedStreakCacheRef.current.set(cacheKey, maxRed)
+            console.log(`  ✅ maxRed calculado: ${maxRed}`)
+          }
+          
+          // Verificar se atingiu o máximo E se houve novo lançamento desde última notificação
+          const lastNotifiedTs = lastNotifiedTimestampRef.current.get(cacheKey) || 0
+          
+          // Debug detalhado
+          if (currentStreak > 0 || maxRed > 0) {
+            console.log(`📊 ${rouletteId.substring(0, 20)}... | ${strategy.name.substring(0, 15)}... | Current: ${currentStreak} | Max: ${maxRed} | LastTs: ${lastNotifiedTs} | LatestTs: ${latestTimestamp}`)
+          }
+          
+          if (maxRed > 0 && currentStreak >= maxRed && latestTimestamp > lastNotifiedTs) {
+            // Encontrar nome da roleta
+            const rouletteInfo = availableRoulettes.find(r => r.id === rouletteId)
+            const rouletteName = rouletteInfo?.name || rouletteId
+            
+            // Adicionar notificação
+            addNotification({
+              type: 'max-red',
+              message: `Máximo RED atingido na ${rouletteName}`,
+              rouletteName: rouletteName,
+              strategyName: strategy.name,
+              strategyNumbers: strategyNumbers
+            })
+            
+            // Marcar timestamp como notificado para esta combinação
+            lastNotifiedTimestampRef.current.set(cacheKey, latestTimestamp)
+            
+            console.log(`🔔 NOTIFICAÇÃO: Máximo RED (${currentStreak}) atingido!`, {
+              roleta: rouletteName,
+              estrategia: strategy.name,
+              maxRed,
+              currentStreak,
+              latestTimestamp
+            })
+          }
+          
+          // ========== NOTIFICAÇÃO GREEN PÓS RED PERSONALIZADO ==========
+          if (enableGreenAfterRedNotification && currentStreak > 0) {
+            const greenCacheKey = `green_${cacheKey}`
+            const lastGreenNotifiedTs = lastGreenNotifiedTimestampRef.current.get(greenCacheKey) || 0
+            
+            // Verificar se já temos o padrão no cache
+            let pattern = greenPatternCacheRef.current.get(cacheKey)
+            if (!pattern) {
+              // Calcular padrão (isso é feito apenas uma vez por combinação)
+              pattern = await analyzeGreenAfterRedPattern(rouletteId, strategyNumbers, streakAttempts) || undefined
+              if (pattern) {
+                greenPatternCacheRef.current.set(cacheKey, pattern)
+                console.log(`🟢 Padrão identificado para ${rouletteId} - ${strategy.name}: após ${pattern.redsNeeded} REDs, GREEN com ${pattern.accuracy}% de acerto`)
+              }
+            }
+            
+            // Se temos um padrão e o streak atual atingiu o número de REDs necessário
+            if (pattern && currentStreak >= pattern.redsNeeded && latestTimestamp > lastGreenNotifiedTs) {
+              const rouletteInfo = availableRoulettes.find(r => r.id === rouletteId)
+              const rouletteName = rouletteInfo?.name || rouletteId
+              
+              // Mostrar notificação GREEN
+              showGreenNotificationToast(
+                rouletteName,
+                strategy.name,
+                strategyNumbers,
+                currentStreak,
+                pattern.accuracy
+              )
+              
+              // Marcar como notificado
+              lastGreenNotifiedTimestampRef.current.set(greenCacheKey, latestTimestamp)
+              
+              console.log(`🎯 NOTIFICAÇÃO GREEN: ${rouletteName} - ${strategy.name} - ${currentStreak} REDs (padrão: ${pattern.redsNeeded}+, acerto: ${pattern.accuracy}%)`)
+            }
+          }
+        }
+        console.log(`  📌 Roleta ${rouletteId.substring(0, 30)}... processou ${strategyCount} estratégias`)
+      }
+    }
+
+    // Verificar quando há atualização (updateVersion muda a cada novo número)
+    checkAllStreaks()
+    
+  }, [
+    isConnected, 
+    availableRoulettes, 
+    STRATEGIES, 
+    streakAttempts, 
+    updateVersion, // Isso dispara a cada novo número recebido
+    getAllRoulettesHistory,
+    calculateCurrentRedStreak,
+    calculateMaxRedForNotification,
+    addNotification,
+    enableGreenAfterRedNotification,
+    analyzeGreenAfterRedPattern,
+    showGreenNotificationToast
+  ])
+
+  // Limpar cache quando mudar as casas de análise
+  useEffect(() => {
+    maxRedStreakCacheRef.current = new Map()
+    lastNotifiedTimestampRef.current = new Map()
+    greenPatternCacheRef.current = new Map()
+    lastGreenNotifiedTimestampRef.current = new Map()
+  }, [streakAttempts])
 
   const analyzeStrategy = (strategyId: number | string, numbersArray: number[]) => {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
@@ -1308,6 +2084,10 @@ export default function Home() {
         onLogout={handleLogout} 
         onEditProfile={() => setShowProfileEdit(true)}
         onCreateStrategy={() => setShowCreateStrategy(true)}
+        notifications={notifications}
+        onClearNotifications={clearNotifications}
+        onMarkAllRead={markAllNotificationsRead}
+        onRemoveNotification={removeNotification}
       />
       
       {/* Card de Status - Dados Históricos da API */}
@@ -1338,6 +2118,141 @@ export default function Home() {
                         <span className="text-gray-400">
                           Último: <span className="text-white font-medium">{recentNumbers[recentNumbers.length - 1].number}</span>
                         </span>
+                      </>
+                    )}
+                    {/* DEBUG: Verificar valores */}
+                    {(() => {
+                      console.log('🎨 UI CHECK:', {
+                        maxRed: maxRedStreakYesterday,
+                        maxGreen: maxGreenStreakYesterday,
+                        hasStrategy: selectedStrategies.length > 0,
+                        redCondition: maxRedStreakYesterday !== null && selectedStrategies.length > 0,
+                        greenCondition: maxGreenStreakYesterday !== null && selectedStrategies.length > 0
+                      })
+                      return null
+                    })()}
+                    {/* Filtro de casas para análise RED/GREEN */}
+                    {selectedStrategies.length > 0 && (
+                      <>
+                        <span className="text-gray-500">|</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400 text-sm">Casas:</span>
+                          <Select 
+                            value={streakAttempts.toString()} 
+                            onValueChange={(value) => setStreakAttempts(Number(value))}
+                          >
+                            <SelectTrigger className="h-5 w-11 bg-gray-800/50 border-gray-700 text-white text-xs px-1.5 py-0 gap-0.5">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="min-w-[2.75rem] bg-gray-800 border-gray-700">
+                              <SelectItem value="1" className="text-white text-xs py-1 cursor-pointer hover:bg-gray-700">1</SelectItem>
+                              <SelectItem value="2" className="text-white text-xs py-1 cursor-pointer hover:bg-gray-700">2</SelectItem>
+                              <SelectItem value="3" className="text-white text-xs py-1 cursor-pointer hover:bg-gray-700">3</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+                    {maxRedStreakYesterday !== null && selectedStrategies.length > 0 && (
+                      <>
+                        <span className="text-gray-500">|</span>
+                        <Popover open={showDatePickerRed} onOpenChange={setShowDatePickerRed}>
+                          <PopoverTrigger asChild>
+                            <button 
+                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                              onClick={() => setShowDatePickerRed(true)}
+                            >
+                              <CalendarIcon className="w-3.5 h-3.5" />
+                              Sequência máxima de red {selectedDateRed ? format(selectedDateRed, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}: 
+                              <span className="text-red-400 font-medium">{maxRedStreakYesterday}</span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={selectedDateRed || undefined}
+                              onSelect={(date) => {
+                                setSelectedDateRed(date || null)
+                                setShowDatePickerRed(false)
+                              }}
+                              locale={ptBR}
+                              disabled={(date) => date > new Date() || date < new Date('2024-01-01')}
+                              initialFocus
+                            />
+                            {selectedDateRed && (
+                              <div className="p-3 border-t">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => {
+                                    setSelectedDateRed(null)
+                                    setShowDatePickerRed(false)
+                                  }}
+                                >
+                                  Voltar para ontem
+                                </Button>
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      </>
+                    )}
+                    {maxGreenStreakYesterday !== null && selectedStrategies.length > 0 && (
+                      <>
+                        <span className="text-gray-500">|</span>
+                        <Popover open={showDatePickerGreen} onOpenChange={setShowDatePickerGreen}>
+                          <PopoverTrigger asChild>
+                            <button 
+                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                              onClick={() => setShowDatePickerGreen(true)}
+                            >
+                              <CalendarIcon className="w-3.5 h-3.5" />
+                              Sequência máxima de green {selectedDateGreen ? format(selectedDateGreen, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}: 
+                              <span className="text-green-400 font-medium">{maxGreenStreakYesterday}</span>
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={selectedDateGreen || undefined}
+                              onSelect={(date) => {
+                                setSelectedDateGreen(date || null)
+                                setShowDatePickerGreen(false)
+                              }}
+                              locale={ptBR}
+                              disabled={(date) => date > new Date() || date < new Date('2024-01-01')}
+                              initialFocus
+                            />
+                            {selectedDateGreen && (
+                              <div className="p-3 border-t">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() => {
+                                    setSelectedDateGreen(null)
+                                    setShowDatePickerGreen(false)
+                                  }}
+                                >
+                                  Voltar para ontem
+                                </Button>
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                        {/* Checkbox para notificação GREEN pós RED */}
+                        <label className="flex items-center gap-2 cursor-pointer ml-3 pl-3 border-l border-gray-600">
+                          <input
+                            type="checkbox"
+                            checked={enableGreenAfterRedNotification}
+                            onChange={(e) => setEnableGreenAfterRedNotification(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-500 bg-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800 cursor-pointer"
+                          />
+                          <span className="text-xs text-gray-400 hover:text-gray-300">
+                            🎯 Avisar green pós red personalizado
+                          </span>
+                        </label>
                       </>
                     )}
                   </div>
@@ -1619,7 +2534,7 @@ export default function Home() {
             <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
               📊 Categorias de Fichas
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               <Button
                 onClick={() => {
                   setChipCategory('up-to-9')
@@ -1646,6 +2561,27 @@ export default function Home() {
                 }`}
               >
                 +9
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  // Alternar entre pares e quíntuplas
+                  if (chipCategory === 'pairs') {
+                    setChipCategory('quintuplets')
+                  } else if (chipCategory === 'quintuplets') {
+                    setChipCategory('pairs')
+                  } else {
+                    setChipCategory('pairs')
+                  }
+                  setShowCustomChipInput(false)
+                }}
+                className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
+                  chipCategory === 'pairs' || chipCategory === 'quintuplets'
+                    ? 'bg-pink-600 hover:bg-pink-700 ring-2 ring-pink-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {chipCategory === 'pairs' ? 'Pares (2)' : chipCategory === 'quintuplets' ? 'Quíntuplas (5)' : 'Pares'}
               </Button>
               
               <Button
@@ -1814,10 +2750,13 @@ export default function Home() {
             <div className="flex justify-center">
               <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-4 justify-items-center w-full max-w-4xl">
                 {numbersToAnalyze.map((number, index) => {
+                  const isHighlighted = hoveredNumber === number
                   return (
                     <div
                       key={index}
-                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 hover:scale-110`}
+                      onMouseEnter={() => setHoveredNumber(number)}
+                      onMouseLeave={() => setHoveredNumber(null)}
+                      className={`relative group w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-sm sm:text-base md:text-lg flex items-center justify-center rounded-lg font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 ${!isHighlighted ? 'hover:scale-110' : ''} ${isHighlighted ? 'number-highlight' : ''}`}
                     >
                       {number}
                       <button
@@ -2825,6 +3764,18 @@ export default function Home() {
                       : (isStrategiesScrolled ? `Mín ${maxGreenSequenceFilter}` : `Mínimo de ${maxGreenSequenceFilter} green consecutivos`)
                 }
               </p>
+              {/* Checkbox para notificação GREEN pós RED */}
+              <label className={`flex items-center gap-2 cursor-pointer mt-2 pt-2 border-t border-gray-700 ${isStrategiesScrolled ? 'hidden' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={enableGreenAfterRedNotification}
+                  onChange={(e) => setEnableGreenAfterRedNotification(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-500 bg-gray-700 text-green-500 focus:ring-green-500 focus:ring-offset-gray-800 cursor-pointer"
+                />
+                <span className="text-[10px] text-gray-400 hover:text-gray-300">
+                  🎯 Avisar green pós red personalizado
+                </span>
+              </label>
             </div>
 
             {/* Filtro de Ordenação */}
@@ -2876,7 +3827,7 @@ export default function Home() {
                   📊 Categorias de Fichas
                 </label>
               </div>
-              <div className="grid grid-cols-4 gap-1">
+              <div className="grid grid-cols-5 gap-1">
               <Button
                 onClick={() => {
                   setChipCategory('up-to-9')
@@ -2903,6 +3854,27 @@ export default function Home() {
                 }`}
               >
                 +9
+              </Button>
+              
+              <Button
+                onClick={() => {
+                  // Alternar entre pares e quíntuplas
+                  if (chipCategory === 'pairs') {
+                    setChipCategory('quintuplets')
+                  } else if (chipCategory === 'quintuplets') {
+                    setChipCategory('pairs')
+                  } else {
+                    setChipCategory('pairs')
+                  }
+                  setShowCustomChipInput(false)
+                }}
+                className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
+                  chipCategory === 'pairs' || chipCategory === 'quintuplets'
+                    ? 'bg-pink-600 hover:bg-pink-700 ring-2 ring-pink-400' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                {chipCategory === 'pairs' ? '2 Núms' : chipCategory === 'quintuplets' ? '5 Núms' : 'Pares'}
               </Button>
               
               <Button
@@ -3196,9 +4168,12 @@ export default function Home() {
               <div className="flex justify-center">
                 <div className="grid grid-cols-12 gap-3 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-4 2xl:gap-4 justify-items-center">
                   {numbersToAnalyze.map((number, index) => {
+                    const isHighlighted = hoveredNumber === number
                     return (
                       <div
                         key={index}
+                        onMouseEnter={() => setHoveredNumber(number)}
+                        onMouseLeave={() => setHoveredNumber(null)}
                         className={`relative group 
                           w-4 h-4 text-[9px]
                           sm:w-5 sm:h-5 sm:text-[10px]
@@ -3206,7 +4181,7 @@ export default function Home() {
                           lg:w-8 lg:h-8 lg:text-sm
                           xl:w-10 xl:h-10 xl:text-sm
                           2xl:w-12 2xl:h-12 2xl:text-base
-                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 hover:scale-110`}
+                          flex items-center justify-center rounded font-bold ${getNumberColor(number, index, numbersToAnalyze.length)} transition-all duration-200 ${!isHighlighted ? 'hover:scale-110' : ''} ${isHighlighted ? 'number-highlight' : ''}`}
                       >
                         {number}
                         <button

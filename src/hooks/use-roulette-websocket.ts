@@ -36,6 +36,8 @@ export interface UseRouletteWebSocketReturn {
   selectRoulette: (rouletteId: string) => void
   requestHistory: (rouletteId: string, limit?: number) => void // NOVO
   requestStatus: () => void // NOVO: diagnóstico
+  getRouletteHistory: (rouletteId: string) => RouletteNumber[] // NOVO: obter histórico de qualquer roleta
+  getAllRoulettesHistory: () => Map<string, RouletteNumber[]> // NOVO: obter histórico de todas as roletas
 }
 
 export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
@@ -869,6 +871,16 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     }
   }, [])
 
+  // NOVO: Obter histórico de qualquer roleta específica
+  const getRouletteHistory = useCallback((rouletteId: string): RouletteNumber[] => {
+    return rouletteHistoryRef.current.get(rouletteId) || []
+  }, [])
+
+  // NOVO: Obter histórico de todas as roletas
+  const getAllRoulettesHistory = useCallback((): Map<string, RouletteNumber[]> => {
+    return new Map(rouletteHistoryRef.current)
+  }, [])
+
   // Conectar automaticamente ao montar
   useEffect(() => {
     console.log('🚀 useEffect montagem - iniciando conexão automática')
@@ -901,6 +913,8 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
     sendMessage,
     selectRoulette,
     requestHistory, // NOVO
-    requestStatus // NOVO: diagnóstico
+    requestStatus, // NOVO: diagnóstico
+    getRouletteHistory, // NOVO: obter histórico de qualquer roleta
+    getAllRoulettesHistory // NOVO: obter histórico de todas as roletas
   }
 }

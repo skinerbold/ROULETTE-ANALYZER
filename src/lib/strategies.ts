@@ -2,8 +2,13 @@
 // SISTEMA COMPLETO DE ESTRATÉGIAS - ROULETTE ANALYZER
 // 17 Pastas (292 estratégias) - ATÉ 9 FICHAS
 // 8 Pastas (255 estratégias) - MAIS DE 9 FICHAS
-// TOTAL: 25 PASTAS, 547 ESTRATÉGIAS
+// 37 Pastas (666 estratégias) - COMBINAÇÕES DE 2 NÚMEROS
+// 37 Pastas (435.897 estratégias) - COMBINAÇÕES DE 5 NÚMEROS
+// TOTAL: 99 PASTAS, 437.110 ESTRATÉGIAS
 // ========================================
+
+import { pairStrategies } from './strategies-pairs'
+import { quintupletStrategies } from './strategies-quintuplets'
 
 export interface Strategy { 
   id: number
@@ -16,7 +21,7 @@ export interface StrategyFolder {
   strategies: Strategy[] 
 }
 
-export type ChipCategory = 'up-to-9' | 'more-than-9' | 'all' | 'custom'
+export type ChipCategory = 'up-to-9' | 'more-than-9' | 'pairs' | 'quintuplets' | 'all' | 'custom'
 
 // ========================================
 // ESTRATÉGIAS ATÉ 9 FICHAS - 226 ESTRATÉGIAS
@@ -739,13 +744,23 @@ const strategiesMoreThan9: StrategyFolder[] = [
 
 export function getAllStrategies(category: ChipCategory, customLimit?: number): StrategyFolder[] {
   if (category === 'all') {
-    // Combinar todas as estratégias (até 9 + mais de 9)
-    return [...strategiesUpTo9, ...strategiesMoreThan9]
+    // Combinar TODAS as estratégias (até 9 + mais de 9 + pares + quíntuplas)
+    return [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
+  }
+  
+  if (category === 'pairs') {
+    // Retornar apenas as combinações de 2 números
+    return pairStrategies
+  }
+  
+  if (category === 'quintuplets') {
+    // Retornar apenas as combinações de 5 números
+    return quintupletStrategies
   }
   
   if (category === 'custom' && customLimit) {
     // Filtrar estratégias de 1 até customLimit fichas
-    const allFolders = [...strategiesUpTo9, ...strategiesMoreThan9]
+    const allFolders = [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
     return allFolders.map(folder => ({
       ...folder,
       strategies: folder.strategies.filter(strategy => strategy.numbers.length <= customLimit)
@@ -824,7 +839,7 @@ TOTAL GERAL: 18 PASTAS, 361 ESTRATÉGIAS
 
 export function getStrategyNumbers(strategyId: number, lastNumbers: number[]): number[] {
   // Para todas as estratégias, retornar os números fixos
-  const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9]
+  const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
     .flatMap(folder => folder.strategies)
   
   const strategy = allStrategies.find(s => s.id === strategyId)
