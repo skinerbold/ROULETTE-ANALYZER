@@ -2150,10 +2150,10 @@ export default function Home() {
       {selectedRoulette && (
         <div className="border-b border-gray-700 bg-gray-800/50">
           <div className="max-w-7xl mx-auto px-4 py-2">
-            <div className="flex items-center justify-between gap-3 text-xs">
+            <div className="flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               {/* Status da Roleta Selecionada */}
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0 flex-wrap">
+                <div className="flex items-center gap-2 shrink-0">
                   <Database className="w-4 h-4 text-blue-400" />
                   <span className="text-gray-400 font-medium">Histórico:</span>
                 </div>
@@ -2164,14 +2164,14 @@ export default function Home() {
                     Conectando...
                   </Badge>
                 ) : recentNumbers.length > 0 ? (
-                  <div className="flex items-center gap-3">
-                    <Badge variant="default" className="bg-green-600 gap-1">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <Badge variant="default" className="bg-green-600 gap-1 shrink-0">
                       ✓ {recentNumbers.length} números carregados
                     </Badge>
                     {selectedRoulette && recentNumbers[recentNumbers.length - 1] && (
                       <>
-                        <span className="text-gray-500">|</span>
-                        <span className="text-gray-400">
+                        <span className="text-gray-500 hidden sm:inline">|</span>
+                        <span className="text-gray-400 shrink-0">
                           Último: <span className="text-white font-medium">{recentNumbers[recentNumbers.length - 1].number}</span>
                         </span>
                       </>
@@ -2190,9 +2190,9 @@ export default function Home() {
                     {/* Filtro de casas para análise RED/GREEN */}
                     {selectedStrategies.length > 0 && (
                       <>
-                        <span className="text-gray-500">|</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-gray-400 text-sm">Casas:</span>
+                        <span className="text-gray-500 hidden sm:inline">|</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-gray-400 text-xs sm:text-sm">Casas:</span>
                           <Select 
                             value={streakAttempts.toString()} 
                             onValueChange={(value) => setStreakAttempts(Number(value))}
@@ -2211,15 +2211,16 @@ export default function Home() {
                     )}
                     {maxRedStreakYesterday !== null && selectedStrategies.length > 0 && (
                       <>
-                        <span className="text-gray-500">|</span>
+                        <span className="text-gray-500 hidden sm:inline">|</span>
                         <Popover open={showDatePickerRed} onOpenChange={setShowDatePickerRed}>
                           <PopoverTrigger asChild>
                             <button 
-                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1 sm:gap-1.5 text-xs shrink-0"
                               onClick={() => setShowDatePickerRed(true)}
                             >
-                              <CalendarIcon className="w-3.5 h-3.5" />
-                              Sequência máxima de red {selectedDateRed ? format(selectedDateRed, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}: 
+                              <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                              <span className="hidden sm:inline">Sequência máxima de red {selectedDateRed ? format(selectedDateRed, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}:</span>
+                              <span className="sm:hidden">Red {selectedDateRed ? format(selectedDateRed, "dd/MM", { locale: ptBR }) : "ontem"}:</span>
                               <span className="text-red-400 font-medium">{maxRedStreakYesterday}</span>
                             </button>
                           </PopoverTrigger>
@@ -2256,15 +2257,16 @@ export default function Home() {
                     )}
                     {maxGreenStreakYesterday !== null && selectedStrategies.length > 0 && (
                       <>
-                        <span className="text-gray-500">|</span>
+                        <span className="text-gray-500 hidden sm:inline">|</span>
                         <Popover open={showDatePickerGreen} onOpenChange={setShowDatePickerGreen}>
                           <PopoverTrigger asChild>
                             <button 
-                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1.5"
+                              className="text-gray-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1 sm:gap-1.5 text-xs shrink-0"
                               onClick={() => setShowDatePickerGreen(true)}
                             >
-                              <CalendarIcon className="w-3.5 h-3.5" />
-                              Sequência máxima de green {selectedDateGreen ? format(selectedDateGreen, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}: 
+                              <CalendarIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                              <span className="hidden sm:inline">Sequência máxima de green {selectedDateGreen ? format(selectedDateGreen, "dd/MM/yyyy", { locale: ptBR }) : "ontem"}:</span>
+                              <span className="sm:hidden">Green {selectedDateGreen ? format(selectedDateGreen, "dd/MM", { locale: ptBR }) : "ontem"}:</span>
                               <span className="text-green-400 font-medium">{maxGreenStreakYesterday}</span>
                             </button>
                           </PopoverTrigger>
