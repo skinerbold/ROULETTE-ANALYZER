@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar'
 import { TrendingUp, Target, Zap, BarChart3, X, Trash2, Menu, Layers, Database, RefreshCw, Calendar as CalendarIcon } from 'lucide-react'
 import { getAllStrategies, getStrategyById, ChipCategory } from '@/lib/strategies'
+import { triggerStrategies } from '@/lib/strategies-triggers'
 import { StrategyStats, UserSession } from '@/lib/types'
 import { supabase, getCurrentUser } from '@/lib/supabase'
 import AuthForm from '@/components/AuthForm'
@@ -118,6 +119,11 @@ export default function Home() {
   const [enableGreenAfterRedNotification, setEnableGreenAfterRedNotification] = useState(false)
   const greenPatternCacheRef = useRef<Map<string, { redsNeeded: number, accuracy: number }>>(new Map()) // cache: "roleta_estrategia" -> padrão identificado
   const lastGreenNotifiedTimestampRef = useRef<Map<string, number>>(new Map()) // cache para evitar notificações duplicadas
+  
+  // Estado de rastreamento de gatilhos
+  // Map: "roleta_estrategia" -> { step: 0|1|2, timestamp: number }
+  // step 0 = aguardando primeiro ativador, step 1 = aguardando segundo ativador, step 2 = aguardando GREEN
+  const triggerStateRef = useRef<Map<string, { step: 0 | 1 | 2, timestamp: number }>>(new Map())
   
   // Estado para hover de números (realce visual)
   const [hoveredNumber, setHoveredNumber] = useState<number | null>(null)
@@ -1088,24 +1094,29 @@ export default function Home() {
   const calculateMaxRedForNotification = useCallback(async (
     rouletteId: string, 
     strategyNumbers: number[],
-    attempts: number
+    attempts: number,
+    targetDate?: Date | null
   ): Promise<number> => {
     try {
-      // Buscar dados de ontem do Supabase
+      // Buscar dados do dia alvo (selectedDateRed ou ontem)
       const now = new Date()
-      const yesterday = new Date(now)
-      yesterday.setDate(yesterday.getDate() - 1)
-      yesterday.setHours(0, 0, 0, 0)
+      const dateToAnalyze = targetDate ? new Date(targetDate) : new Date(now)
       
-      const yesterdayEnd = new Date(yesterday)
-      yesterdayEnd.setHours(23, 59, 59, 999)
+      if (!targetDate) {
+        dateToAnalyze.setDate(dateToAnalyze.getDate() - 1)
+      }
+      
+      dateToAnalyze.setHours(0, 0, 0, 0)
+      
+      const dateEnd = new Date(dateToAnalyze)
+      dateEnd.setHours(23, 59, 59, 999)
 
       const { data, error } = await supabase
         .from('roulette_history')
         .select('number, timestamp')
         .eq('roulette_id', rouletteId)
-        .gte('timestamp', yesterday.getTime())
-        .lt('timestamp', yesterdayEnd.getTime())
+        .gte('timestamp', dateToAnalyze.getTime())
+        .lt('timestamp', dateEnd.getTime())
         .order('timestamp', { ascending: true })
 
       if (error) {
@@ -1114,11 +1125,13 @@ export default function Home() {
       }
       
       if (!data || data.length === 0) {
-        console.log(`📭 Sem dados de ontem para ${rouletteId.substring(0, 25)}...`)
+        const dateLabel = targetDate ? format(targetDate, "dd/MM/yyyy", { locale: ptBR }) : "ontem"
+        console.log(`📭 Sem dados de ${dateLabel} para ${rouletteId.substring(0, 25)}...`)
         return 0
       }
       
-      console.log(`📊 ${rouletteId.substring(0, 25)}... - ${data.length} números de ontem encontrados`)
+      const dateLabel = targetDate ? format(targetDate, "dd/MM/yyyy", { locale: ptBR }) : "ontem"
+      console.log(`📊 ${rouletteId.substring(0, 25)}... - ${data.length} números de ${dateLabel} encontrados`)
 
       // Calcular sequências de RED
       const numbers = data.map(d => d.number)
@@ -1362,7 +1375,10 @@ export default function Home() {
           if (!strategyNumbers || strategyNumbers.length === 0) continue
           
           strategyCount++
-          const cacheKey = `${rouletteId}_${strategy.id}`
+          
+          // Incluir a data na chave do cache para que cada data tenha seu próprio máximo
+          const dateKey = selectedDateRed ? format(selectedDateRed, "yyyy-MM-dd") : "yesterday"
+          const cacheKey = `${rouletteId}_${strategy.id}_${dateKey}`
           
           // Calcular streak atual de RED
           const currentStreak = calculateCurrentRedStreak(numbers, strategyNumbers, streakAttempts)
@@ -1370,10 +1386,10 @@ export default function Home() {
           // Se não temos o máximo no cache, calcular
           let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
           if (maxRed === undefined) {
-            console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name}...`)
-            maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, streakAttempts)
+            console.log(`🔍 Calculando maxRed para ${rouletteId} - ${strategy.name} (${dateKey})...`)
+            maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, streakAttempts, selectedDateRed)
             maxRedStreakCacheRef.current.set(cacheKey, maxRed)
-            console.log(`  ✅ maxRed calculado: ${maxRed}`)
+            console.log(`  ✅ maxRed calculado: ${maxRed} para data ${dateKey}`)
           }
           
           // Verificar se atingiu o máximo E se houve novo lançamento desde última notificação
@@ -1466,16 +1482,17 @@ export default function Home() {
     addNotification,
     enableGreenAfterRedNotification,
     analyzeGreenAfterRedPattern,
-    showGreenNotificationToast
+    showGreenNotificationToast,
+    selectedDateRed // Data selecionada influencia o cálculo do maxRed
   ])
 
-  // Limpar cache quando mudar as casas de análise
+  // Limpar cache quando mudar as casas de análise ou a data selecionada
   useEffect(() => {
     maxRedStreakCacheRef.current = new Map()
     lastNotifiedTimestampRef.current = new Map()
     greenPatternCacheRef.current = new Map()
     lastGreenNotifiedTimestampRef.current = new Map()
-  }, [streakAttempts])
+  }, [streakAttempts, selectedDateRed])
 
   const analyzeStrategy = (strategyId: number | string, numbersArray: number[]) => {
     const strategy = STRATEGIES.find(s => s.id === strategyId)
@@ -1724,24 +1741,8 @@ export default function Home() {
 
   const updateNumberStatuses = () => {
     // ========================================
-    // SISTEMA DE MARCAÇÃO DE CORES - VERSÃO CORRIGIDA v4
-    // ========================================
-    // 
-    // ESTRUTURA DO ARRAY currentNumbers:
-    //   - Índice 0 = número MAIS RECENTE
-    //   - Índice N-1 = número MAIS ANTIGO
-    //
-    // EXIBIÇÃO NA TELA (sem .reverse()):
-    //   [0] [1] [2] ... [N-2] [N-1]
-    //   recente ――――――――――――――→ antigo
-    //   esquerda ―――――――――――――→ direita
-    //
-    // LÓGICA:
-    //   1. Processar do MAIS ANTIGO para o MAIS RECENTE
-    //   2. Número da estratégia = ACTIVATION (se não consumido)
-    //   3. Olhar N casas à ESQUERDA (índices menores = mais recentes)
-    //   4. Se encontrar número da estratégia → GREEN (consome esse índice)
-    //   5. Se não encontrar em N casas → RED
+    // SISTEMA DE MARCAÇÃO DE CORES - VERSÃO CORRIGIDA v5
+    // Inclui suporte para ESTRATÉGIAS DE GATILHO
     // ========================================
     
     const currentNumbers = recentNumbers.slice(0, analysisLimit)
@@ -1761,15 +1762,22 @@ export default function Home() {
       return
     }
 
+    // Verificar se é estratégia de gatilho
+    const isTriggerStrategy = typeof lastSelectedId === 'number' && lastSelectedId >= 500000 && lastSelectedId < 503000
+    let triggerDef = null
+    
+    if (isTriggerStrategy) {
+      // Buscar definição do gatilho
+      triggerDef = triggerStrategies
+        .flatMap(folder => folder.strategies)
+        .find(s => s.id === lastSelectedId)
+    }
+
     // ✅ FIX: Obter números da estratégia - suporte para customizadas
     let strategyNumbers: number[]
     if (typeof lastSelectedId === 'string' && lastSelectedId.startsWith('custom_')) {
-      // Estratégia customizada: usar números diretamente
-      console.log('🎨 Pintura: Estratégia customizada detectada:', strategy.name)
-      console.log('🎨 Usando numbers diretamente:', strategy.numbers)
       strategyNumbers = strategy.numbers || []
     } else {
-      // Estratégia hardcoded: usar getStrategyNumbers (pode ter lógica dinâmica)
       const { getStrategyNumbers } = require('@/lib/strategies')
       const numbersOnly = currentNumbers.map(n => n.number)
       strategyNumbers = getStrategyNumbers(lastSelectedId as number, numbersOnly)
@@ -1784,60 +1792,108 @@ export default function Home() {
     const greenIndices = new Set<number>()
     
     // ========================================
-    // PASSO 1: Identificar todos os números da estratégia (potenciais ACTIVATIONs)
+    // ESTRATÉGIAS DE GATILHO - LÓGICA ESPECIAL
     // ========================================
-    const strategyIndices: number[] = []
-    for (let i = 0; i < N; i++) {
-      if (strategySet.has(currentNumbers[i].number)) {
-        strategyIndices.push(i)
-      }
-    }
-    
-    // ========================================
-    // PASSO 2: Processar do MAIS ANTIGO para o MAIS RECENTE
-    // Ordem: índices maiores primeiro (mais antigos, à direita na tela)
-    // ========================================
-    
-    // Ordenar do maior para o menor (mais antigo primeiro)
-    strategyIndices.sort((a, b) => b - a)
-    
-    for (const idx of strategyIndices) {
-      // Se este índice já foi marcado como GREEN por uma ACTIVATION anterior, pular
-      if (greenIndices.has(idx)) {
-        continue
-      }
+    if (isTriggerStrategy && triggerDef) {
+      const [trigger1, trigger2] = triggerDef.triggerNumbers
+      const greenNum = triggerDef.greenNumber
       
-      // Este é uma ACTIVATION
-      statusArray[idx] = 'ACTIVATION'
+      // Processar do mais antigo para o mais recente (índices maiores primeiro)
+      let triggerState = 0 // 0 = esperando trigger1, 1 = esperando trigger2, 2 = esperando green
       
-      // Definir janela: N casas à ESQUERDA (índices MENORES = mais recentes)
-      const windowStart = idx - 1
-      const windowEnd = Math.max(0, idx - greenRedAttempts)
-      
-      // Verificar se a janela está completa
-      const windowIsComplete = (idx - greenRedAttempts) >= 0
-      
-      // Buscar GREEN dentro da janela
-      let foundGreen = false
-      
-      // Procurar do mais próximo (windowStart) ao mais distante (windowEnd)
-      for (let j = windowStart; j >= windowEnd; j--) {
-        if (j < 0) break
+      for (let i = N - 1; i >= 0; i--) {
+        const num = currentNumbers[i].number
         
-        const checkNum = currentNumbers[j].number
-        
-        if (strategySet.has(checkNum)) {
-          // Encontrou GREEN!
-          statusArray[j] = 'GREEN'
-          greenIndices.add(j) // Marcar como consumido
-          foundGreen = true
-          break // Para na PRIMEIRA ocorrência
+        if (triggerState === 0) {
+          // Esperando primeiro ativador
+          if (num === trigger1) {
+            statusArray[i] = 'ACTIVATION'
+            triggerState = 1
+          }
+        } else if (triggerState === 1) {
+          // Esperando segundo ativador
+          if (num === trigger2) {
+            statusArray[i] = 'ACTIVATION'
+            triggerState = 2
+          } else if (num === trigger1) {
+            // Primeiro ativador repetiu - resetar
+            statusArray[i] = 'ACTIVATION'
+            triggerState = 1
+          } else if (num === greenNum) {
+            // Green veio antes do segundo ativador - não conta
+            triggerState = 0
+          } else {
+            // Número diferente quebrou a sequência
+            triggerState = 0
+          }
+        } else if (triggerState === 2) {
+          // Esperando GREEN
+          if (num === greenNum) {
+            statusArray[i] = 'GREEN'
+            greenIndices.add(i)
+            triggerState = 0 // Resetar após GREEN
+          } else if (num === trigger1) {
+            // Reiniciou sequência
+            statusArray[i] = 'ACTIVATION'
+            triggerState = 1
+          } else {
+            // Número diferente - verificar se é RED
+            // Se já passou da janela de tentativas, marcar como RED
+            const lastActivationIdx = statusArray.lastIndexOf('ACTIVATION')
+            if (lastActivationIdx !== -1 && (lastActivationIdx - i) >= greenRedAttempts) {
+              // Marcar RED na posição limite
+              const redIdx = lastActivationIdx - greenRedAttempts
+              if (redIdx >= 0 && statusArray[redIdx] === 'NEUTRAL') {
+                statusArray[redIdx] = 'RED'
+              }
+            }
+            triggerState = 0
+          }
+        }
+      }
+    } else {
+      // ========================================
+      // ESTRATÉGIAS NORMAIS - LÓGICA PADRÃO
+      // ========================================
+      const strategyIndices: number[] = []
+      for (let i = 0; i < N; i++) {
+        if (strategySet.has(currentNumbers[i].number)) {
+          strategyIndices.push(i)
         }
       }
       
-      // Se não encontrou GREEN e janela completa → RED
-      if (!foundGreen && windowIsComplete) {
-        statusArray[windowEnd] = 'RED'
+      // Ordenar do maior para o menor (mais antigo primeiro)
+      strategyIndices.sort((a, b) => b - a)
+      
+      for (const idx of strategyIndices) {
+        if (greenIndices.has(idx)) {
+          continue
+        }
+        
+        statusArray[idx] = 'ACTIVATION'
+        
+        const windowStart = idx - 1
+        const windowEnd = Math.max(0, idx - greenRedAttempts)
+        const windowIsComplete = (idx - greenRedAttempts) >= 0
+        
+        let foundGreen = false
+        
+        for (let j = windowStart; j >= windowEnd; j--) {
+          if (j < 0) break
+          
+          const checkNum = currentNumbers[j].number
+          
+          if (strategySet.has(checkNum)) {
+            statusArray[j] = 'GREEN'
+            greenIndices.add(j)
+            foundGreen = true
+            break
+          }
+        }
+        
+        if (!foundGreen && windowIsComplete) {
+          statusArray[windowEnd] = 'RED'
+        }
       }
     }
     
@@ -2565,10 +2621,12 @@ export default function Home() {
               
               <Button
                 onClick={() => {
-                  // Alternar entre pares e quíntuplas
+                  // Ciclar: Pares → Quíntuplas → Gatilho → Pares
                   if (chipCategory === 'pairs') {
                     setChipCategory('quintuplets')
                   } else if (chipCategory === 'quintuplets') {
+                    setChipCategory('triggers')
+                  } else if (chipCategory === 'triggers') {
                     setChipCategory('pairs')
                   } else {
                     setChipCategory('pairs')
@@ -2576,12 +2634,12 @@ export default function Home() {
                   setShowCustomChipInput(false)
                 }}
                 className={`flex items-center justify-center py-2 text-xs font-semibold transition-all ${
-                  chipCategory === 'pairs' || chipCategory === 'quintuplets'
+                  chipCategory === 'pairs' || chipCategory === 'quintuplets' || chipCategory === 'triggers'
                     ? 'bg-pink-600 hover:bg-pink-700 ring-2 ring-pink-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                 }`}
               >
-                {chipCategory === 'pairs' ? 'Pares (2)' : chipCategory === 'quintuplets' ? 'Quíntuplas (5)' : 'Pares'}
+                {chipCategory === 'pairs' ? 'Pares (2)' : chipCategory === 'quintuplets' ? 'Quínt (5)' : chipCategory === 'triggers' ? 'Gatilho' : 'Combos'}
               </Button>
               
               <Button
@@ -3858,10 +3916,12 @@ export default function Home() {
               
               <Button
                 onClick={() => {
-                  // Alternar entre pares e quíntuplas
+                  // Ciclar: Pares → Quíntuplas → Gatilho → Pares
                   if (chipCategory === 'pairs') {
                     setChipCategory('quintuplets')
                   } else if (chipCategory === 'quintuplets') {
+                    setChipCategory('triggers')
+                  } else if (chipCategory === 'triggers') {
                     setChipCategory('pairs')
                   } else {
                     setChipCategory('pairs')
@@ -3869,12 +3929,12 @@ export default function Home() {
                   setShowCustomChipInput(false)
                 }}
                 className={`flex items-center justify-center py-1 text-[10px] font-semibold transition-all ${
-                  chipCategory === 'pairs' || chipCategory === 'quintuplets'
+                  chipCategory === 'pairs' || chipCategory === 'quintuplets' || chipCategory === 'triggers'
                     ? 'bg-pink-600 hover:bg-pink-700 ring-2 ring-pink-400' 
                     : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                 }`}
               >
-                {chipCategory === 'pairs' ? '2 Núms' : chipCategory === 'quintuplets' ? '5 Núms' : 'Pares'}
+                {chipCategory === 'pairs' ? '2N' : chipCategory === 'quintuplets' ? '5N' : chipCategory === 'triggers' ? 'G' : '2N'}
               </Button>
               
               <Button

@@ -4,11 +4,13 @@
 // 8 Pastas (255 estratégias) - MAIS DE 9 FICHAS
 // 37 Pastas (666 estratégias) - COMBINAÇÕES DE 2 NÚMEROS
 // 37 Pastas (435.897 estratégias) - COMBINAÇÕES DE 5 NÚMEROS
-// TOTAL: 99 PASTAS, 437.110 ESTRATÉGIAS
+// 630 Pastas (2.220 estratégias) - ESTRATÉGIAS DE GATILHO
+// TOTAL: 729 PASTAS, 439.330 ESTRATÉGIAS
 // ========================================
 
 import { pairStrategies } from './strategies-pairs'
 import { quintupletStrategies } from './strategies-quintuplets'
+import { triggerStrategies } from './strategies-triggers'
 
 export interface Strategy { 
   id: number
@@ -21,7 +23,7 @@ export interface StrategyFolder {
   strategies: Strategy[] 
 }
 
-export type ChipCategory = 'up-to-9' | 'more-than-9' | 'pairs' | 'quintuplets' | 'all' | 'custom'
+export type ChipCategory = 'up-to-9' | 'more-than-9' | 'pairs' | 'quintuplets' | 'triggers' | 'all' | 'custom'
 
 // ========================================
 // ESTRATÉGIAS ATÉ 9 FICHAS - 226 ESTRATÉGIAS
@@ -744,8 +746,18 @@ const strategiesMoreThan9: StrategyFolder[] = [
 
 export function getAllStrategies(category: ChipCategory, customLimit?: number): StrategyFolder[] {
   if (category === 'all') {
-    // Combinar TODAS as estratégias (até 9 + mais de 9 + pares + quíntuplas)
-    return [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
+    // Combinar TODAS as estratégias (até 9 + mais de 9 + pares + quíntuplas + gatilhos)
+    const normalStrategies = [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
+    // Converter gatilhos para formato StrategyFolder
+    const triggerFoldersConverted = triggerStrategies.map(folder => ({
+      name: folder.name,
+      strategies: folder.strategies.map(s => ({
+        id: s.id,
+        name: s.name,
+        numbers: [...s.triggerNumbers, s.greenNumber]
+      }))
+    }))
+    return [...normalStrategies, ...triggerFoldersConverted]
   }
   
   if (category === 'pairs') {
@@ -758,10 +770,31 @@ export function getAllStrategies(category: ChipCategory, customLimit?: number): 
     return quintupletStrategies
   }
   
+  if (category === 'triggers') {
+    // Retornar apenas as estratégias de gatilho (convertidas para formato compatível)
+    return triggerStrategies.map(folder => ({
+      name: folder.name,
+      strategies: folder.strategies.map(s => ({
+        id: s.id,
+        name: s.name,
+        numbers: [...s.triggerNumbers, s.greenNumber]
+      }))
+    }))
+  }
+  
   if (category === 'custom' && customLimit) {
     // Filtrar estratégias de 1 até customLimit fichas
     const allFolders = [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
-    return allFolders.map(folder => ({
+    const triggerFoldersConverted = triggerStrategies.map(folder => ({
+      name: folder.name,
+      strategies: folder.strategies.map(s => ({
+        id: s.id,
+        name: s.name,
+        numbers: [...s.triggerNumbers, s.greenNumber]
+      }))
+    }))
+    const combined = [...allFolders, ...triggerFoldersConverted]
+    return combined.map(folder => ({
       ...folder,
       strategies: folder.strategies.filter(strategy => strategy.numbers.length <= customLimit)
     })).filter(folder => folder.strategies.length > 0) // Remover pastas vazias
@@ -842,6 +875,19 @@ export function getStrategyNumbers(strategyId: number, lastNumbers: number[]): n
   const allStrategies = [...strategiesUpTo9, ...strategiesMoreThan9, ...pairStrategies, ...quintupletStrategies]
     .flatMap(folder => folder.strategies)
   
+  // Buscar em estratégias normais
   const strategy = allStrategies.find(s => s.id === strategyId)
-  return strategy?.numbers || []
+  if (strategy) return strategy.numbers
+  
+  // Buscar em estratégias de gatilho
+  const triggerStrategy = triggerStrategies
+    .flatMap(folder => folder.strategies)
+    .find(s => s.id === strategyId)
+  
+  if (triggerStrategy) {
+    // Para gatilhos, retornar todos os 3 números (2 ativadores + 1 green)
+    return [...triggerStrategy.triggerNumbers, triggerStrategy.greenNumber]
+  }
+  
+  return []
 }
