@@ -326,13 +326,15 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         // Salvar no cache
         saveToCache(rouletteId, updatedHistory)
         
+        // IMPORTANTE: Incrementar versão para QUALQUER roleta (dispara notificações em background)
+        setUpdateVersion(v => v + 1)
+        
         // Se estiver selecionada, atualizar estado
         if (isSelected) {
           console.log(`   ⚡⚡⚡ ATUALIZANDO TELA!`)
           console.log(`   📋 Primeiros 10 números: [${updatedHistory.slice(0, 10).map(n => n.number).join(', ')}]`)
           setRecentNumbers([...updatedHistory])
           setLastNumber({...newEntry})
-          setUpdateVersion(v => v + 1)
         } else {
           console.log(`   🚫 Não atualizar tela (roleta não selecionada)`)
         }
@@ -370,6 +372,9 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
               timestamp: now - (index * 60000)
             }))
             rouletteHistoryRef.current.set(rouletteId, history)
+            
+            // IMPORTANTE: Incrementar versão para disparar notificações em background
+            setUpdateVersion(v => v + 1)
           }
           
           // IMPORTANTE: Adicionar à lista de roletas disponíveis (se for nova)
