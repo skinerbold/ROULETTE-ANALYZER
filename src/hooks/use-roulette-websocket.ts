@@ -321,22 +321,16 @@ export function useRouletteWebSocket(): UseRouletteWebSocketReturn {
         const updatedHistory = [newEntry, ...currentHistory].slice(0, WEBSOCKET_CONFIG.maxHistorySize)
         rouletteHistoryRef.current.set(rouletteId, updatedHistory)
         
-        console.log(`   📊 Histórico atualizado: ${updatedHistory.length} números`)
-        
         // Salvar no cache
         saveToCache(rouletteId, updatedHistory)
         
-        // IMPORTANTE: Incrementar versão para QUALQUER roleta (dispara notificações em background)
+        // Incrementar versão para disparar verificação de notificações
         setUpdateVersion(v => v + 1)
         
-        // Se estiver selecionada, atualizar estado
+        // Se estiver selecionada, atualizar estado da tela
         if (isSelected) {
-          console.log(`   ⚡⚡⚡ ATUALIZANDO TELA!`)
-          console.log(`   📋 Primeiros 10 números: [${updatedHistory.slice(0, 10).map(n => n.number).join(', ')}]`)
           setRecentNumbers([...updatedHistory])
           setLastNumber({...newEntry})
-        } else {
-          console.log(`   🚫 Não atualizar tela (roleta não selecionada)`)
         }
         
         return

@@ -18,6 +18,7 @@ import Header, { Notification } from '@/components/Header'
 import ProfileEdit from '@/components/ProfileEdit'
 import CreateStrategyModal from '@/components/CreateStrategyModal'
 import { useRouletteWebSocket } from '@/hooks/use-roulette-websocket'
+import { RouletteNumber } from '@/lib/roulette-websocket'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
@@ -114,6 +115,8 @@ export default function Home() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const maxRedStreakCacheRef = useRef<Map<string, number>>(new Map()) // cache: "roleta_estrategia" -> maxRed
   const lastNotifiedTimestampRef = useRef<Map<string, number>>(new Map()) // cache: "roleta_estrategia" -> último timestamp notificado
+  const lastCheckTimeRef = useRef<number>(0) // OTIMIZAÇÃO: Controle de throttle para verificações
+  const lastHistoryHashRef = useRef<Map<string, string>>(new Map()) // OTIMIZAÇÃO: Hash do histórico para detectar mudanças reais
   
   // Estados para notificações de GREEN pós RED personalizado
   const [enableGreenAfterRedNotification, setEnableGreenAfterRedNotification] = useState(false)
@@ -1194,39 +1197,59 @@ export default function Home() {
   }, [])
 
   // useEffect para monitorar em background TODAS as estratégias e roletas
+  // OTIMIZADO: Usa throttle de 30 segundos e verifica apenas roletas que mudaram
   useEffect(() => {
     if (!isConnected || availableRoulettes.length === 0 || STRATEGIES.length === 0) {
       return
     }
 
     const checkAllStreaks = async () => {
+      // OTIMIZAÇÃO 1: Throttle - verificar no máximo a cada 30 segundos
+      const now = Date.now()
+      const timeSinceLastCheck = now - lastCheckTimeRef.current
+      const THROTTLE_INTERVAL = 30000 // 30 segundos
+      
+      if (timeSinceLastCheck < THROTTLE_INTERVAL) {
+        // Ainda não passou tempo suficiente, ignorar esta verificação
+        return
+      }
+      
+      lastCheckTimeRef.current = now
+      
       const allHistory = getAllRoulettesHistory()
       
-      // Debug: mostrar todas as roletas sendo analisadas
-      const roletasAnalisadas: string[] = []
-      for (const [rouletteId] of allHistory) {
-        roletasAnalisadas.push(rouletteId)
-      }
-      console.log(`🔍 [NOTIFICAÇÕES] Verificando ${allHistory.size} roletas: [${roletasAnalisadas.slice(0, 5).join(', ')}${roletasAnalisadas.length > 5 ? '...' : ''}]`)
-      console.log(`🔍 [NOTIFICAÇÕES] Com ${STRATEGIES.length} estratégias e ${streakAttempts} casas`)
+      // OTIMIZAÇÃO 2: Verificar apenas roletas que realmente mudaram
+      const changedRoulettes: Map<string, RouletteNumber[]> = new Map()
       
-      // Para cada roleta com histórico
       for (const [rouletteId, history] of allHistory) {
-        if (history.length < 10) {
-          console.log(`⏭️ Roleta ${rouletteId} ignorada: apenas ${history.length} números`)
-          continue
-        }
+        if (history.length < 10) continue
         
+        // Criar hash simples dos últimos 5 números para detectar mudança
+        const currentHash = history.slice(0, 5).map(h => h.number).join(',')
+        const lastHash = lastHistoryHashRef.current.get(rouletteId)
+        
+        if (currentHash !== lastHash) {
+          changedRoulettes.set(rouletteId, history)
+          lastHistoryHashRef.current.set(rouletteId, currentHash)
+        }
+      }
+      
+      if (changedRoulettes.size === 0) {
+        // Nenhuma roleta mudou, não fazer nada
+        return
+      }
+      
+      console.log(`🔍 [NOTIFICAÇÕES] Verificando ${changedRoulettes.size} roletas que mudaram (de ${allHistory.size} total)`)
+      
+      // Para cada roleta que mudou
+      for (const [rouletteId, history] of changedRoulettes) {
         const numbers = history.map(h => h.number)
-        const latestTimestamp = history[0]?.timestamp || 0 // Timestamp do número mais recente
+        const latestTimestamp = history[0]?.timestamp || 0
         
         // Para cada estratégia
-        let strategyCount = 0
         for (const strategy of STRATEGIES) {
           const strategyNumbers = strategy.numbers
           if (!strategyNumbers || strategyNumbers.length === 0) continue
-          
-          strategyCount++
           
           // Incluir a data na chave do cache para que cada data tenha seu próprio máximo
           const dateKey = selectedDateRed ? format(selectedDateRed, "yyyy-MM-dd") : "yesterday"
@@ -1235,64 +1258,26 @@ export default function Home() {
           // Calcular streak atual de RED (dos dados em tempo real)
           const currentStreak = calculateCurrentRedStreak(numbers, strategyNumbers, streakAttempts)
           
+          // OTIMIZAÇÃO 3: Se currentStreak for baixo, nem verificar o máximo
+          if (currentStreak < 3) continue // Ignorar streaks muito baixas
+          
           // Se não temos o máximo no cache, calcular com base na data selecionada
           let maxRed = maxRedStreakCacheRef.current.get(cacheKey)
           if (maxRed === undefined) {
-            console.log(`🔍 Calculando maxRed para ${rouletteId.substring(0, 20)}... - Estratégia: ${strategy.name} (ID=${strategy.id}) - Data: ${dateKey}`)
             maxRed = await calculateMaxRedForNotification(rouletteId, strategyNumbers, strategy.id, streakAttempts, selectedDateRed)
             maxRedStreakCacheRef.current.set(cacheKey, maxRed)
-            console.log(`  ✅ maxRed calculado: ${maxRed} para Estratégia ${strategy.name} (ID=${strategy.id}) na data ${dateKey}`)
           }
           
           // Verificar se atingiu o máximo E se houve novo lançamento desde última notificação
           const lastNotifiedTs = lastNotifiedTimestampRef.current.get(cacheKey) || 0
-          
-          // ========== DEBUG DETALHADO PARA INVESTIGAR BUG ==========
           const shouldNotify = maxRed > 0 && currentStreak >= maxRed && latestTimestamp > lastNotifiedTs
-          
-          if (currentStreak > 0 || maxRed > 0) {
-            console.log(`
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 ANÁLISE DE NOTIFICAÇÃO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Roleta: ${rouletteId.substring(0, 30)}
-Estratégia: ${strategy.name}
-Números da estratégia: [${strategyNumbers.join(', ')}]
-Data de referência: ${dateKey}
-Casas de análise: ${streakAttempts}
-
-📈 DADOS:
-  • Sequência atual (tempo real): ${currentStreak} REDs
-  • Máximo da data selecionada:  ${maxRed} REDs
-  • Último timestamp notificado:  ${lastNotifiedTs}
-  • Timestamp do número mais recente: ${latestTimestamp}
-
-🔍 CONDIÇÕES:
-  ✓ maxRed > 0? ${maxRed > 0} (${maxRed})
-  ✓ currentStreak >= maxRed? ${currentStreak >= maxRed} (${currentStreak} >= ${maxRed})
-  ✓ latestTimestamp > lastNotifiedTs? ${latestTimestamp > lastNotifiedTs} (${latestTimestamp} > ${lastNotifiedTs})
-
-🎯 RESULTADO: ${shouldNotify ? '🔔 DISPARAR NOTIFICAÇÃO' : '⏸️  NÃO NOTIFICAR'}
-
-Últimos 10 números (recente→antigo): [${numbers.slice(0, 10).join(', ')}]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            `)
-          }
           
           if (shouldNotify) {
             // Encontrar nome da roleta
             const rouletteInfo = availableRoulettes.find(r => r.id === rouletteId)
             const rouletteName = rouletteInfo?.name || rouletteId
             
-            console.log(`🔔 ════════════════════════════════════════════════════════════════`)
-            console.log(`🔔 NOTIFICAÇÃO DISPARADA!`)
-            console.log(`🔔 Roleta: ${rouletteName}`)
-            console.log(`🔔 Estratégia: ${strategy.name} (ID=${strategy.id})`)
-            console.log(`🔔 Números da estratégia: [${strategyNumbers.join(', ')}]`)
-            console.log(`🔔 Sequência atual: ${currentStreak} REDs`)
-            console.log(`🔔 Máximo comparado: ${maxRed} REDs (data: ${dateKey}, ${streakAttempts} casa${streakAttempts > 1 ? 's' : ''})`)
-            console.log(`🔔 Cache Key: ${cacheKey}`)
-            console.log(`🔔 ════════════════════════════════════════════════════════════════`)
+            console.log(`🔔 Notificação: ${strategy.name} em ${rouletteName} - ${currentStreak}/${maxRed} REDs`)
             
             // Adicionar notificação
             addNotification({
@@ -1308,7 +1293,7 @@ Casas de análise: ${streakAttempts}
           }
           
           // ========== NOTIFICAÇÃO GREEN PÓS RED PERSONALIZADO ==========
-          if (enableGreenAfterRedNotification && currentStreak > 0) {
+          if (enableGreenAfterRedNotification && currentStreak >= 3) {
             const greenCacheKey = `green_${cacheKey}`
             const lastGreenNotifiedTs = lastGreenNotifiedTimestampRef.current.get(greenCacheKey) || 0
             
@@ -1319,7 +1304,6 @@ Casas de análise: ${streakAttempts}
               pattern = await analyzeGreenAfterRedPattern(rouletteId, strategyNumbers, streakAttempts) || undefined
               if (pattern) {
                 greenPatternCacheRef.current.set(cacheKey, pattern)
-                console.log(`🟢 Padrão identificado para ${rouletteId} - ${strategy.name}: após ${pattern.redsNeeded} REDs, GREEN com ${pattern.accuracy}% de acerto`)
               }
             }
             
@@ -1339,12 +1323,9 @@ Casas de análise: ${streakAttempts}
               
               // Marcar como notificado
               lastGreenNotifiedTimestampRef.current.set(greenCacheKey, latestTimestamp)
-              
-              console.log(`🎯 NOTIFICAÇÃO GREEN: ${rouletteName} - ${strategy.name} - ${currentStreak} REDs (padrão: ${pattern.redsNeeded}+, acerto: ${pattern.accuracy}%)`)
             }
           }
         }
-        console.log(`  📌 Roleta ${rouletteId.substring(0, 30)}... processou ${strategyCount} estratégias`)
       }
     }
 
